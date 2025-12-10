@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 import org.mark.llamacpp.gguf.GGUFMetaData;
 import org.mark.llamacpp.gguf.GGUFModel;
 import org.mark.llamacpp.server.struct.ModelLaunchOptions;
+import org.mark.llamacpp.server.tools.GGUFBundle;
 import org.mark.llamacpp.server.tools.PortChecker;
 
 import com.google.gson.Gson;
@@ -218,6 +219,7 @@ public class LlamaServerManager {
 
     /**
      * 	处理这个路径的文件夹，找到可用的GGUF文件。
+     * 	使用GGUFBundle来处理文件分组和识别
      * @param path
      * @return
      */
@@ -230,74 +232,93 @@ public class LlamaServerManager {
 			System.err.println("Invalid directory: " + path);
 			return null;
 		}
+		
 		File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".gguf"));
 		if (files == null || files.length == 0) {
-			System.err.println("No GGUF files found in directory: " + path);
+			// System.err.println("No GGUF files found in directory: " + path);
 			return null;
 		}
 
-		GGUFModel model = new GGUFModel(dir.getName(), dir.getAbsolutePath());
-		model.setAlias(dir.getName());
-
-		// 1、只有一个文件
-		if (files.length == 1 && files[0].getName().endsWith("gguf")) {
-			// 判断是model类型
-			GGUFMetaData md = GGUFMetaData.readFile(files[0]);
-			if ("model".equals(md.getStringValue("general.type"))) {
+		// 寻找最佳的种子文件来初始化GGUFBundle
+		File seedFile = null;
+		
+		// 1. 尝试找到分卷的第一卷 (匹配 *-00001-of-*.gguf)
+		for(File f : files) {
+			String name = f.getName().toLowerCase();
+			if(name.matches(".*-00001-of-\\d{5}\\.gguf$")) {
+				seedFile = f;
+				break;
+			}
+		}
+		
+		// 2. 如果没找到明确的第一卷，找一个不含mmproj的文件
+		if(seedFile == null) {
+			for(File f : files) {
+				String name = f.getName().toLowerCase();
+				if(!name.contains("mmproj")) {
+					seedFile = f;
+					break;
+				}
+			}
+		}
+		
+		// 3. 实在不行，就用第一个文件
+		if(seedFile == null && files.length > 0) {
+			seedFile = files[0];
+		}
+		
+		if(seedFile == null) return null;
+		
+		try {
+			GGUFBundle bundle = new GGUFBundle(seedFile);
+			
+			GGUFModel model = new GGUFModel(dir.getName(), dir.getAbsolutePath());
+			model.setAlias(dir.getName());
+			
+			// 处理主模型文件
+			File primaryFile = bundle.getPrimaryFile();
+			if(primaryFile != null && primaryFile.exists()) {
+				GGUFMetaData md = GGUFMetaData.readFile(primaryFile);
 				model.setPrimaryModel(md);
-				model.addMetaData(md);
-				model.setSize(files[0].length());
 			}
-		}
-		// 2、只有两个文件
-		if (files.length == 2) {
-			// 查找mmproj文件
-			long size = 0;
-			for (File f : files) {
-				// 不是gguf就结束
-				if (!f.getName().endsWith("gguf"))
-					continue;
-				//
-				GGUFMetaData md = GGUFMetaData.readFile(f);
-				//
-				String type = md.getStringValue("general.type");
-				if ("mmproj".equals(type)) {
-					model.setMmproj(md);
-					size += f.length();
-				}
-				if ("model".equals(type)) {
-					model.setPrimaryModel(md);
-					size += f.length();
-				}
+			
+			// 处理mmproj文件
+			File mmprojFile = bundle.getMmprojFile();
+			if(mmprojFile != null && mmprojFile.exists()) {
+				GGUFMetaData md = GGUFMetaData.readFile(mmprojFile);
+				model.setMmproj(md);
 				model.addMetaData(md);
 			}
-			model.setSize(size);
-		}
-		// 3、超过两个文件
-		if (files.length > 2) {
-			long size = 0;
-			for (File f : files) {
-				// 不是gguf就结束
-				if (!f.getName().endsWith("gguf"))
-					continue;
-				//
-				GGUFMetaData md = GGUFMetaData.readFile(f);
-				//
-				String type = md.getStringValue("general.type");
-				if ("mmproj".equals(type)) {
-					model.setMmproj(md);
-					
+			
+			// 添加所有分卷文件的元数据
+			List<File> splitFiles = bundle.getSplitFiles();
+			if(splitFiles != null) {
+				for(File f : splitFiles) {
+					if(f.exists()) {
+						GGUFMetaData md = GGUFMetaData.readFile(f);
+						model.addMetaData(md);
+					}
 				}
-				if ("model".equals(type)) {
-					if (0 == md.getIntValue("split.no"))
+			}
+			
+			model.setSize(bundle.getTotalFileSize());
+			
+			// 如果没有PrimaryModel，尝试从metaDataList中找一个
+			if(model.getPrimaryModel() == null && !model.getMetaDataList().isEmpty()) {
+				for(GGUFMetaData md : model.getMetaDataList()) {
+					if("model".equals(md.getStringValue("general.type"))) {
 						model.setPrimaryModel(md);
+						break;
+					}
 				}
-				size += f.length();
-				model.addMetaData(md);
 			}
-			model.setSize(size);
+			
+			return model;
+			
+		} catch (Exception e) {
+			System.err.println("处理目录失败 " + path + ": " + e.getMessage());
+			return null;
 		}
-		return model;
 	}
 
 	/**
