@@ -1,0 +1,8 @@
+/target/
+/config/
+/logs/
+/releases/
+/.settings/
+/benchmarks/
+/.project
+/.classpath
