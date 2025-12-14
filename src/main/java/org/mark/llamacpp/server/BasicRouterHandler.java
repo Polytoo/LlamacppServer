@@ -218,6 +218,10 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			this.handleModelBenchmarkGet(ctx, request);
 			return;
 		}
+		if (uri.startsWith("/api/models/benchmark/delete")) {
+			this.handleModelBenchmarkDelete(ctx, request);
+			return;
+		}
 
 		ctx.fireChannelRead(request.retain());
 	}
@@ -1070,6 +1074,16 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 					}
 				}
 			}
+			String llamaBinPath = null;
+			if (json.has("llamaBinPath") && !json.get("llamaBinPath").isJsonNull()) {
+				llamaBinPath = json.get("llamaBinPath").getAsString();
+				if (llamaBinPath != null) {
+					llamaBinPath = llamaBinPath.trim();
+					if (llamaBinPath.isEmpty()) {
+						llamaBinPath = null;
+					}
+				}
+			}
 			if (repetitions <= 0) {
 				repetitions = 1;
 			}
@@ -1085,25 +1099,8 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				return;
 			}
 			String modelPath = model.getPrimaryModel().getFilePath();
-			ConfigManager configManager = ConfigManager.getInstance();
-			Map<String, Object> launchConfig = configManager.getLaunchConfig(modelId);
-			String binBase = null;
-			if (launchConfig != null) {
-				Object pathObj = launchConfig.get("llamaBinPath");
-				if (pathObj != null) {
-					binBase = String.valueOf(pathObj).trim();
-				}
-			}
-			if (binBase == null || binBase.isEmpty()) {
-				Path configFile = LlamaServer.getLlamaCppConfigPath();
-				LlamaCppConfig cfg = LlamaServer.readLlamaCppConfig(configFile);
-				List<String> paths = cfg.getPaths();
-				if (paths != null && !paths.isEmpty()) {
-					binBase = paths.get(0);
-				}
-			}
-			if (binBase == null || binBase.isEmpty()) {
-				sendJsonResponse(ctx, ApiResponse.error("未找到llama-bench路径，请先在设置中配置llama.cpp路径或为模型设置llamaBinPath"));
+			if (llamaBinPath == null || llamaBinPath.isEmpty()) {
+				sendJsonResponse(ctx, ApiResponse.error("缺少必需的llama.cpp路径参数: llamaBinPath"));
 				return;
 			}
 			String osName = System.getProperty("os.name").toLowerCase();
@@ -1111,7 +1108,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			if (osName.contains("win")) {
 				executableName = "llama-bench.exe";
 			}
-			File benchFile = new File(binBase, executableName);
+			File benchFile = new File(llamaBinPath, executableName);
 			if (!benchFile.exists() || !benchFile.isFile()) {
 				sendJsonResponse(ctx, ApiResponse.error("llama-bench可执行文件不存在: " + benchFile.getAbsolutePath()));
 				return;
@@ -1162,8 +1159,23 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 					}
 				}
 			}
+			String commandStr = String.join(" ", command);
 			ProcessBuilder pb = new ProcessBuilder(command);
 			pb.redirectErrorStream(true);
+			String benchPath = benchFile.getAbsolutePath();
+			if (benchPath.startsWith("/")) {
+				int lastSlash = benchPath.lastIndexOf('/');
+				if (lastSlash > 0) {
+					String libPath = benchPath.substring(0, lastSlash);
+					Map<String, String> env = pb.environment();
+					String currentLdPath = env.get("LD_LIBRARY_PATH");
+					if (currentLdPath != null && !currentLdPath.isEmpty()) {
+						env.put("LD_LIBRARY_PATH", libPath + ":" + currentLdPath);
+					} else {
+						env.put("LD_LIBRARY_PATH", libPath);
+					}
+				}
+			}
 			Process process = pb.start();
 			StringBuilder output = new StringBuilder();
 			try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
@@ -1183,6 +1195,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			Map<String, Object> data = new HashMap<>();
 			data.put("modelId", modelId);
 			data.put("command", command);
+			data.put("commandStr", commandStr);
 			data.put("exitCode", exitCode);
 			if (!text.isEmpty()) {
 				data.put("rawOutput", text);
@@ -1196,7 +1209,10 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 					}
 					File outFile = new File(dir, fileName);
 					try (FileOutputStream fos = new FileOutputStream(outFile)) {
-						fos.write(text.getBytes(StandardCharsets.UTF_8));
+						StringBuilder fileContent = new StringBuilder();
+						fileContent.append("command: ").append(commandStr).append(System.lineSeparator()).append(System.lineSeparator());
+						fileContent.append(text);
+						fos.write(fileContent.toString().getBytes(StandardCharsets.UTF_8));
 					}
 					data.put("savedPath", outFile.getAbsolutePath());
 				} catch (Exception ex) {
@@ -1296,6 +1312,45 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			sendJsonResponse(ctx, ApiResponse.success(data));
 		} catch (Exception e) {
 			sendJsonResponse(ctx, ApiResponse.error("读取基准测试结果失败: " + e.getMessage()));
+		}
+	}
+
+	private void handleModelBenchmarkDelete(ChannelHandlerContext ctx, FullHttpRequest request) {
+		try {
+			if (request.method() != HttpMethod.POST) {
+				sendJsonResponse(ctx, ApiResponse.error("只支持POST请求"));
+				return;
+			}
+			String query = request.uri();
+			String fileName = null;
+			if (query.contains("?fileName=")) {
+				fileName = query.substring(query.indexOf("?fileName=") + 10);
+				if (fileName.contains("&")) {
+					fileName = fileName.substring(0, fileName.indexOf("&"));
+				}
+				fileName = URLDecoder.decode(fileName, "UTF-8");
+			}
+			if (fileName == null || fileName.trim().isEmpty()) {
+				sendJsonResponse(ctx, ApiResponse.error("缺少必需的fileName参数"));
+				return;
+			}
+			if (!fileName.matches("[a-zA-Z0-9._\\-]+")) {
+				sendJsonResponse(ctx, ApiResponse.error("文件名不合法"));
+				return;
+			}
+			File dir = new File("benchmarks");
+			File target = new File(dir, fileName);
+			if (!target.exists() || !target.isFile()) {
+				sendJsonResponse(ctx, ApiResponse.error("文件不存在"));
+				return;
+			}
+			Files.delete(target.toPath());
+			Map<String, Object> data = new HashMap<>();
+			data.put("fileName", fileName);
+			data.put("deleted", true);
+			sendJsonResponse(ctx, ApiResponse.success(data));
+		} catch (Exception e) {
+			sendJsonResponse(ctx, ApiResponse.error("删除基准测试结果失败: " + e.getMessage()));
 		}
 	}
     
