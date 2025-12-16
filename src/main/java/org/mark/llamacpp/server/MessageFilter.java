@@ -7,7 +7,9 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -116,16 +118,35 @@ public class MessageFilter {
 	
 	private static void save(String modelId, ChannelHandlerContext ctx, boolean isStream) {
 		try {
-			Map<String, Object> result = callSlotsEndpoint(modelId, 0, "save");
-			String content = "/SLOTSAVE" + gson.toJson(result);
+			Integer totalSlots = fetchTotalSlots(modelId);
+			int slots = (totalSlots == null || totalSlots.intValue() <= 0) ? 1 : totalSlots.intValue();
+
+			List<Map<String, Object>> results = new ArrayList<>();
+			for (int slotId = 0; slotId < slots; slotId++) {
+				Map<String, Object> r = callSlotsEndpoint(modelId, slotId, "save");
+				results.add(r);
+			}
+
+			StringBuilder sb = new StringBuilder();
+			sb.append(LlamaServer.SLOTS_SAVE_KEYWORD + "-操作结果：");
+			for (int i = 0; i < results.size(); i++) {
+				Map<String, Object> r = results.get(i);
+				Object slotObj = r.get("slotId");
+				int slotId = slotObj instanceof Number ? ((Number) slotObj).intValue() : i;
+				Object statusObj = r.get("status");
+				int status = statusObj instanceof Number ? ((Number) statusObj).intValue() : -1;
+				boolean ok = status == 200;
+				sb.append(slotId).append(":").append(ok);
+				if (i < results.size() - 1) {
+					sb.append(";");
+				}
+			}
+			sb.append("\n你在这里存档了，重启过程序再用的时候，记得使用 [" + LlamaServer.SLOTS_LOAD_KEYWORD + "] 还原KV哦");
+			String content = sb.toString();
 			sendOpenAIResponse(ctx, modelId, content, isStream);
 		} catch (Exception e) {
 			LOGGER.error("保存slot缓存时发生错误", e);
-			Map<String, Object> err = new HashMap<>();
-			err.put("success", false);
-			err.put("modelId", modelId);
-			err.put("error", e.getMessage());
-			String content = "/SLOTSAVE" + gson.toJson(err);
+			String content = LlamaServer.SLOTS_SAVE_KEYWORD + "-操作结果：" + e.toString();
 			sendOpenAIResponse(ctx, modelId, content, isStream);
 		}
 	}
@@ -136,17 +157,108 @@ public class MessageFilter {
 	
 	private static void load(String modelId, ChannelHandlerContext ctx, boolean isStream) {
 		try {
-			Map<String, Object> result = callSlotsEndpoint(modelId, 0, "restore");
-			String content = "/SLOTLOAD" + gson.toJson(result);
+			Integer totalSlots = fetchTotalSlots(modelId);
+			int slots = (totalSlots == null || totalSlots.intValue() <= 0) ? 1 : totalSlots.intValue();
+
+			List<Map<String, Object>> results = new ArrayList<>();
+			for (int slotId = 0; slotId < slots; slotId++) {
+				Map<String, Object> r = callSlotsEndpoint(modelId, slotId, "restore");
+				results.add(r);
+			}
+
+			StringBuilder sb = new StringBuilder();
+			sb.append(LlamaServer.SLOTS_SAVE_KEYWORD + "-操作结果：");
+			for (int i = 0; i < results.size(); i++) {
+				Map<String, Object> r = results.get(i);
+				Object slotObj = r.get("slotId");
+				int slotId = slotObj instanceof Number ? ((Number) slotObj).intValue() : i;
+				Object statusObj = r.get("status");
+				int status = statusObj instanceof Number ? ((Number) statusObj).intValue() : -1;
+				boolean ok = status == 200;
+				sb.append(slotId).append(":").append(ok);
+				if (i < results.size() - 1) {
+					sb.append(";");
+				}
+			}
+			String content = sb.toString();
 			sendOpenAIResponse(ctx, modelId, content, isStream);
 		} catch (Exception e) {
 			LOGGER.error("加载slot缓存时发生错误", e);
-			Map<String, Object> err = new HashMap<>();
-			err.put("success", false);
-			err.put("modelId", modelId);
-			err.put("error", e.getMessage());
-			String content = "/SLOTLOAD" + gson.toJson(err);
+			String content = LlamaServer.SLOTS_LOAD_KEYWORD + "-操作结果：" + e.toString();
 			sendOpenAIResponse(ctx, modelId, content, isStream);
+		}
+	}
+
+	private static Integer fetchTotalSlots(String modelId) {
+		try {
+			JsonObject props = callPropsEndpoint(modelId);
+			if (props != null && props.has("total_slots") && !props.get("total_slots").isJsonNull()) {
+				try {
+					return props.get("total_slots").getAsInt();
+				} catch (Exception ignore) {
+				}
+			}
+			return null;
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static JsonObject callPropsEndpoint(String modelId) {
+		try {
+			LlamaServerManager manager = LlamaServerManager.getInstance();
+			if (modelId == null || modelId.trim().isEmpty()) {
+				return null;
+			}
+			if (!manager.getLoadedProcesses().containsKey(modelId)) {
+				return null;
+			}
+			Integer port = manager.getModelPort(modelId);
+			if (port == null) {
+				return null;
+			}
+
+			String targetUrl = String.format("http://localhost:%d/props", port.intValue());
+			URL url = URI.create(targetUrl).toURL();
+			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+			connection.setRequestMethod("GET");
+			connection.setConnectTimeout(30000);
+			connection.setReadTimeout(30000);
+
+			int responseCode = connection.getResponseCode();
+			String responseBody = "";
+			if (responseCode >= 200 && responseCode < 300) {
+				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+					StringBuilder sb = new StringBuilder();
+					String line;
+					while ((line = br.readLine()) != null) {
+						sb.append(line);
+					}
+					responseBody = sb.toString();
+				}
+			} else {
+				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
+					StringBuilder sb = new StringBuilder();
+					String line;
+					while ((line = br.readLine()) != null) {
+						sb.append(line);
+					}
+					responseBody = sb.toString();
+				} catch (Exception ignore) {
+				}
+			}
+			connection.disconnect();
+
+			if (responseBody == null || responseBody.isEmpty()) {
+				return null;
+			}
+			try {
+				return gson.fromJson(responseBody, JsonObject.class);
+			} catch (Exception ignore) {
+				return null;
+			}
+		} catch (Exception e) {
+			return null;
 		}
 	}
 
