@@ -16,6 +16,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 
+
+/**
+ * 	前端会话管理。暂时弃坑。
+ */
 public class SessionService {
 
 	
