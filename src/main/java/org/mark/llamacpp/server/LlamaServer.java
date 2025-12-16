@@ -62,6 +62,8 @@ public class LlamaServer {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        // 执行一次，创建缓存目录。
+        LlamaServer.getCachePath();
         
         // 初始化配置管理器并加载配置
         logger.info("正在初始化配置管理器...");
@@ -171,6 +173,25 @@ public class LlamaServer {
             logger.info("服务器已关闭");
         }
     }
+    
+    /**
+     * 	获取缓存目录的路径。
+     * @return
+     */
+	public static Path getCachePath() {
+		try {
+			Path currentDir = Paths.get("").toAbsolutePath();
+			Path cachePath = currentDir.resolve("cache");
+
+			if (!Files.exists(cachePath)) {
+				Files.createDirectories(cachePath);
+			}
+			return cachePath;
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException("Failed to create cache directory", e);
+		}
+	}
     
     
 

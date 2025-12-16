@@ -211,10 +211,16 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			this.handleModelSoltsLoad(ctx, request);
 			return;
 		}
-		// 对应URL-POST：/metrics
-		if(uri.startsWith("")) {
-			
-			
+		// 对应URL-GET：/metrics
+		// 客户端传入modelId作为参数
+		if(uri.startsWith("/api/models/metrics")) {
+			this.handleModelMetrics(ctx, request);
+			return;
+		}
+		// 对应URL-GET：/props
+		if (uri.startsWith("/api/models/props")) {
+			this.handleModelProps(ctx, request);
+			return;
 		}
 		
 		
@@ -372,24 +378,27 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			if (json.has("slotId")) {
 				slotId = json.get("slotId").getAsInt();
 			}
-			String filename = json.has("filename") ? json.get("filename").getAsString() : null;
-			if (modelId == null || modelId.trim().isEmpty()) {
-				sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
-				return;
-			}
-			if (slotId == null) {
-				sendJsonResponse(ctx, ApiResponse.error("缺少必需的slotId参数"));
-				return;
-			}
-			if (filename == null || filename.trim().isEmpty()) {
-				sendJsonResponse(ctx, ApiResponse.error("缺少必需的filename参数"));
-				return;
-			}
-			filename = filename.trim();
-			if (!filename.matches("[a-zA-Z0-9._\\-]+")) {
-				sendJsonResponse(ctx, ApiResponse.error("文件名不合法"));
-				return;
-			}
+//			String filename = json.has("filename") ? json.get("filename").getAsString() : null;
+//			if (modelId == null || modelId.trim().isEmpty()) {
+//				sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
+//				return;
+//			}
+//			if (slotId == null) {
+//				sendJsonResponse(ctx, ApiResponse.error("缺少必需的slotId参数"));
+//				return;
+//			}
+//			if (filename == null || filename.trim().isEmpty()) {
+//				sendJsonResponse(ctx, ApiResponse.error("缺少必需的filename参数"));
+//				return;
+//			}
+//			filename = filename.trim();
+//			if (!filename.matches("[a-zA-Z0-9._\\-]+")) {
+//				sendJsonResponse(ctx, ApiResponse.error("文件名不合法"));
+//				return;
+//			}
+			
+			String filename = modelId + "_" + slotId + ".bin";
+			
 			LlamaServerManager manager = LlamaServerManager.getInstance();
 			if (!manager.getLoadedProcesses().containsKey(modelId)) {
 				sendJsonResponse(ctx, ApiResponse.error("模型未加载: " + modelId));
@@ -473,24 +482,25 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			if (json.has("slotId")) {
 				slotId = json.get("slotId").getAsInt();
 			}
-			String filename = json.has("filename") ? json.get("filename").getAsString() : null;
-			if (modelId == null || modelId.trim().isEmpty()) {
-				sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
-				return;
-			}
-			if (slotId == null) {
-				sendJsonResponse(ctx, ApiResponse.error("缺少必需的slotId参数"));
-				return;
-			}
-			if (filename == null || filename.trim().isEmpty()) {
-				sendJsonResponse(ctx, ApiResponse.error("缺少必需的filename参数"));
-				return;
-			}
-			filename = filename.trim();
-			if (!filename.matches("[a-zA-Z0-9._\\-]+")) {
-				sendJsonResponse(ctx, ApiResponse.error("文件名不合法"));
-				return;
-			}
+//			String filename = json.has("filename") ? json.get("filename").getAsString() : null;
+//			if (modelId == null || modelId.trim().isEmpty()) {
+//				sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
+//				return;
+//			}
+//			if (slotId == null) {
+//				sendJsonResponse(ctx, ApiResponse.error("缺少必需的slotId参数"));
+//				return;
+//			}
+//			if (filename == null || filename.trim().isEmpty()) {
+//				sendJsonResponse(ctx, ApiResponse.error("缺少必需的filename参数"));
+//				return;
+//			}
+//			filename = filename.trim();
+//			if (!filename.matches("[a-zA-Z0-9._\\-]+")) {
+//				sendJsonResponse(ctx, ApiResponse.error("文件名不合法"));
+//				return;
+//			}
+			String filename = modelId + "_" + slotId + ".bin";
 			LlamaServerManager manager = LlamaServerManager.getInstance();
 			if (!manager.getLoadedProcesses().containsKey(modelId)) {
 				sendJsonResponse(ctx, ApiResponse.error("模型未加载: " + modelId));
@@ -547,6 +557,146 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		} catch (Exception e) {
 			logger.error("加载slot缓存时发生错误", e);
 			sendJsonResponse(ctx, ApiResponse.error("加载slot失败: " + e.getMessage()));
+		}
+	}
+	
+	private void handleModelMetrics(ChannelHandlerContext ctx, FullHttpRequest request) {
+		try {
+			if (request.method() != HttpMethod.GET) {
+				sendJsonResponse(ctx, ApiResponse.error("只支持GET请求"));
+				return;
+			}
+			String query = request.uri();
+			String modelId = null;
+			if (query.contains("?")) {
+				String q = query.substring(query.indexOf("?") + 1);
+				if (q.contains("modelId=")) {
+					String tmp = q.substring(q.indexOf("modelId=") + 8);
+					if (tmp.contains("&")) tmp = tmp.substring(0, tmp.indexOf("&"));
+					modelId = URLDecoder.decode(tmp, "UTF-8");
+				}
+			}
+			if (modelId == null || modelId.trim().isEmpty()) {
+				sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
+				return;
+			}
+			LlamaServerManager manager = LlamaServerManager.getInstance();
+			if (!manager.getLoadedProcesses().containsKey(modelId)) {
+				sendJsonResponse(ctx, ApiResponse.error("模型未加载: " + modelId));
+				return;
+			}
+			Integer port = manager.getModelPort(modelId);
+			if (port == null) {
+				sendJsonResponse(ctx, ApiResponse.error("未找到模型端口: " + modelId));
+				return;
+			}
+			String targetUrl = String.format("http://localhost:%d/metrics", port.intValue());
+			URL url = URI.create(targetUrl).toURL();
+			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+			connection.setRequestMethod("GET");
+			connection.setConnectTimeout(30000);
+			connection.setReadTimeout(30000);
+			int responseCode = connection.getResponseCode();
+			String responseBody;
+			if (responseCode >= 200 && responseCode < 300) {
+				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+					StringBuilder sb = new StringBuilder();
+					String line;
+					while ((line = br.readLine()) != null) {
+						sb.append(line);
+					}
+					responseBody = sb.toString();
+				}
+				Object parsed = gson.fromJson(responseBody, Object.class);
+				Map<String, Object> data = new HashMap<>();
+				data.put("modelId", modelId);
+				data.put("metrics", parsed);
+				sendJsonResponse(ctx, ApiResponse.success(data));
+			} else {
+				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
+					StringBuilder sb = new StringBuilder();
+					String line;
+					while ((line = br.readLine()) != null) {
+						sb.append(line);
+					}
+					responseBody = sb.toString();
+				}
+				sendJsonResponse(ctx, ApiResponse.error("获取metrics失败: " + responseBody));
+			}
+			connection.disconnect();
+		} catch (Exception e) {
+			logger.error("获取metrics时发生错误", e);
+			sendJsonResponse(ctx, ApiResponse.error("获取metrics失败: " + e.getMessage()));
+		}
+	}
+	
+	private void handleModelProps(ChannelHandlerContext ctx, FullHttpRequest request) {
+		try {
+			if (request.method() != HttpMethod.GET) {
+				sendJsonResponse(ctx, ApiResponse.error("只支持GET请求"));
+				return;
+			}
+			String query = request.uri();
+			String modelId = null;
+			if (query.contains("?")) {
+				String q = query.substring(query.indexOf("?") + 1);
+				if (q.contains("modelId=")) {
+					String tmp = q.substring(q.indexOf("modelId=") + 8);
+					if (tmp.contains("&")) tmp = tmp.substring(0, tmp.indexOf("&"));
+					modelId = URLDecoder.decode(tmp, "UTF-8");
+				}
+			}
+			if (modelId == null || modelId.trim().isEmpty()) {
+				sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
+				return;
+			}
+			LlamaServerManager manager = LlamaServerManager.getInstance();
+			if (!manager.getLoadedProcesses().containsKey(modelId)) {
+				sendJsonResponse(ctx, ApiResponse.error("模型未加载: " + modelId));
+				return;
+			}
+			Integer port = manager.getModelPort(modelId);
+			if (port == null) {
+				sendJsonResponse(ctx, ApiResponse.error("未找到模型端口: " + modelId));
+				return;
+			}
+			String targetUrl = String.format("http://localhost:%d/props", port.intValue());
+			URL url = URI.create(targetUrl).toURL();
+			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+			connection.setRequestMethod("GET");
+			connection.setConnectTimeout(30000);
+			connection.setReadTimeout(30000);
+			int responseCode = connection.getResponseCode();
+			String responseBody;
+			if (responseCode >= 200 && responseCode < 300) {
+				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+					StringBuilder sb = new StringBuilder();
+					String line;
+					while ((line = br.readLine()) != null) {
+						sb.append(line);
+					}
+					responseBody = sb.toString();
+				}
+				Object parsed = gson.fromJson(responseBody, Object.class);
+				Map<String, Object> data = new HashMap<>();
+				data.put("modelId", modelId);
+				data.put("props", parsed);
+				sendJsonResponse(ctx, ApiResponse.success(data));
+			} else {
+				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
+					StringBuilder sb = new StringBuilder();
+					String line;
+					while ((line = br.readLine()) != null) {
+						sb.append(line);
+					}
+					responseBody = sb.toString();
+				}
+				sendJsonResponse(ctx, ApiResponse.error("获取props失败: " + responseBody));
+			}
+			connection.disconnect();
+		} catch (Exception e) {
+			logger.error("获取props时发生错误", e);
+			sendJsonResponse(ctx, ApiResponse.error("获取props失败: " + e.getMessage()));
 		}
 	}
 	

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.mark.llamacpp.gguf.GGUFModel;
+import org.mark.llamacpp.server.LlamaServer;
 
 public class ModelLaunchOptions {
     public Integer ctxSize;
@@ -112,11 +113,17 @@ public class ModelLaunchOptions {
     		}
     	}
     	command.add("--no-webui");
-        
-        //command.add("-np");
-        //command.add("4");
-        
-        //command.add("--jinja");
+    	
+    	command.add("--slot-prompt-similarity");
+    	command.add("1.0");
+    	
+    	command.add("--cache-ram");
+    	command.add("-1");
+    	
+    	command.add("--metrics");
+    	
+    	command.add("--slot-save-path");
+        command.add(LlamaServer.getCachePath().toFile().getAbsolutePath());
         
         return command;
     }
