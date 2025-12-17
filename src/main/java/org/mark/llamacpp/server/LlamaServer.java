@@ -56,8 +56,13 @@ public class LlamaServer {
     
     public static final String SLOTS_LOAD_KEYWORD = "/SLOTLOAD";
     
-    private static final Gson GSON = new Gson();
     
+    public static final String HELP_KEYWORD = "/HELP";
+    
+    
+    
+    
+    private static final Gson GSON = new Gson();
     
     public static final PrintStream out = System.out;
     

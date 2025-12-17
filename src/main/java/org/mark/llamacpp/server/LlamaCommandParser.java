@@ -37,11 +37,31 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.buffer.ByteBuf;
 
-public class MessageFilter {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(MessageFilter.class);
+/**
+ * 	操作符过滤器。
+ */
+public class LlamaCommandParser {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(LlamaCommandParser.class);
 	
 	private static final Gson gson = new Gson();
+	
+	
+	/**
+	 * 	
+	 * @param ctx
+	 * @param modelId
+	 * @param requestJson
+	 * @return
+	 */
+	public static String filterCompletion(ChannelHandlerContext ctx, String modelId, JsonObject requestJson) {
+		
+		
+		
+		return null;
+	}
+	
 	
 	
 	/**
@@ -51,8 +71,7 @@ public class MessageFilter {
 	 * @param messages
 	 * @return
 	 */
-	public static String filter(ChannelHandlerContext ctx, String modelId, JsonObject requestJson) {
-		
+	public static String filterChatCompletion(ChannelHandlerContext ctx, String modelId, JsonObject requestJson) {
 		// 转成数组
 		JsonElement messages = requestJson.get("messages");
 		JsonArray originalArray = messages.getAsJsonArray();
@@ -66,9 +85,33 @@ public class MessageFilter {
 			} catch (Exception ignore) {
 			}
 		}
-
+		
 		int size = originalArray.size();
-		int n = 0;
+		if(size != 0 && originalArray.get(size - 1).isJsonObject()) {
+			JsonObject jsonObject = originalArray.get(size - 1).getAsJsonObject();
+			if (jsonObject.has("content") && !jsonObject.get("content").isJsonNull()) {
+				JsonElement jsonContent = jsonObject.get("content");
+				if(!jsonContent.isJsonArray()) {
+					String content = jsonContent.getAsString();
+					//	save
+					if(content.toLowerCase().startsWith(LlamaServer.SLOTS_SAVE_KEYWORD.toLowerCase())) {
+						save(modelId, ctx, isStream);
+						return null;
+					}
+					//	load
+					if(content.toLowerCase().startsWith(LlamaServer.SLOTS_LOAD_KEYWORD.toLowerCase())) {
+						load(modelId, ctx, isStream);
+						return null;
+					}
+					//	help
+					if(content.toLowerCase().startsWith(LlamaServer.HELP_KEYWORD.toLowerCase())) {
+						help(modelId, ctx, isStream);
+						return null;
+					}
+				}
+			}
+		}
+		
 		// 遍历原始数组
 		for (JsonElement element : originalArray) {
 			if (element.isJsonObject()) {
@@ -77,30 +120,17 @@ public class MessageFilter {
 				if (jsonObject.has("content") && !jsonObject.get("content").isJsonNull()) {
 					//
 					JsonElement jsonContent = jsonObject.get("content");
-					if(!jsonContent.isJsonObject()) {
+					if(jsonContent.isJsonArray()) {
 						filteredArray.add(jsonObject);
 						continue;
 					}
 					String content = jsonContent.getAsString();
-
 					// 判断是否需要保留（不包含要移除的关键字）
 					boolean shouldRemove = content.startsWith(LlamaServer.SLOTS_SAVE_KEYWORD)
 							|| content.startsWith(LlamaServer.SLOTS_LOAD_KEYWORD);
 					// 如果不应该被移除，就添加到新数组
 					if (!shouldRemove) {
 						filteredArray.add(jsonObject);
-					}
-
-					if (size - 1 == n) {
-						// 出现了，是特殊处理！
-						if(content.startsWith(LlamaServer.SLOTS_SAVE_KEYWORD)) {
-							save(modelId, ctx, isStream);
-							return null;
-						}
-						if(content.startsWith(LlamaServer.SLOTS_LOAD_KEYWORD)) {
-							load(modelId, ctx, isStream);
-							return null;
-						}
 					}
 				} else {
 					// 如果消息对象没有 content 字段，我们选择保留它
@@ -110,13 +140,11 @@ public class MessageFilter {
 				// 如果数组元素不是 JsonObject，也保留它
 				filteredArray.add(element);
 			}
-			n += 1;
 		}
 		// 将过滤后的新数组转换回 JSON 字符串并返回
 		requestJson.add("messages", filteredArray);
 		return gson.toJson(requestJson);
 	}
-	
 	
 	
 	
@@ -155,10 +183,12 @@ public class MessageFilter {
 		}
 	}
 	
-	
-	
-	
-	
+	/**
+	 * 	加载缓存。
+	 * @param modelId
+	 * @param ctx
+	 * @param isStream
+	 */
 	private static void load(String modelId, ChannelHandlerContext ctx, boolean isStream) {
 		try {
 			Integer totalSlots = fetchTotalSlots(modelId);
@@ -191,6 +221,21 @@ public class MessageFilter {
 			String content = LlamaServer.SLOTS_LOAD_KEYWORD + "-操作结果：" + e.toString();
 			sendOpenAIResponse(ctx, modelId, content, isStream);
 		}
+	}
+	
+	
+	/**
+	 * 	显示帮助信息。
+	 * @param modelId
+	 * @param ctx
+	 * @param isStream
+	 */
+	private static void help(String modelId, ChannelHandlerContext ctx, boolean isStream) {
+		String content = LlamaServer.HELP_KEYWORD + "\n";
+		content += "帮助说明：\n";
+		content += LlamaServer.SLOTS_SAVE_KEYWORD + "\t保存当前全部SLOT的KV缓存到本地磁盘，具体有几个SLOT，取决于启动参数中的 ‘-np’；\n";
+		content += LlamaServer.SLOTS_LOAD_KEYWORD + "\t读取当前全部SLOT的KV缓存到本地磁盘，具体有几个SLOT，取决于启动参数中的 ‘-np’；\n";
+		sendOpenAIResponse(ctx, modelId, content, isStream);
 	}
 
 	private static Integer fetchTotalSlots(String modelId) {
@@ -370,7 +415,13 @@ public class MessageFilter {
 			}
 		}
 	}
-
+	
+	/**
+	 * 	响应标准openai & 非stream
+	 * @param ctx
+	 * @param modelId
+	 * @param content
+	 */
 	private static void sendOpenAINonStreamResponse(ChannelHandlerContext ctx, String modelId, String content) {
 		JsonObject responseJson = new JsonObject();
 		responseJson.addProperty("id", "chatcmpl-" + UUID.randomUUID().toString().replace("-", ""));
