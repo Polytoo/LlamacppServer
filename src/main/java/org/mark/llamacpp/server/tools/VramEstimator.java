@@ -47,20 +47,25 @@ public class VramEstimator {
 	}
 
 	public static VramEstimation estimateVram(File ggufFile, int contextLength) throws IOException {
-		return estimateVram(ggufFile, contextLength, 16, 512, 512);
+		return estimateVram(ggufFile, contextLength, 16, 512, 512, true);
 	}
 
 	public static VramEstimation estimateVram(File ggufFile, int contextLength, int kvCacheBits) throws IOException {
-		return estimateVram(ggufFile, contextLength, kvCacheBits, 512, 512);
+		return estimateVram(ggufFile, contextLength, kvCacheBits, 512, 512, true);
 	}
 
 	public static VramEstimation estimateVram(File ggufFile, int contextLength, int kvCacheBits, int batchSize)
 			throws IOException {
-		return estimateVram(ggufFile, contextLength, kvCacheBits, batchSize, batchSize);
+		return estimateVram(ggufFile, contextLength, kvCacheBits, batchSize, batchSize, true);
 	}
 
 	public static VramEstimation estimateVram(File ggufFile, int contextLength, int kvCacheBits, int batchSize,
 			int ubatchSize) throws IOException {
+		return estimateVram(ggufFile, contextLength, kvCacheBits, batchSize, ubatchSize, true);
+	}
+	
+	public static VramEstimation estimateVram(File ggufFile, int contextLength, int kvCacheBits, int batchSize,
+			int ubatchSize, boolean enableVision) throws IOException {
 		
 		// Use GGUFBundle to resolve all file parts
 		GGUFBundle bundle = new GGUFBundle(ggufFile);
@@ -200,7 +205,13 @@ public class VramEstimator {
 			// The header size is roughly where we are now + tensor infos.
 			// Since we didn't parse tensor infos, let's just use the file size.
 			// Most of the GGUF file is weights.
-			long fileSizeBytes = bundle.getTotalFileSize();
+			long fileSizeBytes = 0;
+			for (File f : bundle.getSplitFiles()) {
+				fileSizeBytes += f.length();
+			}
+			if (enableVision && bundle.getMmprojFile() != null) {
+				fileSizeBytes += bundle.getMmprojFile().length();
+			}
 
 			// Context overhead (activation buffers)
 			// This is harder to estimate exactly without full graph, but usually a few
@@ -223,7 +234,7 @@ public class VramEstimator {
 			// Vision encoders (like CLIP/SigLIP) have their own overhead.
 			// A crude estimate is ~200-500MB depending on image resolution.
 			long visionOverhead = 0;
-			if (bundle.getMmprojFile() != null) {
+			if (enableVision && bundle.getMmprojFile() != null) {
 			    // Additional overhead for loading vision model and image processing buffers
 			    visionOverhead = 256 * 1024 * 1024L; 
 			}

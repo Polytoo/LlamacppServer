@@ -811,6 +811,10 @@
                             <input type="checkbox" class="form-check-input" id="mlock" name="mlock">
                             <label class="form-check-label" for="mlock">锁定内存 (mlock)</label>
                         </div>
+                        <div class="form-check" id="enableVisionGroup" style="display: none;">
+                            <input type="checkbox" class="form-check-input" id="enableVision" name="enableVision" checked>
+                            <label class="form-check-label" for="enableVision">开启视觉</label>
+                        </div>
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="embedding" name="embedding">
                             <label class="form-check-label" for="embedding">Embedding模式</label>
@@ -1404,6 +1408,11 @@
             document.getElementById('modelName').value = modelName;
             const hint = document.getElementById('ctxSizeVramHint');
             if (hint) hint.textContent = '';
+
+            const currentModel = (currentModelsData || []).find(m => m && m.id === modelId);
+            const isVisionModel = !!(currentModel && (currentModel.isMultimodal || currentModel.mmproj));
+            const enableVisionGroup = document.getElementById('enableVisionGroup');
+            if (enableVisionGroup) enableVisionGroup.style.display = isVisionModel ? '' : 'none';
             
             fetch(`/api/models/config/get?modelId=${encodeURIComponent(modelId)}`)
                 .then(r => r.json()).then(data => {
@@ -1424,6 +1433,8 @@
                         document.getElementById('reranking').checked = !!config.reranking;
                         document.getElementById('flashAttention').checked = config.flashAttention !== undefined ? config.flashAttention : true;
                         document.getElementById('extraParams').value = config.extraParams || '';
+                        const enableVisionEl = document.getElementById('enableVision');
+                        if (enableVisionEl) enableVisionEl.checked = config.enableVision !== undefined ? !!config.enableVision : true;
                     }
                     
                     fetch('/api/llamacpp/list').then(r => r.json()).then(listData => {
@@ -1467,6 +1478,8 @@
             data.flashAttention = document.getElementById('flashAttention').checked;
             data.llamaBinPath = document.getElementById('llamaBinPathSelect').value;
             data.extraParams = document.getElementById('extraParams').value;
+            const enableVisionEl = document.getElementById('enableVision');
+            if (enableVisionEl) data.enableVision = enableVisionEl.checked;
 
             const submitBtn = document.querySelector('#loadModelModal .btn-primary');
             submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 处理中...';
@@ -1507,12 +1520,14 @@
             const batchSize = parseInt(document.getElementById('batchSize').value || '512', 10);
             const ubatch = parseInt(document.getElementById('ubatchSize').value || '0', 10);
             const flashAttention = document.getElementById('flashAttention').checked;
+            const enableVisionEl = document.getElementById('enableVision');
             const payload = {
                 modelId,
                 ctxSize,
                 batchSize: isNaN(batchSize) || batchSize <= 0 ? null : batchSize,
                 ubatchSize: isNaN(ubatch) || ubatch <= 0 ? null : ubatch,
-                flashAttention
+                flashAttention,
+                enableVision: enableVisionEl ? enableVisionEl.checked : true
             };
             fetch('/api/models/vram/estimate', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)

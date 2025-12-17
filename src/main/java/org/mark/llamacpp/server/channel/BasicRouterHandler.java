@@ -895,6 +895,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			Integer ctxSize = json.has("ctxSize") ? json.get("ctxSize").getAsInt() : null;
 			Integer batchSize = json.has("batchSize") ? json.get("batchSize").getAsInt() : null;
 			Integer ubatchSize = json.has("ubatchSize") ? json.get("ubatchSize").getAsInt() : null;
+			Boolean enableVision = json.has("enableVision") ? json.get("enableVision").getAsBoolean() : null;
 
 			if (modelId == null || modelId.trim().isEmpty()) {
 				sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
@@ -908,6 +909,9 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			}
 			if (ubatchSize == null || ubatchSize <= 0) {
 				ubatchSize = 512;
+			}
+			if (enableVision == null) {
+				enableVision = true;
 			}
 
 			LlamaServerManager manager = LlamaServerManager.getInstance();
@@ -925,7 +929,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			}
 
 			VramEstimation result = VramEstimator.estimateVram(new File(model.getPrimaryModel().getFilePath()),
-					ctxSize.intValue(), 16, batchSize.intValue(), ubatchSize.intValue());
+					ctxSize.intValue(), 16, batchSize.intValue(), ubatchSize.intValue(), enableVision.booleanValue());
 			// 整合一下
 			Map<String, Object> data = new HashMap<>();
 			data.put("modelId", modelId);

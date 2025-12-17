@@ -180,6 +180,7 @@ public class ConfigManager {
         defaultConfig.put("repeatPenalty", 1.0);
         defaultConfig.put("embedding", false);
         defaultConfig.put("reranking", false);
+        defaultConfig.put("enableVision", true);
         return defaultConfig;
     }
     

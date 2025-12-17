@@ -43,6 +43,7 @@ public class LoadModelRequest {
     private Boolean embedding;
     private Boolean reranking;
     private Boolean flashAttention;
+    private Boolean enableVision;
     private String extraParams;
     private String slotSavePath;
     
@@ -126,6 +127,9 @@ public class LoadModelRequest {
     public Boolean getFlashAttention() { return flashAttention; }
     public void setFlashAttention(Boolean flashAttention) { this.flashAttention = flashAttention; }
     
+    public Boolean getEnableVision() { return enableVision; }
+    public void setEnableVision(Boolean enableVision) { this.enableVision = enableVision; }
+    
     public String getExtraParams() { return extraParams; }
     public void setExtraParams(String extraParams) { this.extraParams = extraParams; }
     public String getSlotSavePath() { return slotSavePath; }
@@ -150,6 +154,7 @@ public class LoadModelRequest {
                 ", embedding=" + embedding +
                 ", reranking=" + reranking +
                 ", flashAttention=" + flashAttention +
+                ", enableVision=" + enableVision +
                 ", extraParams='" + extraParams + '\'' +
                 ", slotSavePath='" + slotSavePath + '\'' +
                 '}';

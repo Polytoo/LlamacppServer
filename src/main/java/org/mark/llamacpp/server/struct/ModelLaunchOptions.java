@@ -24,6 +24,7 @@ public class ModelLaunchOptions {
     public Boolean embedding;
     public Boolean reranking;
     public Boolean flashAttention;
+    public Boolean enableVision;
     public String extraParams;
     public String host = "0.0.0.0";
     public String slotSavePath;
@@ -45,6 +46,7 @@ public class ModelLaunchOptions {
         o.embedding = r.getEmbedding();
         o.reranking = r.getReranking();
         o.flashAttention = r.getFlashAttention();
+        o.enableVision = r.getEnableVision();
         o.extraParams = r.getExtraParams();
         o.slotSavePath = r.getSlotSavePath();
         return o;
@@ -67,6 +69,7 @@ public class ModelLaunchOptions {
         m.put("embedding", embedding != null ? embedding : false);
         m.put("reranking", reranking != null ? reranking : false);
         m.put("flashAttention", flashAttention != null ? flashAttention : true);
+        m.put("enableVision", enableVision != null ? enableVision : true);
         m.put("extraParams", extraParams);
         m.put("slotSavePath", slotSavePath);
         return m;
@@ -80,7 +83,7 @@ public class ModelLaunchOptions {
     	command.add(targetModel.getPath() + "/" + targetModel.getPrimaryModel().getFileName());
     	command.add("--port");
     	command.add(String.valueOf(port));
-    	if (targetModel.getMmproj() != null) {
+    	if ((enableVision == null || enableVision) && targetModel.getMmproj() != null) {
     		command.add("--mmproj");
     		command.add(targetModel.getPath() + "/" + targetModel.getMmproj().getFileName());
     	}
