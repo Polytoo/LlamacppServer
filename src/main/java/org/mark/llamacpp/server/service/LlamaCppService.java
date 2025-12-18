@@ -1,4 +1,4 @@
-package org.mark.llamacpp.server.api;
+package org.mark.llamacpp.server.service;
 
 import java.io.BufferedReader;
 import java.io.IOException;

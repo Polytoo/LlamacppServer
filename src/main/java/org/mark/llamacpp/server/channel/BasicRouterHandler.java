@@ -98,7 +98,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		}
 		
 		// 处理模型API请求
-		if (uri.startsWith("/api/") || uri.startsWith("/v1")) {
+		if (uri.startsWith("/api/") || uri.startsWith("/v1") || uri.startsWith("/session")) {
 			try {
 				this.handleApiRequest(ctx, request, uri);
 			}catch (Exception e) {

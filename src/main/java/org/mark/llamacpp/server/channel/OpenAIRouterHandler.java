@@ -7,7 +7,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 
-import org.mark.llamacpp.server.api.OpenAIService;
+import org.mark.llamacpp.server.service.OpenAIService;
 import org.mark.llamacpp.server.struct.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

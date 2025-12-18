@@ -1,4 +1,4 @@
-package org.mark.llamacpp.server.api;
+package org.mark.llamacpp.server.service;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;

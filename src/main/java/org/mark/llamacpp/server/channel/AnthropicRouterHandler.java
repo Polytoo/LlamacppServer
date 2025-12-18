@@ -1,7 +1,7 @@
 package org.mark.llamacpp.server.channel;
 
 
-import org.mark.llamacpp.server.api.AnthropicService;
+import org.mark.llamacpp.server.service.AnthropicService;
 import org.mark.llamacpp.server.struct.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
