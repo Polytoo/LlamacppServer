@@ -27,11 +27,133 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 	基本下载器的实现。
+ * 	基本下载器的实现。本来想自己改的，做了一半背疼。画了个工作流程让AI自己做了。
  */
 public class BasicDownloader {
+	
+	public enum DownloadState {
+		IDLE,
+		PREPARING,
+		DOWNLOADING,
+		MERGING,
+		VERIFYING,
+		COMPLETED,
+		FAILED
+	}
+	
+	public static final class DownloadProgress {
+		private final DownloadState state;
+		private final URI sourceUri;
+		private final URI finalUri;
+		private final Path targetFile;
+		private final long totalBytes;
+		private final long downloadedBytes;
+		private final int partsTotal;
+		private final int partsCompleted;
+		private final long startedAtNanos;
+		private final long finishedAtNanos;
+		private final String errorMessage;
+		
+		private DownloadProgress(
+				DownloadState state,
+				URI sourceUri,
+				URI finalUri,
+				Path targetFile,
+				long totalBytes,
+				long downloadedBytes,
+				int partsTotal,
+				int partsCompleted,
+				long startedAtNanos,
+				long finishedAtNanos,
+				String errorMessage) {
+			this.state = state;
+			this.sourceUri = sourceUri;
+			this.finalUri = finalUri;
+			this.targetFile = targetFile;
+			this.totalBytes = totalBytes;
+			this.downloadedBytes = downloadedBytes;
+			this.partsTotal = partsTotal;
+			this.partsCompleted = partsCompleted;
+			this.startedAtNanos = startedAtNanos;
+			this.finishedAtNanos = finishedAtNanos;
+			this.errorMessage = errorMessage;
+		}
+		
+		public DownloadState getState() {
+			return state;
+		}
+		
+		public URI getSourceUri() {
+			return sourceUri;
+		}
+		
+		public URI getFinalUri() {
+			return finalUri;
+		}
+		
+		public Path getTargetFile() {
+			return targetFile;
+		}
+		
+		public long getTotalBytes() {
+			return totalBytes;
+		}
+		
+		public long getDownloadedBytes() {
+			return downloadedBytes;
+		}
+		
+		public int getPartsTotal() {
+			return partsTotal;
+		}
+		
+		public int getPartsCompleted() {
+			return partsCompleted;
+		}
+		
+		public String getErrorMessage() {
+			return errorMessage;
+		}
+		
+		public double getProgressRatio() {
+			if (totalBytes <= 0) {
+				return 0.0;
+			}
+			double r = (double) downloadedBytes / (double) totalBytes;
+			if (r < 0.0) {
+				return 0.0;
+			}
+			if (r > 1.0) {
+				return 1.0;
+			}
+			return r;
+		}
+		
+		public long getElapsedMillis() {
+			long start = startedAtNanos;
+			if (start <= 0) {
+				return 0;
+			}
+			long end = finishedAtNanos > 0 ? finishedAtNanos : System.nanoTime();
+			long diff = end - start;
+			if (diff < 0) {
+				return 0;
+			}
+			return diff / 1_000_000L;
+		}
+		
+		public long getSpeedBytesPerSecond() {
+			long elapsedMillis = getElapsedMillis();
+			if (elapsedMillis <= 0) {
+				return 0;
+			}
+			return (downloadedBytes * 1000L) / elapsedMillis;
+		}
+	}
 	
 	/**
 	 * 	输入的原始地址
@@ -63,6 +185,14 @@ public class BasicDownloader {
 	private boolean rangeSupported;
 	
 	private final HttpClient httpClient;
+	
+	private final AtomicLong downloadedBytes = new AtomicLong(0);
+	private final AtomicInteger partsTotal = new AtomicInteger(0);
+	private final AtomicInteger partsCompleted = new AtomicInteger(0);
+	private volatile DownloadState state = DownloadState.IDLE;
+	private volatile long startedAtNanos;
+	private volatile long finishedAtNanos;
+	private volatile String errorMessage;
 	
 	
 	
@@ -150,12 +280,57 @@ public class BasicDownloader {
 		return this.rangeSupported;
 	}
 	
+	public DownloadState getState() {
+		return this.state;
+	}
+	
+	public long getDownloadedBytes() {
+		return this.downloadedBytes.get();
+	}
+	
+	public DownloadProgress getProgress() {
+		return new DownloadProgress(
+				this.state,
+				this.sourceUri,
+				this.finalUri,
+				this.targetFile,
+				this.contentLength,
+				this.downloadedBytes.get(),
+				this.partsTotal.get(),
+				this.partsCompleted.get(),
+				this.startedAtNanos,
+				this.finishedAtNanos,
+				this.errorMessage);
+	}
+	
 	public Path getTargetFile() {
 		return this.targetFile;
 	}
 	
 	public void setTargetFile(Path targetFile) {
 		this.targetFile = Objects.requireNonNull(targetFile, "targetFile");
+	}
+	
+	public void requestHead() throws IOException, URISyntaxException, InterruptedException {
+		this.resetProgress();
+		this.startedAtNanos = System.nanoTime();
+		this.finishedAtNanos = 0;
+		this.errorMessage = null;
+		
+		try {
+			this.prepare();
+			this.state = DownloadState.IDLE;
+		} catch (IOException | URISyntaxException | InterruptedException e) {
+			this.state = DownloadState.FAILED;
+			this.errorMessage = e.getMessage();
+			throw e;
+		} catch (RuntimeException e) {
+			this.state = DownloadState.FAILED;
+			this.errorMessage = e.getMessage();
+			throw e;
+		} finally {
+			this.finishedAtNanos = System.nanoTime();
+		}
 	}
 	
 	
@@ -167,21 +342,46 @@ public class BasicDownloader {
 	 * @throws InterruptedException
 	 */
 	public void download() throws IOException, URISyntaxException, InterruptedException {
-		this.prepare();
+		this.resetProgress();
+		this.startedAtNanos = System.nanoTime();
+		this.finishedAtNanos = 0;
+		this.errorMessage = null;
 		
-		if (this.contentLength <= 0) {
-			throw new IOException("无法获取文件大小");
+		try {
+			this.prepare();
+			
+			if (this.contentLength <= 0) {
+				throw new IOException("无法获取文件大小");
+			}
+			
+			ensureParentDirectory(this.targetFile);
+			
+			this.state = DownloadState.DOWNLOADING;
+			if (this.rangeSupported && this.parallelism > 1) {
+				this.downloadMultipart();
+			} else {
+				this.downloadSingle();
+			}
+			
+			this.state = DownloadState.VERIFYING;
+			this.verifyIntegrity();
+			
+			this.state = DownloadState.COMPLETED;
+		} catch (IOException | URISyntaxException | InterruptedException e) {
+			this.state = DownloadState.FAILED;
+			this.errorMessage = e.getMessage();
+			this.finishedAtNanos = System.nanoTime();
+			throw e;
+		} catch (RuntimeException e) {
+			this.state = DownloadState.FAILED;
+			this.errorMessage = e.getMessage();
+			this.finishedAtNanos = System.nanoTime();
+			throw e;
+		} finally {
+			if (this.finishedAtNanos == 0) {
+				this.finishedAtNanos = System.nanoTime();
+			}
 		}
-		
-		ensureParentDirectory(this.targetFile);
-		
-		if (this.rangeSupported && this.parallelism > 1) {
-			this.downloadMultipart();
-		} else {
-			this.downloadSingle();
-		}
-		
-		this.verifyIntegrity();
 	}
 	
 	/**
@@ -191,6 +391,7 @@ public class BasicDownloader {
 	 * @throws InterruptedException
 	 */
 	private void prepare() throws IOException, URISyntaxException, InterruptedException {
+		this.state = DownloadState.PREPARING;
 		this.finalUri = this.resolveFinalUri(this.sourceUri);
 		
 		HttpResponse<Void> headResponse = this.sendHeadOrFallback(this.finalUri);
@@ -207,6 +408,13 @@ public class BasicDownloader {
 		
 		HttpResponse<Void> rangeProbe = this.sendRangeProbe(this.finalUri);
 		this.rangeSupported = rangeProbe != null && rangeProbe.statusCode() == 206;
+	}
+	
+	private void resetProgress() {
+		this.downloadedBytes.set(0);
+		this.partsTotal.set(0);
+		this.partsCompleted.set(0);
+		this.state = DownloadState.IDLE;
 	}
 	
 	
@@ -330,6 +538,9 @@ public class BasicDownloader {
 	 * @throws InterruptedException
 	 */
 	private void downloadSingle() throws IOException, InterruptedException {
+		this.partsTotal.set(1);
+		this.partsCompleted.set(0);
+		
 		HttpRequest get = HttpRequest.newBuilder()
 				.uri(this.finalUri)
 				.timeout(this.requestTimeout)
@@ -344,13 +555,20 @@ public class BasicDownloader {
 		
 		try (InputStream in = new BufferedInputStream(response.body());
 				OutputStream out = new BufferedOutputStream(new FileOutputStream(this.targetFile.toFile(), false))) {
-			in.transferTo(out);
+			byte[] buffer = new byte[1024 * 256];
+			int read;
+			while ((read = in.read(buffer)) != -1) {
+				out.write(buffer, 0, read);
+				this.downloadedBytes.addAndGet(read);
+			}
 		}
 		
 		long size = Files.size(this.targetFile);
 		if (this.contentLength > 0 && size != this.contentLength) {
 			throw new IOException("下载文件大小不匹配，期望: " + this.contentLength + " 实际: " + size);
 		}
+		
+		this.partsCompleted.set(1);
 	}
 	
 	/**
@@ -360,6 +578,8 @@ public class BasicDownloader {
 	 */
 	private void downloadMultipart() throws IOException, InterruptedException {
 		List<Part> parts = splitParts(this.contentLength, this.parallelism, this.minPartSizeBytes);
+		this.partsTotal.set(parts.size());
+		this.partsCompleted.set(0);
 		this.preAllocateTargetFile(this.targetFile, this.contentLength);
 		
 		List<Path> partFiles = new ArrayList<>();
@@ -373,7 +593,7 @@ public class BasicDownloader {
 			for (int i = 0; i < parts.size(); i++) {
 				Part part = parts.get(i);
 				Path partFile = partFiles.get(i);
-				futures.add(pool.submit(new PartDownloadTask(this.httpClient, this.finalUri, this.userAgent, this.requestTimeout, part, partFile, this.maxRetries)));
+				futures.add(pool.submit(new PartDownloadTask(this.httpClient, this.finalUri, this.userAgent, this.requestTimeout, part, partFile, this.maxRetries, this.downloadedBytes, this.partsCompleted)));
 			}
 			
 			for (Future<Void> f : futures) {
@@ -394,6 +614,7 @@ public class BasicDownloader {
 			pool.shutdownNow();
 		}
 		
+		this.state = DownloadState.MERGING;
 		this.mergeParts(parts, partFiles, this.targetFile);
 		
 		for (Path p : partFiles) {
@@ -628,8 +849,19 @@ public class BasicDownloader {
 		private final Part part;
 		private final Path partFile;
 		private final int maxRetries;
+		private final AtomicLong downloadedBytes;
+		private final AtomicInteger partsCompleted;
 		
-		private PartDownloadTask(HttpClient httpClient, URI uri, String userAgent, Duration timeout, Part part, Path partFile, int maxRetries) {
+		private PartDownloadTask(
+				HttpClient httpClient,
+				URI uri,
+				String userAgent,
+				Duration timeout,
+				Part part,
+				Path partFile,
+				int maxRetries,
+				AtomicLong downloadedBytes,
+				AtomicInteger partsCompleted) {
 			this.httpClient = httpClient;
 			this.uri = uri;
 			this.userAgent = userAgent;
@@ -637,6 +869,8 @@ public class BasicDownloader {
 			this.part = part;
 			this.partFile = partFile;
 			this.maxRetries = maxRetries;
+			this.downloadedBytes = downloadedBytes;
+			this.partsCompleted = partsCompleted;
 		}
 		
 		@Override
@@ -647,10 +881,20 @@ public class BasicDownloader {
 			int attempt = 0;
 			while (true) {
 				attempt++;
+				long bytesThisAttempt = 0;
 				try {
-					this.downloadOnce();
+					bytesThisAttempt = this.downloadOnce();
+					this.partsCompleted.incrementAndGet();
 					return null;
 				} catch (IOException e) {
+					long rollbackBytes = bytesThisAttempt;
+					if (e instanceof PartDownloadException pde) {
+						rollbackBytes = pde.bytesWritten;
+					}
+					if (rollbackBytes > 0) {
+						this.downloadedBytes.addAndGet(-rollbackBytes);
+					}
+					Files.deleteIfExists(this.partFile);
 					if (attempt > this.maxRetries) {
 						throw e;
 					}
@@ -660,7 +904,7 @@ public class BasicDownloader {
 			}
 		}
 		
-		private void downloadOnce() throws IOException, InterruptedException {
+		private long downloadOnce() throws IOException, InterruptedException {
 			HttpRequest request = HttpRequest.newBuilder()
 					.uri(this.uri)
 					.timeout(this.timeout)
@@ -674,10 +918,19 @@ public class BasicDownloader {
 				throw new IOException("分片下载失败，HTTP状态码: " + response.statusCode());
 			}
 			
+			long bytesWritten = 0;
 			File outFile = this.partFile.toFile();
 			try (InputStream in = new BufferedInputStream(response.body());
 					OutputStream out = new BufferedOutputStream(new FileOutputStream(outFile, false))) {
-				in.transferTo(out);
+				byte[] buffer = new byte[1024 * 256];
+				int read;
+				while ((read = in.read(buffer)) != -1) {
+					out.write(buffer, 0, read);
+					bytesWritten += read;
+					this.downloadedBytes.addAndGet(read);
+				}
+			} catch (IOException e) {
+				throw new PartDownloadException(e, bytesWritten);
 			}
 			
 			long expected = this.part.length();
@@ -685,6 +938,22 @@ public class BasicDownloader {
 			if (actual != expected) {
 				throw new IOException("分片大小不匹配，期望: " + expected + " 实际: " + actual);
 			}
+			
+			if (bytesWritten != expected) {
+				throw new IOException("分片下载字节数不匹配，期望: " + expected + " 实际: " + bytesWritten);
+			}
+			
+			return bytesWritten;
+		}
+	}
+	
+	private static final class PartDownloadException extends IOException {
+		private static final long serialVersionUID = 1L;
+		private final long bytesWritten;
+		
+		private PartDownloadException(IOException cause, long bytesWritten) {
+			super(cause.getMessage(), cause);
+			this.bytesWritten = bytesWritten;
 		}
 	}
 	
