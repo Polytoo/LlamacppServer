@@ -169,6 +169,10 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			this.handleSetModelAliasRequest(ctx, request);
 			return;
 		}
+		if (uri.startsWith("/api/models/favourite")) {
+			this.handleModelFavouriteRequest(ctx, request);
+			return;
+		}
 		// 强制刷新模型列表API
 		if (uri.startsWith("/api/models/refresh")) {
 			this.handleRefreshModelListRequest(ctx, request);
@@ -806,6 +810,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				modelInfo.put("id", modelId);
 				modelInfo.put("name", modelName);
 				modelInfo.put("alias", model.getAlias());
+				modelInfo.put("favourite", model.isFavourite());
 
 				// 设置默认路径信息
 				modelInfo.put("path", model.getPath());
@@ -989,6 +994,52 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		} catch (Exception e) {
 			logger.error("设置模型别名时发生错误", e);
 			sendJsonResponse(ctx, ApiResponse.error("设置模型别名失败: " + e.getMessage()));
+		}
+	}
+
+	private void handleModelFavouriteRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
+		try {
+			if (request.method() != HttpMethod.POST) {
+				sendJsonResponse(ctx, ApiResponse.error("只支持POST请求"));
+				return;
+			}
+			String content = request.content().toString(CharsetUtil.UTF_8);
+			if (content == null || content.trim().isEmpty()) {
+				sendJsonResponse(ctx, ApiResponse.error("请求体为空"));
+				return;
+			}
+			JsonObject json = gson.fromJson(content, JsonObject.class);
+			if (json == null || !json.has("modelId")) {
+				sendJsonResponse(ctx, ApiResponse.error("缺少必需的参数: modelId"));
+				return;
+			}
+			String modelId = json.get("modelId").getAsString();
+			if (modelId == null || modelId.trim().isEmpty()) {
+				sendJsonResponse(ctx, ApiResponse.error("modelId不能为空"));
+				return;
+			}
+
+			LlamaServerManager manager = LlamaServerManager.getInstance();
+			manager.listModel();
+			GGUFModel model = manager.findModelById(modelId);
+			if (model == null) {
+				sendJsonResponse(ctx, ApiResponse.error("未找到指定模型: " + modelId));
+				return;
+			}
+
+			boolean next = !model.isFavourite();
+			model.setFavourite(next);
+			ConfigManager configManager = ConfigManager.getInstance();
+			boolean saved = configManager.saveModelFavourite(modelId, next);
+
+			Map<String, Object> data = new HashMap<>();
+			data.put("modelId", modelId);
+			data.put("favourite", next);
+			data.put("saved", saved);
+			sendJsonResponse(ctx, ApiResponse.success(data));
+		} catch (Exception e) {
+			logger.error("设置模型喜好时发生错误", e);
+			sendJsonResponse(ctx, ApiResponse.error("设置模型喜好失败: " + e.getMessage()));
 		}
 	}
 	

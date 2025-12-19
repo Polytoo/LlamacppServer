@@ -196,6 +196,7 @@ public class ConfigManager {
         modelMap.put("modelId", model.getModelId());
         modelMap.put("path", model.getPath());
         modelMap.put("size", model.getSize());
+        modelMap.put("favourite", model.isFavourite());
         if (model.getAlias() != null && !model.getAlias().isEmpty()) {
             modelMap.put("alias", model.getAlias());
         }
@@ -230,7 +231,7 @@ public class ConfigManager {
      */
     public boolean saveModelAlias(String modelId, String alias) {
         try {
-            List<Map<String, Object>> models = loadModelsConfig();
+            List<Map<String, Object>> models = new java.util.ArrayList<>(loadModelsConfig());
             boolean found = false;
             for (Map<String, Object> m : models) {
                 Object id = m.get("modelId");
@@ -271,5 +272,51 @@ public class ConfigManager {
             }
         }
         return aliases;
+    }
+
+    public boolean saveModelFavourite(String modelId, boolean favourite) {
+        try {
+            List<Map<String, Object>> models = new java.util.ArrayList<>(loadModelsConfig());
+            boolean found = false;
+            for (Map<String, Object> m : models) {
+                Object id = m.get("modelId");
+                if (id != null && modelId.equals(String.valueOf(id))) {
+                    m.put("favourite", favourite);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                Map<String, Object> minimal = new HashMap<>();
+                minimal.put("modelId", modelId);
+                minimal.put("favourite", favourite);
+                models.add(minimal);
+            }
+            try (FileWriter writer = new FileWriter(MODELS_CONFIG_FILE)) {
+                gson.toJson(models, writer);
+                return true;
+            }
+        } catch (IOException e) {
+            System.err.println("保存模型喜好失败: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public Map<String, Boolean> loadFavouriteMap() {
+        Map<String, Boolean> favourites = new HashMap<>();
+        List<Map<String, Object>> models = loadModelsConfig();
+        for (Map<String, Object> m : models) {
+            Object id = m.get("modelId");
+            Object fav = m.get("favourite");
+            if (id == null || fav == null) continue;
+            boolean v;
+            if (fav instanceof Boolean) {
+                v = (Boolean) fav;
+            } else {
+                v = Boolean.parseBoolean(String.valueOf(fav));
+            }
+            favourites.put(String.valueOf(id), v);
+        }
+        return favourites;
     }
 }

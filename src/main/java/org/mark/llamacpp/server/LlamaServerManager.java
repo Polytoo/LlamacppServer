@@ -206,6 +206,13 @@ public class LlamaServerManager {
                         m.setAlias(alias);
                     }
                 }
+                Map<String, Boolean> favouriteMap = this.configManager.loadFavouriteMap();
+                for (GGUFModel m : this.list) {
+                    Boolean fav = favouriteMap.get(m.getModelId());
+                    if (fav != null) {
+                        m.setFavourite(fav);
+                    }
+                }
                 // 保存模型信息到配置文件
                 this.configManager.saveModelsConfig(this.list);
             }

@@ -52,6 +52,16 @@ public class GGUFModel {
 	private String modelId;
 	
 	
+	/**
+	 * 	
+	 */
+	
+	
+	
+	
+	private boolean favourite = false;
+	
+	
 	public GGUFModel(String name, String path) {
 		this.path = path;
 		this.name = name;
@@ -89,6 +99,14 @@ public class GGUFModel {
 
 	public void setAlias(String alias) {
 		this.alias = alias;
+	}
+	
+	public boolean isFavourite() {
+		return favourite;
+	}
+	
+	public void setFavourite(boolean favourite) {
+		this.favourite = favourite;
 	}
 
 	/**

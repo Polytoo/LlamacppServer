@@ -266,6 +266,31 @@
         .model-item:last-child { border-bottom: none; }
         .model-item:hover { background-color: #f9fafb; }
 
+        .model-fav-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: #d1d5db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            margin-right: 0.75rem;
+            font-size: 1rem;
+        }
+        .model-fav-btn:hover {
+            border-color: var(--border-color);
+            background: #ffffff;
+            color: var(--warning-color);
+        }
+        .model-fav-btn.active {
+            color: var(--warning-color);
+        }
+
         .model-icon-wrapper {
             width: 48px;
             height: 48px;
@@ -1264,9 +1289,24 @@
             const sortType = document.getElementById('modelSortSelect').value;
             if (!currentModelsData) return;
             
-            const models = [...currentModelsData]; // Copy
-            
-            models.sort((a, b) => {
+            const comparator = getModelSortComparator(sortType);
+            const all = [...currentModelsData];
+
+            const favourites = [];
+            const nonFavourites = [];
+            all.forEach(m => {
+                if (m && m.favourite) favourites.push(m);
+                else nonFavourites.push(m);
+            });
+
+            favourites.sort(comparator);
+            nonFavourites.sort(comparator);
+
+            renderModelsList([...favourites, ...nonFavourites]);
+        }
+
+        function getModelSortComparator(sortType) {
+            return (a, b) => {
                 const nameA = (a.alias || a.name || '').toLowerCase();
                 const nameB = (b.alias || b.name || '').toLowerCase();
                 const sizeA = a.size || 0;
@@ -1283,9 +1323,7 @@
                     case 'params_desc': return paramsB - paramsA;
                     default: return 0;
                 }
-            });
-            
-            renderModelsList(models);
+            };
         }
 
         function renderModelsList(models) {
@@ -1323,6 +1361,7 @@
                 
                 const modelIcon = getModelIcon(architecture);
                 const displayName = (model.alias && model.alias.trim()) ? model.alias : model.name;
+                const isFavourite = !!model.favourite;
                 
                 let actionButtons = '';
                 if (isLoading) {
@@ -1353,6 +1392,9 @@
                 
                 html += `
                     <div class="model-item">
+                        <button class="model-fav-btn ${isFavourite ? 'active' : ''}" onclick="toggleFavouriteModel(event, decodeURIComponent('${encodeURIComponent(model.id)}'))" title="${isFavourite ? '取消喜好' : '标记喜好'}">
+                            <i class="${isFavourite ? 'fas' : 'far'} fa-star"></i>
+                        </button>
                         <div class="model-icon-wrapper">
                             ${modelIcon ? `<img src="${modelIcon}" alt="${architecture}">` : `<i class="fas fa-brain"></i>`}
                         </div>
@@ -1377,6 +1419,45 @@
             modelsList.innerHTML = html;
             const input = document.getElementById('modelSearchInput');
             if (input) filterModels(input.value);
+        }
+
+        function toggleFavouriteModel(event, modelId) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const idx = (currentModelsData || []).findIndex(m => m && m.id === modelId);
+            if (idx < 0) return;
+
+            const prev = !!currentModelsData[idx].favourite;
+            currentModelsData[idx].favourite = !prev;
+            sortAndRenderModels();
+
+            fetch('/api/models/favourite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ modelId })
+            })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res || !res.success) {
+                        throw new Error((res && res.error) ? res.error : '设置喜好失败');
+                    }
+                    const favourite = !!(res.data && res.data.favourite);
+                    const i = (currentModelsData || []).findIndex(m => m && m.id === modelId);
+                    if (i >= 0) {
+                        currentModelsData[i].favourite = favourite;
+                        sortAndRenderModels();
+                    }
+                })
+                .catch(err => {
+                    const i = (currentModelsData || []).findIndex(m => m && m.id === modelId);
+                    if (i >= 0) {
+                        currentModelsData[i].favourite = prev;
+                        sortAndRenderModels();
+                    }
+                    showToast('错误', err && err.message ? err.message : '网络错误', 'error');
+                });
         }
 
         function refreshModels() {
