@@ -1,13 +1,11 @@
 package org.mark.llamacpp.server.channel;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.mark.llamacpp.server.service.CompletionService;
-import org.mark.llamacpp.server.service.OpenAIService;
 import org.mark.llamacpp.server.struct.CharactorDataStruct;
 
 import com.google.gson.Gson;
@@ -41,8 +39,6 @@ public class CompletionRouterHandler extends SimpleChannelInboundHandler<FullHtt
 	 */
 	private CompletionService completionService = new CompletionService();
 	
-	
-	private OpenAIService openAIService = new OpenAIService();
 	
 	
 	public CompletionRouterHandler() {
