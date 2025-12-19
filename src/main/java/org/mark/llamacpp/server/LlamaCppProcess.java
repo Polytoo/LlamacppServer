@@ -1,12 +1,20 @@
 package org.mark.llamacpp.server;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+
+
+/**
+ * 	llamacpp进程
+ */
 public class LlamaCppProcess {
 	
 	/**
@@ -50,6 +58,12 @@ public class LlamaCppProcess {
 	private Consumer<String> outputHandler;
 	
 	/**
+	 * 	程序启动后的输入流
+	 */
+	private BufferedWriter stdwriter;
+	
+	
+	/**
 	 * 	构造器。
 	 * @param name 进程名称
 	 * @param cmd 启动命令
@@ -65,6 +79,20 @@ public class LlamaCppProcess {
 	 */
 	public void setOutputHandler(Consumer<String> outputHandler) {
 		this.outputHandler = outputHandler;
+	}
+	
+	/**
+	 * 	写入输入内容
+	 * @param cmd
+	 */
+	public synchronized void send(String cmd) {
+		try {
+			if(this.stdwriter != null) {
+				this.stdwriter.write(cmd);
+			}
+		}catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	/**
@@ -102,12 +130,14 @@ public class LlamaCppProcess {
 					}
 				}
 			}
-			
+			// 正经启动
 			this.process = pb.start();
 			
 			// 获取PID (Java 9+ 提供了getPid方法)
+			// 获取输入流
 			try {
 				this.pid = this.process.pid();
+				this.stdwriter = new BufferedWriter(new OutputStreamWriter(this.process.getOutputStream(), StandardCharsets.UTF_8));
 			} catch (Exception e) {
 				e.printStackTrace();
 				// 如果获取不到PID，使用一个默认值
@@ -131,64 +161,67 @@ public class LlamaCppProcess {
 	 */
 	private void startOutputReaders() {
 		// 标准输出读取线程
-		outputThread = new Thread(() -> {
-			try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+		this.outputThread = new Thread(() -> {
+			try (BufferedReader reader = new BufferedReader(new InputStreamReader(this.process.getInputStream()))) {
 				String line;
 				while ((line = reader.readLine()) != null && this.isRunning.get()) {
-					if (outputHandler != null) {
-						outputHandler.accept(line);
+					// 将输出的内容转给处理器
+					if (this.outputHandler != null) {
+						this.outputHandler.accept(line);
 					}
 					System.out.println(line);
 				}
 			} catch (IOException e) {
-				if (isRunning.get() && outputThread != null) {
-					outputHandler.accept("读取输出时发生错误: " + e.getMessage());
+				if (this.isRunning.get() && this.outputThread != null) {
+					this.outputHandler.accept("读取输出时发生错误: " + e.getMessage());
 				}
 			}
 		});
-		outputThread.setDaemon(true);
-		outputThread.start();
+		this.outputThread.setDaemon(true);
+		this.outputThread.start();
 	}
+	
+	
 	
 	/**
 	 * 停止进程
 	 * @return 是否停止成功
 	 */
 	public synchronized boolean stop() {
-		if (!isRunning.get()) {
+		if (!this.isRunning.get()) {
 			return false;
 		}
 		
-		isRunning.set(false);
+		this.isRunning.set(false);
 		
-		if (process != null) {
-			process.destroy();
+		if (this.process != null) {
+			this.process.destroy();
 			
 			try {
 				// 等待进程结束
-				if (!process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
-					process.destroyForcibly();
+				if (!this.process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
+					this.process.destroyForcibly();
 				}
 			} catch (InterruptedException e) {
-				process.destroyForcibly();
+				this.process.destroyForcibly();
 				Thread.currentThread().interrupt();
 			}
 		}
 		
 		// 等待输出线程结束
-		if (outputThread != null) {
+		if (this.outputThread != null) {
 			try {
-				outputThread.interrupt();
-				outputThread.join(1000);
+				this.outputThread.interrupt();
+				this.outputThread.join(1000);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
 		}
 		
-		if (errorThread != null) {
+		if (this.errorThread != null) {
 			try {
-				errorThread.interrupt();
-				errorThread.join(1000);
+				this.errorThread.interrupt();
+				this.errorThread.join(1000);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
@@ -202,7 +235,7 @@ public class LlamaCppProcess {
 	 * @return 进程名称
 	 */
 	public String getName() {
-		return name;
+		return this.name;
 	}
 	
 	/**
@@ -210,7 +243,7 @@ public class LlamaCppProcess {
 	 * @return 启动命令
 	 */
 	public String getCmd() {
-		return cmd;
+		return this.cmd;
 	}
 	
 	/**
@@ -218,7 +251,7 @@ public class LlamaCppProcess {
 	 * @return 进程PID，如果获取失败返回-1
 	 */
 	public long getPid() {
-		return pid;
+		return this.pid;
 	}
 	
 	/**
@@ -226,7 +259,7 @@ public class LlamaCppProcess {
 	 * @return 是否正在运行
 	 */
 	public boolean isRunning() {
-		return isRunning.get() && process != null && process.isAlive();
+		return this.isRunning.get() && this.process != null && this.process.isAlive();
 	}
 	
 	/**
@@ -234,8 +267,8 @@ public class LlamaCppProcess {
 	 * @return 进程退出码，如果进程仍在运行返回null
 	 */
 	public Integer getExitCode() {
-		if (process != null && !process.isAlive()) {
-			return process.exitValue();
+		if (this.process != null && !this.process.isAlive()) {
+			return this.process.exitValue();
 		}
 		return null;
 	}

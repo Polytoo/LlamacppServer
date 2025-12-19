@@ -5,14 +5,23 @@ import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 
+import org.mark.llamacpp.server.LlamaCppProcess;
+
 /**
- * 	用来运行CLI。
+ * 	用来运行CLI。转移到{@link LlamaCppProcess}
  */
+@Deprecated
 public class LlamaCliProcessor {
 	
 	
+	/**
+	 * 	cli程序的路径
+	 */
+	private String bin;
 	
-	public LlamaCliProcessor() {
+	
+	
+	public LlamaCliProcessor(String bin) {
 		
 		
 	}
