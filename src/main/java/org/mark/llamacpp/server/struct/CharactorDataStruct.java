@@ -31,6 +31,11 @@ public class CharactorDataStruct {
 	 * 	参数
 	 */
 	private String paramsJson;
+
+	/**
+	 * 	使用哪个 OpenAI 兼容端点：1=/v1/chat/completions, 0=/v1/completions
+	 */
+	private int apiModel = 1;
 	
 	/**
 	 * 	创建时间
@@ -78,6 +83,12 @@ public class CharactorDataStruct {
 	}
 	public void setParamsJson(String paramsJson) {
 		this.paramsJson = paramsJson;
+	}
+	public int getApiModel() {
+		return apiModel;
+	}
+	public void setApiModel(int apiModel) {
+		this.apiModel = apiModel;
 	}
 	public long getCreatedAt() {
 		return createdAt;

@@ -268,6 +268,31 @@
       line-height: 1.55;
       font-size: 14px;
     }
+	
+	.reasoning{
+	  margin: 0 0 10px 0;
+	  border: 1px dashed rgba(148, 163, 184, 0.35);
+	  border-radius: 10px;
+	  padding: 6px 8px;
+	  background: rgba(2, 6, 23, 0.18);
+	}
+	
+	.reasoning > summary{
+	  cursor: pointer;
+	  color: var(--muted);
+	  font-size: 12px;
+	  user-select: none;
+	}
+	
+	.reasoning pre{
+	  margin: 8px 0 0 0;
+	  white-space: pre-wrap;
+	  word-break: break-word;
+	  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+	  font-size: 12.5px;
+	  line-height: 1.5;
+	  color: rgba(226, 232, 240, 0.92);
+	}
 
     .composer{
       border-top: 1px solid var(--border);
@@ -669,6 +694,13 @@
                   <input id="userName" type="text" placeholder="例如：我" />
                 </div>
                 <div class="setting">
+                  <label for="apiModelSelect">API 端点</label>
+                  <select id="apiModelSelect">
+                    <option value="1">/v1/chat/completions</option>
+                    <option value="0">/v1/completions</option>
+                  </select>
+                </div>
+                <div class="setting">
                   <label for="maxTokens">max_tokens</label>
                   <input id="maxTokens" type="number" value="512" min="1" max="32768" />
                 </div>
@@ -798,6 +830,7 @@
       userSuffix: document.getElementById('userSuffix'),
       assistantPrefix: document.getElementById('assistantPrefix'),
       assistantSuffix: document.getElementById('assistantSuffix'),
+      apiModelSelect: document.getElementById('apiModelSelect'),
 
       autoScroll: document.getElementById('autoScroll'),
       saveHint: document.getElementById('saveHint'),
@@ -819,7 +852,11 @@
       lastSavedAt: 0,
       messages: [],
       messageEls: new Map(),
-      editingMessageId: null
+      editingMessageId: null, 
+      // 用/v1/chat/completion还是/v1/completions
+      // 值为1时，用/v1/chat/completion
+      // 值为0时，用/v1/completions
+      apiModel: 1
     };
 
     function uid() {
@@ -828,7 +865,7 @@
     }
 
     function setStatus(text) {
-      void text;
+      void text;             
     }
 
     function setSaveHint(text) {
@@ -1090,12 +1127,27 @@
       content.textContent = msg.content || '';
 
       bubble.appendChild(meta);
+	  
+      let reasoningPre = null;
+      const reasoningText = (typeof msg.reasoning === 'string' ? msg.reasoning : '');
+      if (msg.role === 'assistant' && reasoningText.trim()) {
+        const details = document.createElement('details');
+        details.className = 'reasoning';
+        const summary = document.createElement('summary');
+        summary.textContent = '思考过程';
+        reasoningPre = document.createElement('pre');
+        reasoningPre.textContent = reasoningText;
+        details.appendChild(summary);
+        details.appendChild(reasoningPre);
+        bubble.appendChild(details);
+      }
+
       bubble.appendChild(content);
 
       wrap.appendChild(avatar);
       wrap.appendChild(bubble);
 
-      state.messageEls.set(msg.id, content);
+      state.messageEls.set(msg.id, { contentEl: content, reasoningEl: reasoningPre });
       els.chatList.appendChild(wrap);
       maybeScrollToBottom();
     }
@@ -1119,15 +1171,45 @@
     }
 
     function updateMessage(id, content) {
-      const el = state.messageEls.get(id);
+      const entry = state.messageEls.get(id);
+      const el = entry && entry.contentEl ? entry.contentEl : entry;
       if (el) el.textContent = content || '';
       const m = state.messages.find(x => x.id === id);
       if (m) m.content = content || '';
       maybeScrollToBottom();
     }
+	
+	function updateReasoning(id, reasoning) {
+	  const entry = state.messageEls.get(id);
+	  const pre = entry && entry.reasoningEl ? entry.reasoningEl : null;
+	  const reasoningText = (reasoning == null ? '' : String(reasoning));
+	  if (pre) {
+		pre.textContent = reasoningText;
+	  } else if (reasoningText.trim()) {
+		const wrap = els.chatList.querySelector('.msg.assistant[data-id="' + id + '"]');
+		const bubble = wrap ? wrap.querySelector('.bubble') : null;
+		if (bubble) {
+		  const details = document.createElement('details');
+		  details.className = 'reasoning';
+		  const summary = document.createElement('summary');
+		  summary.textContent = '思考过程';
+		  const newPre = document.createElement('pre');
+		  newPre.textContent = reasoningText;
+		  details.appendChild(summary);
+		  details.appendChild(newPre);
+		  const meta = bubble.querySelector('.meta');
+		  if (meta) bubble.insertBefore(details, meta.nextSibling);
+		  state.messageEls.set(id, { contentEl: entry && entry.contentEl ? entry.contentEl : bubble.querySelector('.content'), reasoningEl: newPre });
+		}
+	  }
+	  const m = state.messages.find(x => x.id === id);
+	  if (m) m.reasoning = reasoningText;
+	  maybeScrollToBottom();
+	}
 
     // 这里生成发送的消息
-    function buildTranscriptFrom(messages) {
+    // 构造/v1/completions用的消息。
+    function buildPrompt(messages) {
       const lines = [];
       const sys = (els.systemPrompt.value || '').trim();
       if (sys) lines.push('System: ' + sys);
@@ -1141,7 +1223,8 @@
       const userSuffix = getUserMessageSuffix();
       const assistantPrefix = getAssistantMessagePrefix();
       const assistantSuffix = getAssistantMessageSuffix();
-      for (const m of (Array.isArray(messages) ? messages : [])) {
+      const history = Array.isArray(messages) ? messages : state.messages;
+      for (const m of (Array.isArray(history) ? history : [])) {
         if (m.role === 'system') {
           lines.push('System: ' + (m.content || ''));
         } else if (m.role === 'user') {
@@ -1154,17 +1237,58 @@
       return lines.join('\n');
     }
 
-    function buildTranscript() {
-      return buildTranscriptFrom(state.messages);
+
+    // 给/v1/chat/completions端点构造请求内容
+    function buildContent(messages) {
+      const history = Array.isArray(messages) ? messages : state.messages;
+      const out = [];
+      const sys = (els.systemPrompt.value || '').trim();
+      const rolePrompt = (els.rolePrompt.value || '').trim();
+      
+      if (sys) out.push({ role: 'system', content: sys });
+      if (rolePrompt) out.push({ role: 'system', content: rolePrompt });
+      // 参考酒馆的提示词
+      out.push({ role: 'system', content: '[Start a new Chat]' });
+
+      const userPrefix = getUserMessagePrefix();
+      const userSuffix = getUserMessageSuffix();
+      // 实际上，这个东西就不生效了，不过先拼在里面看看吧
+      const assistantPrefix = getAssistantMessagePrefix();
+      const assistantSuffix = getAssistantMessageSuffix();
+      // 遍历全部的历史消息，拼接为messages
+      for (const m of (Array.isArray(history) ? history : [])) {
+        const role = m?.role;
+        if (role !== 'system' && role !== 'user' && role !== 'assistant') continue;
+        const raw = (m?.content == null ? '' : String(m.content));
+        if (role === 'system') {
+          out.push({ role: 'system', content: assistantPrefix });
+          out.push({ role: 'system', content: raw });
+          out.push({ role: 'system', content: assistantSuffix });
+        } else if (role === 'user') {
+          out.push({ role: 'user', content: userPrefix });
+          out.push({ role: 'user', content: raw});
+          out.push({ role: 'user', content: userSuffix });
+        }
+      }
+
+      
+
+      return out;
     }
 
-    function extractDeltaText(json) {
+    function extractDeltaParts(json) {
       const c0 = json?.choices?.[0];
-      if (!c0) return '';
-      if (typeof c0.text === 'string') return c0.text;
-      if (typeof c0.delta?.content === 'string') return c0.delta.content;
-      if (typeof c0.message?.content === 'string') return c0.message.content;
-      return '';
+      if (!c0) return { content: '', reasoning: '' };
+      let content = '';
+      let reasoning = '';
+      if (typeof c0.text === 'string') content = c0.text;
+      if (typeof c0.delta?.content === 'string') content = c0.delta.content;
+      if (typeof c0.message?.content === 'string') content = c0.message.content;
+      if (typeof c0.delta?.reasoning_content === 'string') reasoning = c0.delta.reasoning_content;
+      if (typeof c0.message?.reasoning_content === 'string') reasoning = c0.message.reasoning_content;
+      if (typeof c0.reasoning_content === 'string') reasoning = c0.reasoning_content;
+      if (typeof json?.reasoning_content === 'string') reasoning = json.reasoning_content;
+      return { content, reasoning };
     }
 
     async function consumeSseStream(res, assistantMsgId) {
@@ -1172,6 +1296,7 @@
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
       let text = '';
+	  let reasoning = '';
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -1183,19 +1308,25 @@
           const data = line.slice(6).trim();
           if (data === '[DONE]') {
             updateMessage(assistantMsgId, text);
+			if (reasoning) updateReasoning(assistantMsgId, reasoning);
             return;
           }
           try {
             const json = JSON.parse(data);
-            const delta = extractDeltaText(json);
-            if (delta) {
-              text += delta;
+            const parts = extractDeltaParts(json);
+			if (parts.reasoning) {
+			  reasoning += parts.reasoning;
+			  updateReasoning(assistantMsgId, reasoning);
+			}
+            if (parts.content) {
+              text += parts.content;
               updateMessage(assistantMsgId, text);
             }
           } catch (e) {}
         }
       }
       updateMessage(assistantMsgId, text);
+	  if (reasoning) updateReasoning(assistantMsgId, reasoning);
     }
 
     function currentParams() {
@@ -1206,7 +1337,7 @@
       };
     }
 
-    async function generateIntoMessage(prompt, assistantMsgId) {
+    async function generateIntoMessage(contextMessages, assistantMsgId) {
       const model = els.modelSelect.value || '';
       const params = currentParams();
       state.abortController = new AbortController();
@@ -1215,18 +1346,31 @@
       setSaveHint('');
 
       try {
-        const res = await fetch('/v1/completions', {
+        const isChat = state.apiModel === 1;
+        const url = isChat ? '/v1/chat/completions' : '/v1/completions';
+        const body = isChat
+          ? {
+              model,
+              messages: buildContent(contextMessages),
+              max_tokens: params.max_tokens,
+              temperature: params.temperature,
+              top_p: params.top_p,
+              stream: true
+            }
+          : {
+              model,
+              prompt: buildPrompt(contextMessages),
+              max_tokens: params.max_tokens,
+              temperature: params.temperature,
+              top_p: params.top_p,
+              stream: true,
+              stop: ['\n' + getUserSpeakerName(), '\n***']
+            };
+
+        const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            prompt,
-            max_tokens: params.max_tokens,
-            temperature: params.temperature,
-            top_p: params.top_p,
-            stream: true, 
-            stop: ['\n' + getUserSpeakerName(), '\n***']
-          }),
+          body: JSON.stringify(body),
           signal: state.abortController.signal
         });
 
@@ -1245,7 +1389,9 @@
           await consumeSseStream(res, assistantMsgId);
         } else {
           const data = await res.json();
-          updateMessage(assistantMsgId, extractDeltaText(data) || '');
+          const parts = extractDeltaParts(data);
+          updateMessage(assistantMsgId, parts.content || '');
+		  if (parts.reasoning) updateReasoning(assistantMsgId, parts.reasoning);
         }
 
         scheduleSave('完成');
@@ -1281,31 +1427,30 @@
         rerenderAll();
         updateMessage(msg.id, '');
         scheduleSave('重生成');
-        const prompt = buildTranscriptFrom(state.messages.slice(0, idx));
-        await generateIntoMessage(prompt, msg.id);
+        await generateIntoMessage(state.messages.slice(0, idx), msg.id);
         return;
       }
 
       if (msg.role === 'user') {
         state.messages = state.messages.slice(0, idx + 1);
         rerenderAll();
-        const prompt = buildTranscriptFrom(state.messages);
         const assistantMsg = addMessage('assistant', '');
         scheduleSave('重生成');
-        await generateIntoMessage(prompt, assistantMsg.id);
+        await generateIntoMessage(state.messages, assistantMsg.id);
       }
     }
 
     // 这个功能不再使用
     function scheduleSave(reason) {
-      //if (!state.currentCompletionId) return;
-      //if (state.saveTimer) clearTimeout(state.saveTimer);
-      //state.saveTimer = setTimeout(() => saveCompletion(reason).catch(() => {}), 450);
+      if (!state.currentCompletionId) return;
+      if (state.saveTimer) clearTimeout(state.saveTimer);
+      state.saveTimer = setTimeout(() => saveCompletion(reason).catch(() => {}), 450);
     }
 
     function buildParamsJson() {
       return JSON.stringify({
         model: els.modelSelect.value || '',
+        apiModel: state.apiModel,
         userName: (els.userName.value || '').trim(),
         userPrefix: (els.userPrefix.value == null ? '' : String(els.userPrefix.value)),
         userSuffix: (els.userSuffix.value == null ? '' : String(els.userSuffix.value)),
@@ -1324,6 +1469,7 @@
         prompt: lzCompressIfNeeded(els.rolePrompt.value || ''),
         systemPrompt: lzCompressIfNeeded(els.systemPrompt.value || ''),
         paramsJson: lzCompressIfNeeded(buildParamsJson()),
+        apiModel: state.apiModel,
         createdAt: Number(state.currentCreatedAt || 0),
         updatedAt: Date.now()
       };
@@ -1511,6 +1657,7 @@
           id: m?.id || uid(),
           role,
           content: (m?.content == null ? '' : String(m.content)),
+          reasoning: (typeof m?.reasoning === 'string' ? m.reasoning : ''),
           ts: typeof m?.ts === 'number' ? m.ts : Date.now()
         });
       }
@@ -1538,6 +1685,12 @@
       if (ext?.params?.temperature != null) els.temperature.value = String(ext.params.temperature);
       if (ext?.params?.top_p != null) els.topP.value = String(ext.params.top_p);
 
+      const loadedApiModel = (ext?.apiModel != null ? ext.apiModel : s.apiModel);
+      if (loadedApiModel != null) {
+        state.apiModel = Number(loadedApiModel) === 0 ? 0 : 1;
+      }
+      els.apiModelSelect.value = String(state.apiModel);
+
       state.messages = normalizeHistory(ext?.history);
       rerenderAll();
       updateCompletionBadge();
@@ -1557,10 +1710,9 @@
 
       els.promptInput.value = '';
       addMessage('user', userText);
-      const prompt = buildTranscript();
       const assistantMsg = addMessage('assistant', '');
       scheduleSave('发送');
-      await generateIntoMessage(prompt, assistantMsg.id);
+      await generateIntoMessage(state.messages, assistantMsg.id);
     }
 
     function bindEvents() {
@@ -1619,6 +1771,10 @@
         scheduleSave('标题');
       });
       els.modelSelect.addEventListener('change', () => scheduleSave('模型'));
+      els.apiModelSelect.addEventListener('change', () => {
+        state.apiModel = Number(els.apiModelSelect.value) === 0 ? 0 : 1;
+        scheduleSave('端点');
+      });
       els.systemPrompt.addEventListener('input', () => scheduleSave('系统描述'));
       els.rolePrompt.addEventListener('input', () => scheduleSave('角色设定'));
       els.userName.addEventListener('input', () => scheduleSave('用户名'));
@@ -1669,6 +1825,7 @@
     // 啓動后就執行初始化
     async function init() {
       bindEvents();
+      els.apiModelSelect.value = String(state.apiModel);
       await loadModels();
       await loadCompletions(true);
     }

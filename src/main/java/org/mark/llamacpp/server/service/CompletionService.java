@@ -77,6 +77,7 @@ public class CompletionService {
 		charactorDataStruct.setCreatedAt(now);
 		charactorDataStruct.setPrompt("");
 		charactorDataStruct.setSystemPrompt("");
+		charactorDataStruct.setApiModel(1);
 		charactorDataStruct.setTitle("默认角色-" + now);
 		charactorDataStruct.setUpdatedAt(now);
 		// 写入本地磁盘
