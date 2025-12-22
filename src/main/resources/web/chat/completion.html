@@ -679,6 +679,8 @@
               <input id="autoScroll" type="checkbox" checked />
               <label for="autoScroll" class="hint">自动滚动</label>
             </div>
+            <button id="saveKV" class="btn ghost" type="button">保存KV缓存</button>
+            <button id="loadKV" class="btn ghost" type="button">加载KV缓存</button>
           </div>
 
           <div id="settingsPanel" class="settings">
@@ -834,6 +836,9 @@
 
       autoScroll: document.getElementById('autoScroll'),
       saveHint: document.getElementById('saveHint'),
+      
+      saveKV: document.getElementById('saveKV'),
+      loadKV: document.getElementById('loadKV'),
 
       editModal: document.getElementById('editModal'),
       editTextarea: document.getElementById('editTextarea'),
@@ -1715,11 +1720,73 @@
       await generateIntoMessage(state.messages, assistantMsg.id);
     }
 
+    async function saveKVCache() {
+      try {
+        const modelId = els.modelSelect.value;
+        if (!modelId) {
+          setStatus('请先选择一个模型');
+          return;
+        }
+        
+        // 默认使用slot 0
+        const slotId = 0;
+        
+        setStatus('保存KV缓存中...');
+        const response = await fetchJson('/api/models/slots/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            modelId: modelId,
+            slotId: slotId
+          })
+        });
+        
+        if (response.success) {
+          setStatus('KV缓存保存成功');
+        } else {
+          setStatus('KV缓存保存失败: ' + (response.message || '未知错误'));
+        }
+      } catch (e) {
+        setStatus('KV缓存保存失败: ' + e.message);
+      }
+    }
+    
+    async function loadKVCache() {
+      try {
+        const modelId = els.modelSelect.value;
+        if (!modelId) {
+          setStatus('请先选择一个模型');
+          return;
+        }
+        
+        // 默认使用slot 0
+        const slotId = 0;
+        
+        setStatus('加载KV缓存中...');
+        const response = await fetchJson('/api/models/slots/load', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            modelId: modelId,
+            slotId: slotId
+          })
+        });
+        
+        if (response.success) {
+          setStatus('KV缓存加载成功');
+        } else {
+          setStatus('KV缓存加载失败: ' + (response.message || '未知错误'));
+        }
+      } catch (e) {
+        setStatus('KV缓存加载失败: ' + e.message);
+      }
+    }
+
     function bindEvents() {
-      els.sessionsToggle.addEventListener('click', () => {
-        openDrawer();
-        loadCompletions(false);
-      });
+    els.sessionsToggle.addEventListener('click', () => {
+      openDrawer();
+      loadCompletions(false);
+    });
       els.drawerClose.addEventListener('click', closeDrawer);
       els.backdrop.addEventListener('click', closeDrawer);
 
@@ -1785,6 +1852,10 @@
       els.maxTokens.addEventListener('input', () => scheduleSave('参数'));
       els.temperature.addEventListener('input', () => scheduleSave('参数'));
       els.topP.addEventListener('input', () => scheduleSave('参数'));
+      
+      // KV缓存按钮事件
+      els.saveKV.addEventListener('click', saveKVCache);
+      els.loadKV.addEventListener('click', loadKVCache);
 
       els.editModal.addEventListener('click', (e) => {
         if (e.target === els.editModal) closeEditModal();
