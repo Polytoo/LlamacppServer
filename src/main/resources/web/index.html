@@ -1256,9 +1256,16 @@
         function getModelIcon(architecture) {
             const archName = (architecture || '').toLowerCase().replace(/[^a-z]/g, '');
             const iconMap = {
-                'qwen': 'icon/qwen.png', 'glm': 'icon/glm.png', 'hunyuan': 'icon/hunyuan.png',
-                'mistral': 'icon/mistral3.png', 'gpt': 'icon/openai.png', 'seed': 'icon/seed_oss.png',
-                'llama': 'icon/llama.png' 
+                'qwen': 'icon/qwen.png', 
+                'glm': 'icon/glm.png', 
+                'hunyuan': 'icon/hunyuan.png',
+                'mistral': 'icon/mistral3.png', 
+                'gpt': 'icon/openai.png', 
+                'seed': 'icon/seed_oss.png',
+                'llama': 'icon/llama.png', 
+                'kimi': 'icon/kimi.png',
+                'minimax': 'icon/minimax.png',
+                'gemma3': 'icon/gemma3.png',
             };
             for (const [key, icon] of Object.entries(iconMap)) {
                 if (archName.includes(key)) return icon;
