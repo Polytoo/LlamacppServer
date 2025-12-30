@@ -901,11 +901,6 @@ public class LlamaServerManager {
 				list.add(lines[i]);
 			}
 		}
-		
-		for(int i = 0; i < 100; i++) {
-			list.add("Vulkan" + (i + 1) + ": 1111111111111111111");
-		}
-		
 		return list;
 	}
 	
