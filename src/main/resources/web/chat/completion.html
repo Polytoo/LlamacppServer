@@ -820,8 +820,6 @@
             <input id="titleInput" class="title-input" type="text" placeholder="角色名称（自动保存）" />
           </div>
           <div class="chat-actions">
-            <button id="toggleSettings" class="btn" type="button">设置</button>
-            <button id="clearChat" class="btn" type="button">清空</button>
             <button id="sessionsToggle" class="btn ghost" type="button">角色列表</button>
           </div>
         </div>
@@ -839,6 +837,12 @@
               <input id="autoScroll" type="checkbox" checked />
               <label for="autoScroll" class="hint">自动滚动</label>
             </div>
+            <div class="toggle">
+              <input id="streamToggle" type="checkbox" checked />
+              <label for="streamToggle" class="hint">流式传输</label>
+            </div>
+            <button id="toggleSettings" class="btn" type="button">设置</button>
+            <button id="clearChat" class="btn" type="button">清空</button>
             <button id="kvCacheToggle" class="btn icon-btn ghost" type="button" title="KV缓存管理">💾</button>
           </div>
 
@@ -909,7 +913,7 @@
           </div>
 
           <div class="prompt-row">
-            <button id="modelRowToggle" class="btn icon-btn ghost" type="button" title="显示模型栏" aria-label="显示模型栏" aria-expanded="false">☰</button>
+            <button id="modelRowToggle" style="width: 48px; height: 100%" class="btn icon-btn ghost" type="button" title="显示模型栏" aria-label="显示模型栏" aria-expanded="false">☰</button>
             <textarea id="promptInput" placeholder="输入消息…（Ctrl+Enter 发送）"></textarea>
             <div class="prompt-actions">
               <button id="sendBtn" class="btn primary" type="button">发送</button>
@@ -1019,6 +1023,7 @@
       apiModelSelect: document.getElementById('apiModelSelect'),
 
       autoScroll: document.getElementById('autoScroll'),
+      streamToggle: document.getElementById('streamToggle'),
       saveHint: document.getElementById('saveHint'),
 
       kvCacheToggle: document.getElementById('kvCacheToggle'),
@@ -1192,6 +1197,7 @@
       els.stopBtn.disabled = !isBusy;
       els.modelSelect.disabled = isBusy;
       els.refreshModels.disabled = isBusy;
+      els.streamToggle.disabled = isBusy;
       els.promptInput.disabled = isBusy ? false : false;
     }
 
@@ -1547,6 +1553,7 @@
 
       try {
         const isChat = state.apiModel === 1;
+        const useStream = !!els.streamToggle.checked;
         const url = isChat ? '/v1/chat/completions' : '/v1/completions';
         const body = isChat
           ? {
@@ -1555,7 +1562,7 @@
             max_tokens: params.max_tokens,
             temperature: params.temperature,
             top_p: params.top_p,
-            stream: true
+            stream: useStream
           }
           : {
             model,
@@ -1563,7 +1570,7 @@
             max_tokens: params.max_tokens,
             temperature: params.temperature,
             top_p: params.top_p,
-            stream: true,
+            stream: useStream,
             stop: ['\n' + getUserSpeakerName(), '\n***']
           };
 

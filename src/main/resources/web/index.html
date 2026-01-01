@@ -1687,6 +1687,50 @@
             });
         }
 
+        function estimateVramForConfig() {
+            const modelIdEl = document.getElementById('configModelId');
+            const modelId = modelIdEl ? modelIdEl.value : '';
+            if (!modelId) {
+                showToast('错误', '请先选择模型', 'error');
+                return;
+            }
+            const ctxSize = parseInt((document.getElementById('configCtxSize') || {}).value || '2048', 10);
+            const batchSize = parseInt((document.getElementById('configBatchSize') || {}).value || '512', 10);
+            const ubatch = parseInt((document.getElementById('configUbatchSize') || {}).value || '0', 10);
+            const flashAttentionEl = document.getElementById('configFlashAttention');
+            const payload = {
+                modelId,
+                ctxSize,
+                batchSize: isNaN(batchSize) || batchSize <= 0 ? null : batchSize,
+                ubatchSize: isNaN(ubatch) || ubatch <= 0 ? null : ubatch,
+                flashAttention: flashAttentionEl ? flashAttentionEl.checked : true,
+                enableVision: window.__modelConfigEnableVision !== undefined ? !!window.__modelConfigEnableVision : true
+            };
+            fetch('/api/models/vram/estimate', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            }).then(r => r.json()).then(res => {
+                if (res && res.success) {
+                    const bytes = res.data && res.data.bytes ? res.data.bytes : null;
+                    if (bytes) {
+                        const toMiB = (val) => (val / (1024 * 1024)).toFixed(1);
+                        const total = toMiB(bytes.totalVramRequired || 0);
+                        const weights = toMiB(bytes.modelWeights || 0);
+                        const kv = toMiB(bytes.kvCache || 0);
+                        const overhead = toMiB(bytes.runtimeOverhead || 0);
+                        const text = `预计显存：总计 ${total} MiB（权重 ${weights}，KV ${kv}，其他 ${overhead}）`;
+                        const hint = document.getElementById('configCtxSizeVramHint');
+                        if (hint) hint.textContent = text;
+                    } else {
+                        showToast('错误', '返回数据格式不正确', 'error');
+                    }
+                } else {
+                    showToast('错误', (res && res.error) ? res.error : '估算失败', 'error');
+                }
+            }).catch(() => {
+                showToast('错误', '网络请求失败', 'error');
+            });
+        }
+
         function openSlotsModal(modelId, displayName) {
             const modalId = 'slotsModal';
             let modal = document.getElementById(modalId);
@@ -2022,7 +2066,7 @@
                 modal = document.createElement('div');
                 modal.id = modalId;
                 modal.className = 'modal';
-                modal.innerHTML = `<div class="modal-content"><div class="modal-header"><h3 class="modal-title">启动配置</h3><button class="modal-close" onclick="closeModal('${modalId}')">&times;</button></div><div class="modal-body" id="${modalId}Content"></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('${modalId}')">取消</button><button class="btn btn-primary" onclick="submitModelConfig()">保存</button></div></div>`;
+                modal.innerHTML = `<div class="modal-content load-model-modal"><div class="modal-header"><h3 class="modal-title">启动配置</h3><button class="modal-close" onclick="closeModal('${modalId}')">&times;</button></div><div class="modal-body" id="${modalId}Content"></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('${modalId}')">取消</button><button class="btn btn-secondary" onclick="estimateVramForConfig()"><i class="fas fa-memory"></i> 估算显存</button><button class="btn btn-primary" onclick="submitModelConfig()">保存</button></div></div>`;
                 document.body.appendChild(modal);
             }
             const submitBtnInit = document.querySelector('#modelConfigModal .btn-primary');
@@ -2033,83 +2077,103 @@
             html += `
                 <form id="modelConfigForm">
                     <input type="hidden" id="configModelId" name="modelId" value="${modelId}">
-                    <div class="form-group">
-                        <label class="form-label">模型ID</label>
-                        <div class="form-control" id="configModelIdDisplay" style="background-color:#f9fafb;">${modelId}</div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: start;">
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label">模型ID</label>
+                                <div class="form-control" id="configModelIdDisplay" style="background-color:#f9fafb;">${modelId}</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="configCtxSize">上下文大小 (ctx-size)</label>
+                                <input type="number" class="form-control" id="configCtxSize" name="ctxSize" min="1" placeholder="例如: 2048">
+                                <small class="form-text">模型的最大上下文长度</small>
+                                <small class="form-text" id="configCtxSizeVramHint" style="color: var(--success-color);"></small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="configLlamaBinPathSelect">Llama.cpp 版本</label>
+                                <select class="form-control" id="configLlamaBinPathSelect" name="llamaBinPathSelect"></select>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="configNoMmap" name="noMmap">
+                                    <label class="form-check-label" for="configNoMmap">禁用内存映射 (no-mmap)</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="configMlock" name="mlock">
+                                    <label class="form-check-label" for="configMlock">锁定内存 (mlock)</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="configEmbedding" name="embedding">
+                                    <label class="form-check-label" for="configEmbedding">Embedding模式</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="configReranking" name="reranking">
+                                    <label class="form-check-label" for="configReranking">Reranking模式</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="configFlashAttention" name="flashAttention">
+                                    <label class="form-check-label" for="configFlashAttention">Flash Attention</label>
+                                </div>
+                            </div>
+                            <details style="margin-top: 1rem; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.5rem;">
+                                <summary style="cursor: pointer; font-size: 0.875rem; color: var(--primary-color); font-weight: 500;">高级参数 (Temperature, Top-P, etc.)</summary>
+                                <div style="padding-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label class="form-label" for="configTemperature">Temperature</label>
+                                        <input type="number" step="0.01" class="form-control" id="configTemperature" name="temperature">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="configTopP">Top P</label>
+                                        <input type="number" step="0.01" class="form-control" id="configTopP" name="topP">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="configTopK">Top K</label>
+                                        <input type="number" class="form-control" id="configTopK" name="topK">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="configMinP">Min P</label>
+                                        <input type="number" step="0.01" class="form-control" id="configMinP" name="minP">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="configPresencePenalty">Presence Penalty</label>
+                                        <input type="number" step="0.01" class="form-control" id="configPresencePenalty" name="presencePenalty">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="configRepeatPenalty">Repeat Penalty</label>
+                                        <input type="number" step="0.01" class="form-control" id="configRepeatPenalty" name="repeatPenalty">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label class="form-label" for="configBatchSize">批处理大小 (batch-size)</label>
+                                        <input type="number" class="form-control" id="configBatchSize" name="batchSize" min="1" placeholder="例如: 512">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label class="form-label" for="configUbatchSize">微批处理 (ubatch-size)</label>
+                                        <input type="number" class="form-control" id="configUbatchSize" name="ubatchSize" min="1" placeholder="例如: 512">
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label" for="configExtraParams">额外参数</label>
+                                    <textarea class="form-control" id="configExtraParams" name="extraParams" rows="2" placeholder="例如: --grp-attn-n 8 --grp-attn-w 512"></textarea>
+                                </div>
+                            </details>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label" for="configMainGpuSelect">主GPU (main-gpu)</label>
+                                <select class="form-control" id="configMainGpuSelect" name="mg">
+                                    <option value="-1">默认</option>
+                                </select>
+                                <small class="form-text">选择 llama.cpp 运行所使用的主要 GPU（INDEX，从 0 开始）</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">可用计算设备</label>
+                                <small class="form-text">默认已勾选全部设备；取消勾选可排除设备</small>
+                                <div id="configDeviceChecklist" style="border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.75rem; max-height: 260px; overflow: auto;">
+                                    <div class="settings-empty">请先选择 Llama.cpp 版本</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="configCtxSize">上下文大小 (ctx-size)</label>
-                        <input type="number" class="form-control" id="configCtxSize" name="ctxSize" min="1" placeholder="例如: 2048">
-                    </div>
-                    <div class="settings-grid" style="height: auto; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label" for="configBatchSize">批处理大小 (batch-size)</label>
-                            <input type="number" class="form-control" id="configBatchSize" name="batchSize" min="1" placeholder="例如: 512">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label" for="configUbatchSize">微批处理 (ubatch-size)</label>
-                            <input type="number" class="form-control" id="configUbatchSize" name="ubatchSize" min="1" placeholder="例如: 512">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="configLlamaBinPathSelect">Llama.cpp 版本</label>
-                        <select class="form-control" id="configLlamaBinPathSelect" name="llamaBinPathSelect"></select>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="configNoMmap" name="noMmap">
-                            <label class="form-check-label" for="configNoMmap">禁用内存映射 (no-mmap)</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="configMlock" name="mlock">
-                            <label class="form-check-label" for="configMlock">锁定内存 (mlock)</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="configEmbedding" name="embedding">
-                            <label class="form-check-label" for="configEmbedding">Embedding模式</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="configReranking" name="reranking">
-                            <label class="form-check-label" for="configReranking">Reranking模式</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="configFlashAttention" name="flashAttention">
-                            <label class="form-check-label" for="configFlashAttention">Flash Attention</label>
-                        </div>
-                    </div>
-                    <details style="margin-top: 1rem; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.5rem;">
-                        <summary style="cursor: pointer; font-size: 0.875rem; color: var(--primary-color); font-weight: 500;">高级参数 (Temperature, Top-P, etc.)</summary>
-                        <div style="padding-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label" for="configTemperature">Temperature</label>
-                                <input type="number" step="0.01" class="form-control" id="configTemperature" name="temperature">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="configTopP">Top P</label>
-                                <input type="number" step="0.01" class="form-control" id="configTopP" name="topP">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="configTopK">Top K</label>
-                                <input type="number" class="form-control" id="configTopK" name="topK">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="configMinP">Min P</label>
-                                <input type="number" step="0.01" class="form-control" id="configMinP" name="minP">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="configPresencePenalty">Presence Penalty</label>
-                                <input type="number" step="0.01" class="form-control" id="configPresencePenalty" name="presencePenalty">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="configRepeatPenalty">Repeat Penalty</label>
-                                <input type="number" step="0.01" class="form-control" id="configRepeatPenalty" name="repeatPenalty">
-                            </div>
-                        </div>
-                        <div class="form-group" style="margin-top: 1rem;">
-                            <label class="form-label" for="configExtraParams">额外参数</label>
-                            <textarea class="form-control" id="configExtraParams" name="extraParams" rows="2" placeholder="例如: --grp-attn-n 8 --grp-attn-w 512"></textarea>
-                        </div>
-                    </details>
                 </form>
             `;
             content.innerHTML = html;
@@ -2130,6 +2194,9 @@
             document.getElementById('configReranking').checked = !!c.reranking;
             document.getElementById('configFlashAttention').checked = c.flashAttention !== undefined ? c.flashAttention : true;
             document.getElementById('configExtraParams').value = c.extraParams || '';
+            window.__modelConfigSelectedDevices = normalizeDeviceSelection(c.device);
+            window.__modelConfigMainGpu = normalizeMainGpu(c.mg);
+            window.__modelConfigEnableVision = c.enableVision !== undefined ? !!c.enableVision : true;
             fetch('/api/llamacpp/list').then(r => r.json()).then(listData => {
                 const select = document.getElementById('configLlamaBinPathSelect');
                 const paths = (listData && listData.success && listData.data) ? (listData.data.paths || []) : [];
@@ -2142,6 +2209,8 @@
                         if (currentBin && select) select.value = currentBin;
                     }).catch(()=>{});
                 }
+                select.onchange = function() { loadDeviceListForConfig(); };
+                loadDeviceListForConfig();
             }).finally(() => {
                 modal.classList.add('show');
             });
@@ -2165,6 +2234,12 @@
             data.flashAttention = document.getElementById('configFlashAttention').checked;
             data.llamaBinPath = document.getElementById('configLlamaBinPathSelect').value;
             data.extraParams = document.getElementById('configExtraParams').value;
+            const selectedDevices = getSelectedDevicesFromConfigChecklist();
+            const availableCount = window.__configAvailableDeviceCount;
+            const isAllSelected = Number.isFinite(availableCount) && availableCount > 0 && selectedDevices.length === availableCount;
+            if (isAllSelected) data.device = ['All'];
+            else data.device = selectedDevices;
+            data.mg = getSelectedConfigMainGpu();
             const submitBtn = document.querySelector('#modelConfigModal .btn-primary');
             if (submitBtn) {
                 submitBtn.disabled = true;
@@ -2817,6 +2892,28 @@
             select.value = String(safe);
         }
 
+        function getSelectedMainGpuFromSelect(selectId) {
+            const el = document.getElementById(selectId);
+            if (!el) return -1;
+            const n = parseInt(el.value, 10);
+            return Number.isFinite(n) ? n : -1;
+        }
+
+        function renderMainGpuSelectTo(selectId, devices, desiredMainGpu) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const desired = normalizeMainGpu(desiredMainGpu);
+            const safe = (Array.isArray(devices) && desired >= 0 && desired < devices.length) ? desired : -1;
+            const options = ['<option value="-1">默认</option>'];
+            if (Array.isArray(devices)) {
+                for (let i = 0; i < devices.length; i++) {
+                    options.push(`<option value="${i}">${i}: ${escapeHtml(devices[i])}</option>`);
+                }
+            }
+            select.innerHTML = options.join('');
+            select.value = String(safe);
+        }
+
         function deviceKeyFromLabel(label) {
             if (label === null || label === undefined) return '';
             const s = String(label).trim();
@@ -2843,6 +2940,34 @@
                 return a.localeCompare(b);
             });
             return values;
+        }
+
+        function getSelectedDevicesFromChecklistById(listId) {
+            const list = document.getElementById(listId);
+            if (!list) return [];
+            const values = Array.from(list.querySelectorAll('input[type="checkbox"][data-device-key]:checked'))
+                .map(el => el.getAttribute('data-device-key'))
+                .map(v => {
+                    if (v === null || v === undefined) return '';
+                    const trimmed = String(v).trim();
+                    return trimmed.split(':')[0];
+                })
+                .filter(v => v.length > 0 && v !== 'All' && v !== '-1');
+            values.sort((a, b) => {
+                const ai = parseInt(a, 10);
+                const bi = parseInt(b, 10);
+                if (Number.isFinite(ai) && Number.isFinite(bi)) return ai - bi;
+                return a.localeCompare(b);
+            });
+            return values;
+        }
+
+        function getSelectedConfigMainGpu() {
+            return getSelectedMainGpuFromSelect('configMainGpuSelect');
+        }
+
+        function getSelectedDevicesFromConfigChecklist() {
+            return getSelectedDevicesFromChecklistById('configDeviceChecklist');
         }
 
         // GPU设备选择功能
@@ -2892,6 +3017,56 @@
             .catch(error => {
                 if (list) list.innerHTML = `<div class="settings-empty">获取设备列表失败：${escapeHtml(error && error.message ? error.message : '')}</div>`;
                 renderMainGpuSelect([]);
+            });
+        }
+
+        function loadDeviceListForConfig() {
+            const list = document.getElementById('configDeviceChecklist');
+            if (list && list.querySelector('input[type="checkbox"][data-device-key]')) {
+                window.__modelConfigSelectedDevices = getSelectedDevicesFromConfigChecklist();
+            }
+            const mainGpuEl = document.getElementById('configMainGpuSelect');
+            if (mainGpuEl && mainGpuEl.options && mainGpuEl.options.length > 1) {
+                window.__modelConfigMainGpu = getSelectedConfigMainGpu();
+            }
+            const llamaBinPath = document.getElementById('configLlamaBinPathSelect').value;
+            
+            if (!llamaBinPath) {
+                if (list) list.innerHTML = '<div class="settings-empty">请先选择 Llama.cpp 版本</div>';
+                renderMainGpuSelectTo('configMainGpuSelect', [], -1);
+                window.__configAvailableDeviceCount = 0;
+                return;
+            }
+            
+            fetch(`/api/model/device/list?llamaBinPath=${encodeURIComponent(llamaBinPath)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (!list) return;
+                if (!(data && data.success && data.data && Array.isArray(data.data.devices))) {
+                    list.innerHTML = '<div class="settings-empty">获取设备列表失败</div>';
+                    renderMainGpuSelectTo('configMainGpuSelect', [], -1);
+                    window.__configAvailableDeviceCount = 0;
+                    return;
+                }
+                const devices = data.data.devices;
+                window.__configAvailableDeviceCount = devices.length;
+                renderMainGpuSelectTo('configMainGpuSelect', devices, window.__modelConfigMainGpu);
+                const selected = window.__modelConfigSelectedDevices || [];
+                const defaultAll = selected.includes('All') || selected.includes('-1');
+                const items = devices.map((device) => {
+                    const key = deviceKeyFromLabel(device);
+                    const checked = (defaultAll || selected.includes(key) || selected.includes(device)) ? 'checked' : '';
+                    return `<label style="display:flex; align-items:flex-start; gap:8px; padding:6px 6px; border-radius:8px; cursor:pointer;">
+                        <input type="checkbox" ${checked} data-device-key="${escapeHtml(key)}" style="margin-top: 2px;">
+                        <span style="font-size: 0.9rem; color: var(--text-primary);">${escapeHtml(device)}</span>
+                    </label>`;
+                });
+                list.innerHTML = items.length ? items.join('') : '<div class="settings-empty">未发现可用设备</div>';
+            })
+            .catch(error => {
+                if (list) list.innerHTML = `<div class="settings-empty">获取设备列表失败：${escapeHtml(error && error.message ? error.message : '')}</div>`;
+                renderMainGpuSelectTo('configMainGpuSelect', [], -1);
+                window.__configAvailableDeviceCount = 0;
             });
         }
     </script>
