@@ -433,6 +433,105 @@
       flex: 1;
     }
 
+    .attach-info {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(2, 6, 23, 0.30);
+      max-width: 55%;
+    }
+
+    .attach-info .name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: rgba(226, 232, 240, 0.92);
+      font-size: 13px;
+    }
+
+    .attach-info .clear {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .attachments {
+      margin-top: 10px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .attachment-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(2, 6, 23, 0.22);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .attachment-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .attachment-name {
+      font-size: 13px;
+      color: rgba(226, 232, 240, 0.92);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attachment-link {
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 13px;
+      flex: 0 0 auto;
+    }
+
+    .attachment-link:hover {
+      text-decoration: underline;
+    }
+
+    .attachment-preview {
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(2, 6, 23, 0.18);
+      overflow: hidden;
+    }
+
+    .attachment-preview img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    .attachment-preview pre {
+      margin: 0;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: rgba(226, 232, 240, 0.92);
+    }
+
     .toggle {
       display: flex;
       align-items: center;
@@ -942,13 +1041,20 @@
             <button id="modelRowToggle" style="width: 48px; height: 100%" class="btn icon-btn ghost" type="button" title="显示模型栏" aria-label="显示模型栏" aria-expanded="false">☰</button>
             <textarea id="promptInput" placeholder="输入消息…（Ctrl+Enter 发送）"></textarea>
             <div class="prompt-actions">
+              <button id="attachBtn" class="btn" type="button">附件</button>
               <button id="sendBtn" class="btn primary" type="button">发送</button>
               <button id="stopBtn" class="btn danger" type="button" disabled>停止</button>
             </div>
+            <input id="attachInput" type="file" style="display:none" />
           </div>
 
           <div class="toolbar">
             <div class="hint" id="saveHint"></div>
+            <div id="attachInfo" class="attach-info" aria-live="polite">
+              <span class="hint">已选附件</span>
+              <span id="attachName" class="name"></span>
+              <button id="attachClear" class="btn icon-btn clear" type="button" aria-label="清除附件">×</button>
+            </div>
             <div class="spacer"></div>
           </div>
         </div>
@@ -1026,6 +1132,12 @@
       modelSelect: document.getElementById('modelSelect'),
       refreshModels: document.getElementById('refreshModels'),
 
+      attachBtn: document.getElementById('attachBtn'),
+      attachInput: document.getElementById('attachInput'),
+      attachInfo: document.getElementById('attachInfo'),
+      attachName: document.getElementById('attachName'),
+      attachClear: document.getElementById('attachClear'),
+
       sendBtn: document.getElementById('sendBtn'),
       stopBtn: document.getElementById('stopBtn'),
       clearChat: document.getElementById('clearChat'),
@@ -1081,7 +1193,8 @@
       // 用/v1/chat/completion还是/v1/completions
       // 值为1时，用/v1/chat/completion
       // 值为0时，用/v1/completions
-      apiModel: 1
+      apiModel: 1,
+      pendingAttachment: null
     };
 
     function uid() {
@@ -1107,6 +1220,161 @@
         throw new Error(message);
       }
       return json;
+    }
+
+    function getFileExt(fileName) {
+      const n = (fileName == null ? '' : String(fileName)).trim();
+      const idx = n.lastIndexOf('.');
+      if (idx < 0) return '';
+      return n.slice(idx + 1).toLowerCase();
+    }
+
+    function isLikelyImageUrl(url) {
+      const u = (url == null ? '' : String(url)).toLowerCase();
+      const q = u.indexOf('?');
+      const clean = q >= 0 ? u.slice(0, q) : u;
+      return clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.webp') || clean.endsWith('.gif') || clean.endsWith('.bmp') || clean.endsWith('.svg');
+    }
+
+    function isLikelyImageFile(file) {
+      const type = (file && file.type) ? String(file.type).toLowerCase() : '';
+      if (type.startsWith('image/')) return true;
+      const ext = getFileExt(file && file.name ? file.name : '');
+      return ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(ext);
+    }
+
+    function isLikelyTextFile(file) {
+      const type = (file && file.type) ? String(file.type).toLowerCase() : '';
+      if (type.startsWith('text/')) return true;
+      if (type === 'application/json') return true;
+      const ext = getFileExt(file && file.name ? file.name : '');
+      return ['txt', 'md', 'markdown', 'sql', 'ini', 'cfg', 'conf', 'json', 'yaml', 'yml', 'csv', 'log'].includes(ext);
+    }
+
+    async function readTextAttachment(file) {
+      if (!file) return '';
+      const maxBytes = 1024 * 512;
+      if (typeof file.size === 'number' && file.size > maxBytes) {
+        return '[附件内容过大，已省略。请使用下载链接查看完整内容。]';
+      }
+      try {
+        const t = await file.text();
+        const s = (t == null ? '' : String(t));
+        if (!s.trim()) return '[附件为空]';
+        if (s.length > 200000) return s.slice(0, 200000) + '\n[...已截断...]';
+        return s;
+      } catch (e) {
+        return '[附件读取失败]';
+      }
+    }
+
+    function renderMessageAttachments(attachmentsEl, msg) {
+      if (!attachmentsEl) return;
+      attachmentsEl.innerHTML = '';
+      const atts = Array.isArray(msg?.attachments) ? msg.attachments : [];
+      if (!atts.length) {
+        attachmentsEl.style.display = 'none';
+        return;
+      }
+      attachmentsEl.style.display = 'flex';
+
+      for (const a of atts) {
+        if (!a || !a.url) continue;
+        const item = document.createElement('div');
+        item.className = 'attachment-item';
+
+        const head = document.createElement('div');
+        head.className = 'attachment-head';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'attachment-name';
+        nameEl.textContent = a.name ? String(a.name) : (a.type ? String(a.type) : 'file');
+
+        const link = document.createElement('a');
+        link.className = 'attachment-link';
+        link.href = String(a.url);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = '打开';
+
+        head.appendChild(nameEl);
+        head.appendChild(link);
+        item.appendChild(head);
+
+        const isImage = a.isImage === true || isLikelyImageUrl(a.url) || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(getFileExt(a.name || ''));
+        if (isImage) {
+          const preview = document.createElement('div');
+          preview.className = 'attachment-preview';
+          const img = document.createElement('img');
+          img.src = String(a.url);
+          img.alt = a.name ? String(a.name) : 'image';
+          preview.appendChild(img);
+          item.appendChild(preview);
+        }
+
+        attachmentsEl.appendChild(item);
+      }
+
+      if (!attachmentsEl.childNodes || attachmentsEl.childNodes.length === 0) {
+        attachmentsEl.style.display = 'none';
+      }
+    }
+
+    function renderAttachment() {
+      const p = state.pendingAttachment;
+      if (!p || !p.file) {
+        els.attachInfo.style.display = 'none';
+        els.attachName.textContent = '';
+        return;
+      }
+      els.attachInfo.style.display = 'flex';
+      els.attachName.textContent = p.originalName || p.file.name || '';
+    }
+
+    function clearAttachment() {
+      state.pendingAttachment = null;
+      if (els.attachInput) els.attachInput.value = '';
+      renderAttachment();
+    }
+
+    function setAttachment(file) {
+      if (!file) {
+        clearAttachment();
+        return;
+      }
+      state.pendingAttachment = { file, originalName: file.name || 'file', messageId: null, uploadedName: null };
+      renderAttachment();
+    }
+
+    async function maybeUploadPendingAttachment() {
+      const p = state.pendingAttachment;
+      if (!p || !p.file || !p.messageId) return null;
+      if (p.uploadedName) return p.uploadedName;
+
+      const form = new FormData();
+      form.append('file', p.file, p.originalName || p.file.name || 'file');
+      const resp = await fetchJson('/api/chat/completion/file/upload', {
+        method: 'POST',
+        body: form,
+        signal: state.abortController ? state.abortController.signal : undefined
+      });
+      const savedName = resp && resp.data && resp.data.name ? String(resp.data.name) : '';
+      if (!savedName) throw new Error('上传失败：缺少返回name');
+      p.uploadedName = savedName;
+
+      const m = state.messages.find(x => x.id === p.messageId);
+      if (m) {
+        const downloadPath = '/api/chat/completion/file/download?name=' + encodeURIComponent(savedName);
+        const absoluteUrl = (typeof window !== 'undefined' && window.location && window.location.origin)
+          ? (window.location.origin + downloadPath)
+          : downloadPath;
+        m.attachments = Array.isArray(m.attachments) ? m.attachments : [];
+        const name = p.originalName || p.file.name || '';
+        m.attachments.push({ type: 'file', url: absoluteUrl, name, isImage: isLikelyImageFile(p.file) });
+        updateAttachments(m.id);
+      }
+      clearAttachment();
+      return savedName;
     }
 
     //========================================================================================================================================
@@ -1372,11 +1640,15 @@
       }
 
       bubble.appendChild(content);
+      const attachmentsEl = document.createElement('div');
+      attachmentsEl.className = 'attachments';
+      bubble.appendChild(attachmentsEl);
+      renderMessageAttachments(attachmentsEl, msg);
 
       wrap.appendChild(avatar);
       wrap.appendChild(bubble);
 
-      state.messageEls.set(msg.id, { contentEl: content, reasoningEl: reasoningPre });
+      state.messageEls.set(msg.id, { contentEl: content, reasoningEl: reasoningPre, attachmentsEl });
       els.chatList.appendChild(wrap);
       maybeScrollToBottom();
     }
@@ -1408,6 +1680,24 @@
       maybeScrollToBottom();
     }
 
+    function updateAttachments(id) {
+      const m = state.messages.find(x => x.id === id);
+      if (!m) return;
+      const entry = state.messageEls.get(id);
+      let attachmentsEl = entry && entry.attachmentsEl ? entry.attachmentsEl : null;
+      if (!attachmentsEl) {
+        const wrap = els.chatList.querySelector('.msg[data-id="' + id + '"]');
+        const bubble = wrap ? wrap.querySelector('.bubble') : null;
+        attachmentsEl = bubble ? bubble.querySelector('.attachments') : null;
+      }
+      if (!attachmentsEl) return;
+      renderMessageAttachments(attachmentsEl, m);
+      if (entry) {
+        state.messageEls.set(id, { contentEl: entry.contentEl, reasoningEl: entry.reasoningEl, attachmentsEl });
+      }
+      maybeScrollToBottom();
+    }
+
     function updateReasoning(id, reasoning) {
       const entry = state.messageEls.get(id);
       const pre = entry && entry.reasoningEl ? entry.reasoningEl : null;
@@ -1428,7 +1718,7 @@
           details.appendChild(newPre);
           const meta = bubble.querySelector('.meta');
           if (meta) bubble.insertBefore(details, meta.nextSibling);
-          state.messageEls.set(id, { contentEl: entry && entry.contentEl ? entry.contentEl : bubble.querySelector('.content'), reasoningEl: newPre });
+          state.messageEls.set(id, { contentEl: entry && entry.contentEl ? entry.contentEl : bubble.querySelector('.content'), reasoningEl: newPre, attachmentsEl: entry && entry.attachmentsEl ? entry.attachmentsEl : bubble.querySelector('.attachments') });
         }
       }
       const m = state.messages.find(x => x.id === id);
@@ -1457,7 +1747,14 @@
         if (m.role === 'system') {
           lines.push('System: ' + (m.content || ''));
         } else if (m.role === 'user') {
-          lines.push(userName + ': ' + userPrefix + (m.content || '') + userSuffix);
+          let t = (m.content || '');
+          const atts = Array.isArray(m.attachments) ? m.attachments : [];
+          for (const a of atts) {
+            if (a && a.url) {
+              t += (t ? '\n' : '') + '[file] ' + String(a.url);
+            }
+          }
+          lines.push(userName + ': ' + userPrefix + t + userSuffix);
         } else if (m.role === 'assistant') {
           lines.push(assistantName + ': ' + assistantPrefix + (m.content || '') + assistantSuffix);
         }
@@ -1494,7 +1791,18 @@
         } else if (role === 'user') {
           if (userPrefix != null && userPrefix.length != 0)
             out.push({ role: 'user', content: userPrefix });
-          out.push({ role: 'user', content: raw });
+          const atts = Array.isArray(m?.attachments) ? m.attachments : [];
+          if (atts.length > 0) {
+            const parts = [];
+            if (raw && raw.length) parts.push({ type: 'text', text: raw });
+            for (const a of atts) {
+              if (!a || !a.url) continue;
+              parts.push({ type: 'file', text: String(a.url) });
+            }
+            out.push({ role: 'user', content: parts.length ? parts : raw });
+          } else {
+            out.push({ role: 'user', content: raw });
+          }
           if (userSuffix != null && userSuffix.length != 0)
             out.push({ role: 'user', content: userSuffix });
         } else if (role === 'assistant') {
@@ -1580,6 +1888,7 @@
       setSaveHint('');
 
       try {
+        await maybeUploadPendingAttachment();
         const isChat = state.apiModel === 1;
         const useStream = !!els.streamToggle.checked;
         const url = isChat ? '/v1/chat/completions' : '/v1/completions';
@@ -1892,10 +2201,25 @@
       for (const m of history) {
         const role = m?.role;
         if (role !== 'user' && role !== 'assistant' && role !== 'system') continue;
+        const attachments = Array.isArray(m?.attachments)
+          ? m.attachments
+            .filter(a => a && typeof a.url === 'string' && a.url.trim() && (a.type === 'file' || a.type === 'image_url' || a.type === 'text_file' || a.type === 'file_url'))
+            .map(a => {
+              const t = String(a.type);
+              if (t === 'file') {
+                return { type: 'file', url: String(a.url), name: (a.name == null ? '' : String(a.name)), isImage: a.isImage === true };
+              }
+              if (t === 'image_url') {
+                return { type: 'file', url: String(a.url), name: (a.name == null ? '' : String(a.name)), isImage: true };
+              }
+              return { type: 'file', url: String(a.url), name: (a.name == null ? '' : String(a.name)), isImage: false };
+            })
+          : [];
         out.push({
           id: m?.id || uid(),
           role,
           content: (m?.content == null ? '' : String(m.content)),
+          attachments,
           reasoning: (typeof m?.reasoning === 'string' ? m.reasoning : ''),
           ts: typeof m?.ts === 'number' ? m.ts : Date.now()
         });
@@ -1949,7 +2273,10 @@
       }
 
       els.promptInput.value = '';
-      addMessage('user', userText);
+      const userMsg = addMessage('user', userText);
+      if (state.pendingAttachment && state.pendingAttachment.file) {
+        state.pendingAttachment.messageId = userMsg.id;
+      }
       const assistantMsg = addMessage('assistant', '');
       scheduleSave('发送');
       await generateIntoMessage(state.messages, assistantMsg.id);
@@ -2034,6 +2361,15 @@
       });
 
       els.refreshModels.addEventListener('click', () => loadModels());
+
+      els.attachBtn.addEventListener('click', () => {
+        if (els.attachInput) els.attachInput.click();
+      });
+      els.attachInput.addEventListener('change', (e) => {
+        const file = e && e.target && e.target.files ? e.target.files[0] : null;
+        setAttachment(file);
+      });
+      els.attachClear.addEventListener('click', () => clearAttachment());
 
       els.sendBtn.addEventListener('click', () => runCompletion());
       els.stopBtn.addEventListener('click', () => {
@@ -2149,6 +2485,7 @@
     // 啓動后就執行初始化
     async function init() {
       bindEvents();
+      renderAttachment();
       els.apiModelSelect.value = String(state.apiModel);
       await loadModels();
       await loadCompletions(true);

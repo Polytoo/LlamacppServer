@@ -1,6 +1,8 @@
 package org.mark.llamacpp.server;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -8,6 +10,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,12 @@ public class LlamaCommandParser {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LlamaCommandParser.class);
 	
 	private static final Gson gson = new Gson();
+
+	private static final int ATTACHMENT_TEXT_MAX_BYTES = 1024 * 1024;
+	private static final int ATTACHMENT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+	private static final int ATTACHMENT_CONNECT_TIMEOUT_MS = 15000;
+	private static final int ATTACHMENT_READ_TIMEOUT_MS = 30000;
+	private static final int ATTACHMENT_MAX_REDIRECTS = 5;
 	
 	
 	/**
@@ -85,24 +94,23 @@ public class LlamaCommandParser {
 		}
 		
 		int size = originalArray.size();
+		// 判断最后一条消息是否包含特殊字符
 		if(size != 0 && originalArray.get(size - 1).isJsonObject()) {
 			JsonObject jsonObject = originalArray.get(size - 1).getAsJsonObject();
 			if (jsonObject.has("content") && !jsonObject.get("content").isJsonNull()) {
 				JsonElement jsonContent = jsonObject.get("content");
-				if(!jsonContent.isJsonArray()) {
-					String content = jsonContent.getAsString();
-					//	save
-					if(content.toLowerCase().startsWith(LlamaServer.SLOTS_SAVE_KEYWORD.toLowerCase())) {
+				String commandText = extractCommandText(jsonContent);
+				if (commandText != null) {
+					String lower = commandText.toLowerCase();
+					if (lower.startsWith(LlamaServer.SLOTS_SAVE_KEYWORD.toLowerCase())) {
 						save(modelId, ctx, isStream);
 						return null;
 					}
-					//	load
-					if(content.toLowerCase().startsWith(LlamaServer.SLOTS_LOAD_KEYWORD.toLowerCase())) {
+					if (lower.startsWith(LlamaServer.SLOTS_LOAD_KEYWORD.toLowerCase())) {
 						load(modelId, ctx, isStream);
 						return null;
 					}
-					//	help
-					if(content.toLowerCase().startsWith(LlamaServer.HELP_KEYWORD.toLowerCase())) {
+					if (lower.startsWith(LlamaServer.HELP_KEYWORD.toLowerCase())) {
 						help(modelId, ctx, isStream);
 						return null;
 					}
@@ -110,7 +118,7 @@ public class LlamaCommandParser {
 			}
 		}
 		
-		// 遍历原始数组
+		// 遍历全部的原始数组，处理特殊字符
 		for (JsonElement element : originalArray) {
 			if (element.isJsonObject()) {
 				JsonObject jsonObject = element.getAsJsonObject();
@@ -119,6 +127,16 @@ public class LlamaCommandParser {
 					//
 					JsonElement jsonContent = jsonObject.get("content");
 					if(jsonContent.isJsonArray()) {
+						String commandText = extractCommandText(jsonContent);
+						boolean shouldRemove = commandText != null && (commandText.startsWith(LlamaServer.SLOTS_SAVE_KEYWORD)
+								|| commandText.startsWith(LlamaServer.SLOTS_LOAD_KEYWORD));
+						if (shouldRemove) {
+							continue;
+						}
+						JsonArray processed = processAttachmentContent(jsonContent.getAsJsonArray());
+						if (processed != null) {
+							jsonObject.add("content", processed);
+						}
 						filteredArray.add(jsonObject);
 						continue;
 					}
@@ -129,6 +147,9 @@ public class LlamaCommandParser {
 					// 如果不应该被移除，就添加到新数组
 					if (!shouldRemove) {
 						filteredArray.add(jsonObject);
+						// 检查是否包含文件内容，格式为：你好\n[[file:1767688372349]]，后面的[[]]就是占位符。
+						
+						
 					}
 				} else {
 					// 如果消息对象没有 content 字段，我们选择保留它
@@ -142,6 +163,323 @@ public class LlamaCommandParser {
 		// 将过滤后的新数组转换回 JSON 字符串并返回
 		requestJson.add("messages", filteredArray);
 		return gson.toJson(requestJson);
+	}
+
+	private static String extractCommandText(JsonElement content) {
+		try {
+			if (content == null || content.isJsonNull()) {
+				return null;
+			}
+			if (!content.isJsonArray()) {
+				String s = content.getAsString();
+				return s == null ? null : s.trim();
+			}
+			JsonArray arr = content.getAsJsonArray();
+			for (int i = 0; i < arr.size(); i++) {
+				JsonElement el = arr.get(i);
+				if (!el.isJsonObject()) {
+					continue;
+				}
+				JsonObject obj = el.getAsJsonObject();
+				String type = safeString(obj.get("type"));
+				if (type == null || type.isEmpty()) {
+					continue;
+				}
+				if (!"text".equalsIgnoreCase(type)) {
+					continue;
+				}
+				String txt = safeString(obj.get("text"));
+				if (txt == null) {
+					continue;
+				}
+				String t = txt.trim();
+				if (!t.isEmpty()) {
+					return t;
+				}
+			}
+			return null;
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static JsonArray processAttachmentContent(JsonArray contentArray) {
+		if (contentArray == null) {
+			return null;
+		}
+
+		boolean changed = false;
+		JsonArray out = new JsonArray();
+
+		for (int i = 0; i < contentArray.size(); i++) {
+			JsonElement el = contentArray.get(i);
+			if (!el.isJsonObject()) {
+				out.add(el);
+				continue;
+			}
+			JsonObject obj = el.getAsJsonObject();
+			String type = safeString(obj.get("type"));
+			if (!"file".equalsIgnoreCase(type)) {
+				out.add(el);
+				continue;
+			}
+
+			changed = true;
+
+			String url = safeString(obj.get("text"));
+			if (url == null || url.isEmpty()) {
+				url = safeString(obj.get("url"));
+			}
+			String name = safeString(obj.get("name"));
+			if (name == null || name.isEmpty()) {
+				name = deriveNameFromUrl(url);
+			}
+
+			String ext = fileExtensionLower(name);
+			boolean isImage = isLikelyImageExtension(ext);
+
+			try {
+				if (isImage) {
+					DownloadedResource r = download(url, ATTACHMENT_IMAGE_MAX_BYTES);
+					String mime = normalizeImageMime(r.contentType, ext);
+					String dataUrl = "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(r.bytes);
+					JsonObject imagePart = new JsonObject();
+					imagePart.addProperty("type", "image_url");
+					JsonObject imageUrl = new JsonObject();
+					imageUrl.addProperty("url", dataUrl);
+					imagePart.add("image_url", imageUrl);
+					out.add(imagePart);
+				} else {
+					DownloadedResource r = download(url, ATTACHMENT_TEXT_MAX_BYTES);
+					String text = new String(r.bytes, StandardCharsets.UTF_8);
+					JsonObject textPart = new JsonObject();
+					textPart.addProperty("type", "text");
+					textPart.addProperty("text", buildAttachmentText(name, text));
+					out.add(textPart);
+				}
+			} catch (Exception e) {
+				LOGGER.warn("处理附件失败: {}", e.toString());
+				JsonObject textPart = new JsonObject();
+				textPart.addProperty("type", "text");
+				textPart.addProperty("text", buildAttachmentText(name, "(附件读取失败: " + e.getMessage() + ")"));
+				out.add(textPart);
+			}
+		}
+
+		return changed ? out : null;
+	}
+
+	private static String buildAttachmentText(String name, String content) {
+		String n = (name == null ? "" : name.trim());
+		String header = n.isEmpty() ? "\n\n[附件]\n" : ("\n\n[附件 " + n + "]\n");
+		return header + (content == null ? "" : content) + "\n[附件结束]\n";
+	}
+
+	private static boolean isLikelyImageExtension(String extLower) {
+		if (extLower == null || extLower.isEmpty()) {
+			return false;
+		}
+		switch (extLower) {
+		case "png":
+		case "jpg":
+		case "jpeg":
+		case "gif":
+		case "webp":
+		case "bmp":
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	private static String normalizeImageMime(String contentType, String extLower) {
+		String ct = contentType == null ? "" : contentType.trim().toLowerCase();
+		if (ct.startsWith("image/")) {
+			return ct.split(";", 2)[0];
+		}
+		if (extLower == null) {
+			return "image/png";
+		}
+		switch (extLower) {
+		case "jpg":
+		case "jpeg":
+			return "image/jpeg";
+		case "gif":
+			return "image/gif";
+		case "webp":
+			return "image/webp";
+		case "bmp":
+			return "image/bmp";
+		default:
+			return "image/png";
+		}
+	}
+
+	private static String fileExtensionLower(String name) {
+		if (name == null) {
+			return "";
+		}
+		String n = name.trim();
+		if (n.isEmpty()) {
+			return "";
+		}
+		int q = n.indexOf('?');
+		if (q >= 0) {
+			n = n.substring(0, q);
+		}
+		int h = n.indexOf('#');
+		if (h >= 0) {
+			n = n.substring(0, h);
+		}
+		int dot = n.lastIndexOf('.');
+		if (dot < 0 || dot == n.length() - 1) {
+			return "";
+		}
+		return n.substring(dot + 1).toLowerCase();
+	}
+
+	private static String deriveNameFromUrl(String url) {
+		try {
+			if (url == null || url.trim().isEmpty()) {
+				return "";
+			}
+			URI uri = URI.create(url.trim());
+			String query = uri.getRawQuery();
+			String qname = queryParam(query, "name");
+			if (qname != null && !qname.isEmpty()) {
+				return qname;
+			}
+			String path = uri.getPath();
+			if (path == null || path.isEmpty() || "/".equals(path)) {
+				return "";
+			}
+			int idx = path.lastIndexOf('/');
+			String last = idx >= 0 ? path.substring(idx + 1) : path;
+			return last == null ? "" : last;
+		} catch (Exception e) {
+			return "";
+		}
+	}
+
+	private static String queryParam(String rawQuery, String key) {
+		try {
+			if (rawQuery == null || rawQuery.isEmpty() || key == null || key.isEmpty()) {
+				return null;
+			}
+			String[] parts = rawQuery.split("&");
+			for (String part : parts) {
+				if (part == null || part.isEmpty()) {
+					continue;
+				}
+				int eq = part.indexOf('=');
+				String k = eq >= 0 ? part.substring(0, eq) : part;
+				if (!key.equals(k)) {
+					continue;
+				}
+				String v = eq >= 0 ? part.substring(eq + 1) : "";
+				try {
+					return java.net.URLDecoder.decode(v, StandardCharsets.UTF_8.name());
+				} catch (Exception ignore) {
+					return v;
+				}
+			}
+			return null;
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static class DownloadedResource {
+		private final byte[] bytes;
+		private final String contentType;
+
+		private DownloadedResource(byte[] bytes, String contentType) {
+			this.bytes = bytes;
+			this.contentType = contentType;
+		}
+	}
+
+	private static DownloadedResource download(String url, int maxBytes) throws Exception {
+		if (url == null || url.trim().isEmpty()) {
+			throw new IllegalArgumentException("URL为空");
+		}
+		URI uri = URI.create(url.trim());
+		String scheme = uri.getScheme();
+		if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+			throw new IllegalArgumentException("不支持的URL协议: " + scheme);
+		}
+		return downloadFollowRedirects(uri, maxBytes, 0);
+	}
+
+	private static DownloadedResource downloadFollowRedirects(URI uri, int maxBytes, int redirects) throws Exception {
+		if (redirects > ATTACHMENT_MAX_REDIRECTS) {
+			throw new IllegalStateException("重定向次数过多");
+		}
+		URL url = uri.toURL();
+		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+		connection.setInstanceFollowRedirects(false);
+		connection.setRequestMethod("GET");
+		connection.setConnectTimeout(ATTACHMENT_CONNECT_TIMEOUT_MS);
+		connection.setReadTimeout(ATTACHMENT_READ_TIMEOUT_MS);
+		connection.setRequestProperty("User-Agent", "llama-server/attachment-fetch");
+
+		int code = connection.getResponseCode();
+		if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
+			String location = connection.getHeaderField("Location");
+			connection.disconnect();
+			if (location == null || location.isEmpty()) {
+				throw new IllegalStateException("重定向缺少Location");
+			}
+			URI next = uri.resolve(location);
+			return downloadFollowRedirects(next, maxBytes, redirects + 1);
+		}
+
+		InputStream in = null;
+		try {
+			in = (code >= 200 && code < 300) ? connection.getInputStream() : connection.getErrorStream();
+			if (in == null) {
+				throw new IllegalStateException("下载失败: HTTP " + code);
+			}
+			byte[] bytes = readUpTo(in, maxBytes);
+			if (!(code >= 200 && code < 300)) {
+				String err = new String(bytes, StandardCharsets.UTF_8);
+				throw new IllegalStateException("下载失败: HTTP " + code + " " + err);
+			}
+			String contentType = connection.getHeaderField("Content-Type");
+			return new DownloadedResource(bytes, contentType);
+		} finally {
+			try { if (in != null) in.close(); } catch (Exception ignore) {}
+			try { connection.disconnect(); } catch (Exception ignore) {}
+		}
+	}
+
+	private static byte[] readUpTo(InputStream in, int maxBytes) throws Exception {
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		byte[] buf = new byte[8192];
+		int n;
+		int total = 0;
+		while ((n = in.read(buf)) >= 0) {
+			if (n == 0) {
+				continue;
+			}
+			total += n;
+			if (total > maxBytes) {
+				throw new IllegalStateException("附件过大: " + total);
+			}
+			bos.write(buf, 0, n);
+		}
+		return bos.toByteArray();
+	}
+
+	private static String safeString(JsonElement el) {
+		try {
+			if (el == null || el.isJsonNull()) {
+				return null;
+			}
+			return el.getAsString();
+		} catch (Exception e) {
+			return null;
+		}
 	}
 	
 	
