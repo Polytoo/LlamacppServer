@@ -195,7 +195,7 @@ public class CompletionRouterHandler extends SimpleChannelInboundHandler<FullHtt
 				LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "文件内容为空");
 				return;
 			}
-			String savedName = this.completionService.saveChatFile(bytes);
+			String savedName = this.completionService.saveChatFile(bytes, upload.getFilename());
 			Map<String, Object> data = new HashMap<>();
 			data.put("name", savedName);
 			Map<String, Object> resp = new HashMap<>();

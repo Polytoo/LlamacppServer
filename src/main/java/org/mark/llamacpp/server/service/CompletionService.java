@@ -78,29 +78,77 @@ public class CompletionService {
 	}
 
 	public synchronized String saveChatFile(byte[] bytes) {
+		return saveChatFile(bytes, null);
+	}
+
+	private static String extractSafeFileExtension(String originalFileName) {
+		if (originalFileName == null) return null;
+		String n = originalFileName.trim();
+		if (n.isEmpty()) return null;
+		int slash = Math.max(n.lastIndexOf('/'), n.lastIndexOf('\\'));
+		if (slash >= 0 && slash < n.length() - 1) {
+			n = n.substring(slash + 1);
+		}
+		int dot = n.lastIndexOf('.');
+		if (dot <= 0 || dot >= n.length() - 1) return null;
+		String ext = n.substring(dot + 1);
+		if (ext.length() > 16) return null;
+		for (int i = 0; i < ext.length(); i++) {
+			char ch = ext.charAt(i);
+			boolean ok = (ch >= '0' && ch <= '9')
+				|| (ch >= 'a' && ch <= 'z')
+				|| (ch >= 'A' && ch <= 'Z');
+			if (!ok) return null;
+		}
+		return ext.toLowerCase();
+	}
+
+	public synchronized String saveChatFile(byte[] bytes, String originalFileName) {
 		if (bytes == null) {
 			throw new IllegalArgumentException("文件内容为空");
 		}
 		if (bytes.length > MAX_CHAT_UPLOAD_BYTES) {
 			throw new IllegalArgumentException("文件超过最大限制: 16MB");
 		}
+		String ext = extractSafeFileExtension(originalFileName);
 		Path dir = this.getChatDir();
 		long ts = System.currentTimeMillis();
-		Path out = dir.resolve(Long.toString(ts));
+		String fileName = ext == null ? Long.toString(ts) : (Long.toString(ts) + "." + ext);
+		Path out = dir.resolve(fileName);
 		while (Files.exists(out)) {
 			ts++;
-			out = dir.resolve(Long.toString(ts));
+			fileName = ext == null ? Long.toString(ts) : (Long.toString(ts) + "." + ext);
+			out = dir.resolve(fileName);
 		}
 		try {
 			Files.write(out, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-			return Long.toString(ts);
+			return fileName;
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
 	}
 
+	private static boolean isSafeChatFileName(String fileName) {
+		if (isDigitsOnly(fileName)) return true;
+		if (fileName == null || fileName.isEmpty()) return false;
+		int dot = fileName.lastIndexOf('.');
+		if (dot <= 0 || dot >= fileName.length() - 1) return false;
+		String base = fileName.substring(0, dot);
+		if (!isDigitsOnly(base)) return false;
+		String ext = fileName.substring(dot + 1);
+		if (ext.isEmpty() || ext.length() > 16) return false;
+		for (int i = 0; i < ext.length(); i++) {
+			char ch = ext.charAt(i);
+			boolean ok = (ch >= '0' && ch <= '9')
+				|| (ch >= 'a' && ch <= 'z')
+				|| (ch >= 'A' && ch <= 'Z');
+			if (!ok) return false;
+		}
+		return true;
+	}
+
 	public Path getChatFilePath(String fileName) {
-		if (!isDigitsOnly(fileName)) {
+		if (!isSafeChatFileName(fileName)) {
 			return null;
 		}
 		Path dir = this.getChatDir();
