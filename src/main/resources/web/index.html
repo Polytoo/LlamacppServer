@@ -1062,154 +1062,9 @@
     <!-- Notification Container -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <script src="js/websocket.js"></script>
+    <script src="js/console-modal.js"></script>
     <script>
-        // --- WebSocket & Core Logic ---
-        let websocket = null;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
-        const reconnectInterval = 5000;
-        
-        function initWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
-            try {
-                websocket = new WebSocket(wsUrl);
-                websocket.onopen = function(event) {
-                    console.log('WebSocket Connected');
-                    reconnectAttempts = 0;
-                    websocket.send(JSON.stringify({ type: 'connect', message: 'Connected', timestamp: new Date().toISOString() }));
-                };
-                websocket.onmessage = function(event) {
-                    handleWebSocketMessage(event.data);
-                };
-                websocket.onclose = function(event) {
-                    console.log('WebSocket Closed');
-                    if (reconnectAttempts < maxReconnectAttempts) {
-                        reconnectAttempts++;
-                        setTimeout(initWebSocket, reconnectInterval);
-                    }
-                };
-                websocket.onerror = function(error) { console.error('WebSocket Error:', error); };
-            } catch (error) { console.error('WebSocket Init Failed:', error); }
-        }
-        
-        function handleWebSocketMessage(message) {
-            try {
-                const data = JSON.parse(message);
-                if (data.type) {
-                    switch (data.type) {
-                        case 'modelLoad': handleModelLoadEvent(data); break;
-                        case 'modelStop': handleModelStopEvent(data); break;
-                        case 'notification': showToast(data.title || '通知', data.message || '', data.level || 'info'); break;
-                        case 'model_status': handleModelStatusUpdate(data); break;
-                        case 'console':
-                            if (document.getElementById('consoleModal').classList.contains('show')) {
-                                let text = '';
-                                if (typeof data.line64 === 'string') {
-                                    const bin = atob(data.line64);
-                                    const bytes = new Uint8Array(bin.length);
-                                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                                    text = decoder.decode(bytes);
-                                } else if (typeof data.line === 'string') {
-                                    text = data.line;
-                                }
-                                if (text) appendLogLine(text);
-                            }
-                            break;
-                    }
-                }
-            } catch (error) {}
-        }
-        
-        function handleModelStatusUpdate(data) {
-            if (data.modelId && data.status) {
-                loadModels();
-            }
-        }
-        
-        function handleModelLoadEvent(data) {
-            removeModelLoadingState(data.modelId);
-            const action = data.success ? '成功' : '失败';
-            showToast('模型加载', `模型 ${data.modelId} 加载${action}`, data.success ? 'success' : 'error');
-            
-            if (window.pendingModelLoad && window.pendingModelLoad.modelId === data.modelId) {
-                closeModal('loadModelModal');
-                window.pendingModelLoad = null;
-            }
-            loadModels();
-        }
-        
-        function handleModelStopEvent(data) {
-            showToast('模型停止', `模型 ${data.modelId} 停止${data.success ? '成功' : '失败'}`, data.success ? 'success' : 'error');
-            loadModels();
-        }
-
-        // --- Console Logic ---
-        const logEl = document.getElementById('consoleContent');
-        const logContainer = document.getElementById('logContainer');
-        const consoleStatusText = document.getElementById('consoleStatusText');
-        const refreshConsoleBtn = document.getElementById('refreshConsoleBtn');
-        const autoRefreshConsole = document.getElementById('autoRefreshConsole');
-        const intervalConsoleInput = document.getElementById('intervalConsoleInput');
-        let consoleTimer = null;
-        const decoder = new TextDecoder('utf-8');
-        let pendingLogs = [];
-        let flushScheduled = false;
-
-        function openConsoleModal() {
-            const modal = document.getElementById('consoleModal');
-            modal.classList.add('show');
-            fetchConsole();
-            setTimeout(() => { logContainer.scrollTop = logContainer.scrollHeight; }, 100);
-        }
-
-        function nearBottom() { return Math.abs(logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight) < 50; }
-        function scrollBottom() { logContainer.scrollTop = logContainer.scrollHeight; }
-
-        async function fetchConsole() {
-            const t0 = Date.now();
-            if (consoleStatusText) consoleStatusText.textContent = '加载中...';
-            try {
-                const res = await fetch('/api/sys/console');
-                const text = await res.text();
-                const atBottom = nearBottom();
-                if (logEl) logEl.textContent = text;
-                if (atBottom && logContainer) logContainer.scrollTop = logContainer.scrollHeight;
-                if (consoleStatusText) consoleStatusText.textContent = `已更新 · ${new Date().toLocaleTimeString()} · Size: ${text.length}`;
-            } catch (e) {
-                if (consoleStatusText) consoleStatusText.textContent = '加载失败';
-            }
-        }
-
-        function appendLogLine(line) {
-            if (!logEl) return;
-            const clean = (line || '').replace(/\r/g, '');
-            const withNl = clean.endsWith('\n') ? clean : clean + '\n';
-            pendingLogs.push(withNl);
-            if (!flushScheduled) {
-                flushScheduled = true;
-                requestAnimationFrame(() => {
-                    flushScheduled = false;
-                    const atBottom = nearBottom();
-                    const chunk = pendingLogs.join('');
-                    pendingLogs = [];
-                    logEl.textContent += chunk;
-                    if (atBottom) scrollBottom();
-                });
-            }
-        }
-
-        function startConsoleAuto() {
-            stopConsoleAuto();
-            const interval = Math.max(500, parseInt(intervalConsoleInput.value || '2000', 10));
-            consoleTimer = setInterval(fetchConsole, interval);
-        }
-        function stopConsoleAuto() { if (consoleTimer) { clearInterval(consoleTimer); consoleTimer = null; } }
-
-        if (refreshConsoleBtn) refreshConsoleBtn.addEventListener('click', fetchConsole);
-        if (autoRefreshConsole) autoRefreshConsole.addEventListener('change', () => { if (autoRefreshConsole.checked) startConsoleAuto(); else stopConsoleAuto(); });
-        
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', function() {
             loadModels();
@@ -1533,7 +1388,7 @@
                     viewer.textContent = '请求失败';
                 });
         }
-
+        // 关闭对话框
         function closeModal(id) {
             const el = document.getElementById(id);
             if (el) el.classList.remove('show');
