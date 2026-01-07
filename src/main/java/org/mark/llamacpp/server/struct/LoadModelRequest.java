@@ -51,6 +51,8 @@ public class LoadModelRequest {
     private String slotSavePath;
     private List<String> device;
     private Integer mg;
+    private String cacheTypeK;
+    private String cacheTypeV;
     
     public LoadModelRequest() {
     }
@@ -145,6 +147,10 @@ public class LoadModelRequest {
     public void setDevice(List<String> device) { this.device = device; }
     public Integer getMg() { return mg; }
     public void setMg(Integer mg) { this.mg = mg; }
+    public String getCacheTypeK() { return cacheTypeK; }
+    public void setCacheTypeK(String cacheTypeK) { this.cacheTypeK = cacheTypeK; }
+    public String getCacheTypeV() { return cacheTypeV; }
+    public void setCacheTypeV(String cacheTypeV) { this.cacheTypeV = cacheTypeV; }
 
     @Override
     public String toString() {
@@ -171,6 +177,8 @@ public class LoadModelRequest {
                 ", slotSavePath='" + slotSavePath + '\'' +
                 ", device=" + device +
                 ", mg=" + mg +
+                ", cacheTypeK='" + cacheTypeK + '\'' +
+                ", cacheTypeV='" + cacheTypeV + '\'' +
                 '}';
     }
 }

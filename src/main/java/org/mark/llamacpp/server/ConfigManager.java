@@ -183,6 +183,8 @@ public class ConfigManager {
         defaultConfig.put("reranking", false);
         defaultConfig.put("enableVision", true);
         defaultConfig.put("mg", -1);
+        defaultConfig.put("cacheTypeK", "f16");
+        defaultConfig.put("cacheTypeV", "f16");
         return defaultConfig;
     }
     

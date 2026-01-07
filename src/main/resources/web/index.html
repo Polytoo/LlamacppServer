@@ -829,6 +829,39 @@
                             </div>
                             
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label class="form-label" for="cacheTypeK">Cache Type K</label>
+                                    <select class="form-control" id="cacheTypeK" name="cacheTypeK">
+                                        <option value="f32">f32</option>
+                                        <option value="f16" selected>f16</option>
+                                        <option value="bf16">bf16</option>
+                                        <option value="q8_0">q8_0</option>
+                                        <option value="q4_0">q4_0</option>
+                                        <option value="q4_1">q4_1</option>
+                                        <option value="iq4_nl">iq4_nl</option>
+                                        <option value="q5_0">q5_0</option>
+                                        <option value="q5_1">q5_1</option>
+                                    </select>
+                                    <small class="form-text">K缓存的数据类型</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="cacheTypeV">Cache Type V</label>
+                                    <select class="form-control" id="cacheTypeV" name="cacheTypeV">
+                                        <option value="f32">f32</option>
+                                        <option value="f16" selected>f16</option>
+                                        <option value="bf16">bf16</option>
+                                        <option value="q8_0">q8_0</option>
+                                        <option value="q4_0">q4_0</option>
+                                        <option value="q4_1">q4_1</option>
+                                        <option value="iq4_nl">iq4_nl</option>
+                                        <option value="q5_0">q5_0</option>
+                                        <option value="q5_1">q5_1</option>
+                                    </select>
+                                    <small class="form-text">V缓存的数据类型</small>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                                 <div class="form-check">
                                     <input type="checkbox" class="form-check-input" id="noMmap" name="noMmap" checked>
                                     <label class="form-check-label" for="noMmap">禁用内存映射 (no-mmap)</label>

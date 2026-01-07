@@ -32,6 +32,8 @@ public class ModelLaunchOptions {
     public String slotSavePath;
     public List<String> device;
     public Integer mg;
+    public String cacheTypeK;
+    public String cacheTypeV;
 
     public static ModelLaunchOptions fromLoadRequest(LoadModelRequest r) {
         ModelLaunchOptions o = new ModelLaunchOptions();
@@ -56,6 +58,8 @@ public class ModelLaunchOptions {
         o.slotSavePath = r.getSlotSavePath();
         o.device = r.getDevice();
         o.mg = r.getMg();
+        o.cacheTypeK = r.getCacheTypeK();
+        o.cacheTypeV = r.getCacheTypeV();
         return o;
     }
 
@@ -82,6 +86,8 @@ public class ModelLaunchOptions {
         m.put("slotSavePath", slotSavePath);
         m.put("device", device);
         m.put("mg", mg);
+        m.put("cacheTypeK", cacheTypeK);
+        m.put("cacheTypeV", cacheTypeV);
         return m;
     }
 
@@ -113,6 +119,8 @@ public class ModelLaunchOptions {
     	if (reranking != null && reranking) { command.add("--reranking"); }
     	if (host != null && !host.isEmpty()) { command.add("--host " + host); }
     	if (slotSavePath != null && !slotSavePath.trim().isEmpty()) { command.add("--slot-save-path"); command.add(slotSavePath.trim()); }
+    	if (cacheTypeK != null && !cacheTypeK.trim().isEmpty()) { command.add("--cache-type-k"); command.add(cacheTypeK.trim()); }
+    	if (cacheTypeV != null && !cacheTypeV.trim().isEmpty()) { command.add("--cache-type-v"); command.add(cacheTypeV.trim()); }
     	
     	// 判断要使用的设备
     	if (device != null && !device.isEmpty()) {
