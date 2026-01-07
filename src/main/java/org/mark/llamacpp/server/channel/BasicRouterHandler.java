@@ -106,6 +106,11 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			if (path.startsWith("/")) {
 				// path = path.substring(1);
 			}
+			// 
+			if(path.indexOf('?') > 0) {
+				path = path.substring(0, path.indexOf('?'));
+			}
+			
 			URL url = LlamaServer.class.getResource("/web" + path);
 
 			if (url == null) {
