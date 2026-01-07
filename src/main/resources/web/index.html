@@ -1533,6 +1533,12 @@
             const hint = document.getElementById('ctxSizeVramHint');
             if (hint) hint.textContent = '';
             window.__loadModelSelectedDevices = ['All'];
+            window.__loadModelSelectionFromConfig = true;
+            const deviceChecklistEl = document.getElementById('deviceChecklist');
+            if (deviceChecklistEl) deviceChecklistEl.innerHTML = '<div class="settings-empty">加载中...</div>';
+            window.__availableDevices = [];
+            window.__availableDeviceCount = 0;
+            renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
 
             const currentModel = (currentModelsData || []).find(m => m && m.id === modelId);
             const isVisionModel = !!(currentModel && (currentModel.isMultimodal || currentModel.mmproj));
@@ -1565,6 +1571,7 @@
                         if (enableVisionEl) enableVisionEl.checked = config.enableVision !== undefined ? !!config.enableVision : true;
                         window.__loadModelSelectedDevices = normalizeDeviceSelection(config.device);
                         window.__loadModelMainGpu = normalizeMainGpu(config.mg);
+                        window.__loadModelSelectionFromConfig = true;
                     }
                     
                     fetch('/api/llamacpp/list').then(r => r.json()).then(listData => {
@@ -2642,14 +2649,16 @@
                     .map(v => (v === null || v === undefined) ? '' : String(v))
                     .map(v => v.trim())
                     .filter(v => v.length > 0);
-                if (list.includes('All') || list.includes('-1')) return ['All'];
-                return list;
+                const lower = list.map(v => v.toLowerCase());
+                if (lower.includes('all') || lower.includes('-1')) return ['All'];
+                return lower;
             }
             if (device === null || device === undefined || device === '') return [];
             const v = String(device).trim();
             if (!v) return [];
-            if (v === 'All' || v === '-1') return ['All'];
-            return [v];
+            const lower = v.toLowerCase();
+            if (lower === 'all' || lower === '-1') return ['All'];
+            return [lower];
         }
 
         function normalizeMainGpu(v) {
@@ -2664,15 +2673,25 @@
             return Number.isFinite(n) ? n : -1;
         }
 
-        function renderMainGpuSelect(devices) {
+        function renderMainGpuSelect(devices, selectedKeys) {
             const select = document.getElementById('mainGpuSelect');
             if (!select) return;
             const desired = normalizeMainGpu(window.__loadModelMainGpu);
-            const safe = (Array.isArray(devices) && desired >= 0 && desired < devices.length) ? desired : -1;
+            let effectiveDevices = Array.isArray(devices) ? devices.slice() : [];
+            const keys = Array.isArray(selectedKeys) ? selectedKeys : null;
+            if (keys && keys.length > 0 && !keys.includes('All') && !keys.includes('-1')) {
+                const filtered = [];
+                const normalized = keys.map(v => String(v).trim().toLowerCase()).filter(v => v.length > 0 && v !== 'all' && v !== '-1');
+                for (let i = 0; i < effectiveDevices.length; i++) {
+                    if (deviceMatchesSelection(effectiveDevices[i], normalized)) filtered.push(effectiveDevices[i]);
+                }
+                if (filtered.length > 0) effectiveDevices = filtered;
+            }
+            const safe = (Array.isArray(effectiveDevices) && desired >= 0 && desired < effectiveDevices.length) ? desired : -1;
             const options = ['<option value="-1">默认</option>'];
-            if (Array.isArray(devices)) {
-                for (let i = 0; i < devices.length; i++) {
-                    options.push(`<option value="${i}">${i}: ${escapeHtml(devices[i])}</option>`);
+            if (Array.isArray(effectiveDevices)) {
+                for (let i = 0; i < effectiveDevices.length; i++) {
+                    options.push(`<option value="${i}">${escapeHtml(effectiveDevices[i])}</option>`);
                 }
             }
             select.innerHTML = options.join('');
@@ -2684,6 +2703,23 @@
             const s = String(label).trim();
             const match = s.match(/^([^\s:\-]+)/);
             return match ? match[1].toLowerCase() : s.toLowerCase();
+        }
+
+        function deviceMatchesSelection(deviceLabel, selectedEntries) {
+            const label = (deviceLabel === null || deviceLabel === undefined) ? '' : String(deviceLabel).trim();
+            const labelLower = label.toLowerCase();
+            const key = deviceKeyFromLabel(label);
+            const entries = Array.isArray(selectedEntries) ? selectedEntries : [];
+            for (let i = 0; i < entries.length; i++) {
+                const raw = entries[i];
+                if (raw === null || raw === undefined) continue;
+                const s = String(raw).trim().toLowerCase();
+                if (!s || s === 'all' || s === '-1') continue;
+                if (s === key) return true;
+                if (labelLower.startsWith(s)) return true;
+                if (key && s.startsWith(key)) return true;
+            }
+            return false;
         }
 
         function getSelectedDevicesFromChecklist() {
@@ -2707,11 +2743,31 @@
             return values;
         }
 
+        function updateSelectedDevicesCacheFromChecklist() {
+            const list = document.getElementById('deviceChecklist');
+            if (!list) return;
+            const hasInputs = !!list.querySelector('input[type="checkbox"][data-device-key]');
+            if (!hasInputs) return;
+            const selectedKeys = getSelectedDevicesFromChecklist();
+            const availableCount = window.__availableDeviceCount;
+            const isAllSelected = Number.isFinite(availableCount) && availableCount > 0 && selectedKeys.length === availableCount;
+            window.__loadModelSelectedDevices = isAllSelected ? ['All'] : selectedKeys;
+        }
+
+        function syncMainGpuSelectWithChecklist() {
+            const mainGpuEl = document.getElementById('mainGpuSelect');
+            if (mainGpuEl) window.__loadModelMainGpu = getSelectedMainGpu();
+            updateSelectedDevicesCacheFromChecklist();
+            renderMainGpuSelect(window.__availableDevices || [], window.__loadModelSelectedDevices || []);
+            window.__loadModelSelectionFromConfig = false;
+        }
+
         // GPU设备选择功能
         function loadDeviceList() {
             const list = document.getElementById('deviceChecklist');
-            if (list && list.querySelector('input[type="checkbox"][data-device-key]')) {
-                window.__loadModelSelectedDevices = getSelectedDevicesFromChecklist();
+            const allowReadFromChecklist = !window.__loadModelSelectionFromConfig;
+            if (allowReadFromChecklist && list && list.querySelector('input[type="checkbox"][data-device-key]')) {
+                updateSelectedDevicesCacheFromChecklist();
             }
             const mainGpuEl = document.getElementById('mainGpuSelect');
             if (mainGpuEl && mainGpuEl.options && mainGpuEl.options.length > 1) {
@@ -2721,7 +2777,7 @@
             
             if (!llamaBinPath) {
                 if (list) list.innerHTML = '<div class="settings-empty">请先选择 Llama.cpp 版本</div>';
-                renderMainGpuSelect([]);
+                renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
                 return;
             }
             
@@ -2732,28 +2788,40 @@
                 if (!list) return;
                 if (!(data && data.success && data.data && Array.isArray(data.data.devices))) {
                     list.innerHTML = '<div class="settings-empty">获取设备列表失败</div>';
-                    renderMainGpuSelect([]);
+                    renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
                     return;
                 }
                 const devices = data.data.devices;
                 window.__availableDevices = devices;
                 window.__availableDeviceCount = devices.length;
-                renderMainGpuSelect(devices);
                 const selected = window.__loadModelSelectedDevices || [];
-                const defaultAll = selected.includes('All') || selected.includes('-1');
+                const defaultAll = selected.includes('All') || selected.includes('-1') || selected.length === 0;
                 const items = devices.map((device, index) => {
                     const key = deviceKeyFromLabel(device);
-                    const checked = (defaultAll || selected.includes(key) || selected.includes(device)) ? 'checked' : '';
+                    const checked = (defaultAll || deviceMatchesSelection(device, selected)) ? 'checked' : '';
                     return `<label style="display:flex; align-items:flex-start; gap:8px; padding:6px 6px; border-radius:8px; cursor:pointer;">
                         <input type="checkbox" ${checked} data-device-key="${escapeHtml(key)}" style="margin-top: 2px;">
                         <span style="font-size: 0.9rem; color: var(--text-primary);">${escapeHtml(device)}</span>
                     </label>`;
                 });
                 list.innerHTML = items.length ? items.join('') : '<div class="settings-empty">未发现可用设备</div>';
+
+                if (!window.__deviceChecklistChangeBound) {
+                    window.__deviceChecklistChangeBound = true;
+                    list.addEventListener('change', (e) => {
+                        const t = e && e.target ? e.target : null;
+                        if (!t) return;
+                        if (t.matches && t.matches('input[type="checkbox"][data-device-key]')) {
+                            syncMainGpuSelectWithChecklist();
+                        }
+                    });
+                }
+
+                syncMainGpuSelectWithChecklist();
             })
             .catch(error => {
                 if (list) list.innerHTML = `<div class="settings-empty">获取设备列表失败：${escapeHtml(error && error.message ? error.message : '')}</div>`;
-                renderMainGpuSelect([]);
+                renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
             });
         }
     </script>
