@@ -1653,6 +1653,143 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 					}
 				}
 			}
+			String outputFormat = JsonUtil.getJsonString(json, "output", null);
+			if (outputFormat != null) {
+				outputFormat = outputFormat.trim();
+				if (outputFormat.isEmpty()) outputFormat = null;
+			}
+			String outputErrFormat = JsonUtil.getJsonString(json, "outputErr", null);
+			if (outputErrFormat != null) {
+				outputErrFormat = outputErrFormat.trim();
+				if (outputErrFormat.isEmpty()) outputErrFormat = null;
+			}
+			String numa = JsonUtil.getJsonString(json, "numa", null);
+			if (numa != null) {
+				numa = numa.trim();
+				if (numa.isEmpty()) numa = null;
+			}
+			String prio = JsonUtil.getJsonString(json, "prio", null);
+			if (prio != null) {
+				prio = prio.trim();
+				if (prio.isEmpty()) prio = null;
+			}
+			String delay = JsonUtil.getJsonString(json, "delay", null);
+			if (delay != null) {
+				delay = delay.trim();
+				if (delay.isEmpty()) delay = null;
+			}
+			boolean verbose = false;
+			if (json.has("verbose") && json.get("verbose") != null && !json.get("verbose").isJsonNull()) {
+				try {
+					verbose = json.get("verbose").getAsBoolean();
+				} catch (Exception e) {
+					try {
+						String s = json.get("verbose").getAsString();
+						verbose = "1".equals(s) || "true".equalsIgnoreCase(s);
+					} catch (Exception ignore) {
+						verbose = false;
+					}
+				}
+			}
+			boolean progress = false;
+			if (json.has("progress") && json.get("progress") != null && !json.get("progress").isJsonNull()) {
+				try {
+					progress = json.get("progress").getAsBoolean();
+				} catch (Exception e) {
+					try {
+						String s = json.get("progress").getAsString();
+						progress = "1".equals(s) || "true".equalsIgnoreCase(s);
+					} catch (Exception ignore) {
+						progress = false;
+					}
+				}
+			}
+			String rpc = JsonUtil.getJsonString(json, "rpc", null);
+			if (rpc != null) {
+				rpc = rpc.trim();
+				if (rpc.isEmpty()) rpc = null;
+			}
+			String depth = JsonUtil.getJsonString(json, "depth", null);
+			if (depth == null || depth.trim().isEmpty()) depth = JsonUtil.getJsonString(json, "d", null);
+			if (depth != null) {
+				depth = depth.trim();
+				if (depth.isEmpty()) depth = null;
+			}
+			String cacheTypeK = JsonUtil.getJsonString(json, "cacheTypeK", null);
+			if (cacheTypeK != null) {
+				cacheTypeK = cacheTypeK.trim();
+				if (cacheTypeK.isEmpty()) cacheTypeK = null;
+			}
+			String cacheTypeV = JsonUtil.getJsonString(json, "cacheTypeV", null);
+			if (cacheTypeV != null) {
+				cacheTypeV = cacheTypeV.trim();
+				if (cacheTypeV.isEmpty()) cacheTypeV = null;
+			}
+			String cpuMask = JsonUtil.getJsonString(json, "cpuMask", null);
+			if (cpuMask != null) {
+				cpuMask = cpuMask.trim();
+				if (cpuMask.isEmpty()) cpuMask = null;
+			}
+			String cpuStrict = JsonUtil.getJsonString(json, "cpuStrict", null);
+			if (cpuStrict != null) {
+				cpuStrict = cpuStrict.trim();
+				if (cpuStrict.isEmpty()) cpuStrict = null;
+			}
+			String poll = JsonUtil.getJsonString(json, "poll", null);
+			if (poll != null) {
+				poll = poll.trim();
+				if (poll.isEmpty()) poll = null;
+			}
+			String ngl = JsonUtil.getJsonString(json, "ngl", null);
+			if (ngl != null) {
+				ngl = ngl.trim();
+				if (ngl.isEmpty()) ngl = null;
+			}
+			String ncmoe = JsonUtil.getJsonString(json, "ncmoe", null);
+			if (ncmoe != null) {
+				ncmoe = ncmoe.trim();
+				if (ncmoe.isEmpty()) ncmoe = null;
+			}
+			String splitMode = JsonUtil.getJsonString(json, "splitMode", null);
+			if (splitMode != null) {
+				splitMode = splitMode.trim();
+				if (splitMode.isEmpty()) splitMode = null;
+			}
+			String mg = JsonUtil.getJsonString(json, "mg", null);
+			if (mg != null) {
+				mg = mg.trim();
+				if (mg.isEmpty()) mg = null;
+			}
+			String nkvo = JsonUtil.getJsonString(json, "nkvo", null);
+			if (nkvo != null) {
+				nkvo = nkvo.trim();
+				if (nkvo.isEmpty()) nkvo = null;
+			}
+			String device = JsonUtil.getJsonString(json, "device", null);
+			if (device != null) {
+				device = device.trim();
+				if (device.isEmpty()) device = null;
+			}
+			String embd = JsonUtil.getJsonString(json, "embd", null);
+			if (embd != null) {
+				embd = embd.trim();
+				if (embd.isEmpty()) embd = null;
+			}
+			String tensorSplit = JsonUtil.getJsonString(json, "tensorSplit", null);
+			if (tensorSplit != null) {
+				tensorSplit = tensorSplit.trim();
+				if (tensorSplit.isEmpty()) tensorSplit = null;
+			}
+			String overrideTensors = JsonUtil.getJsonString(json, "overrideTensors", null);
+			if (overrideTensors != null) {
+				overrideTensors = overrideTensors.trim();
+				if (overrideTensors.isEmpty()) overrideTensors = null;
+			}
+			String noOpOffload = JsonUtil.getJsonString(json, "noOpOffload", null);
+			if (noOpOffload != null) {
+				noOpOffload = noOpOffload.trim();
+				if (noOpOffload.isEmpty()) noOpOffload = null;
+			}
 			String extraParams = null;
 			if (json.has("extraParams") && !json.get("extraParams").isJsonNull()) {
 				extraParams = json.get("extraParams").getAsString();
@@ -1705,6 +1842,36 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			}
 			List<String> command = new ArrayList<>();
 			command.add(benchFile.getAbsolutePath());
+			if (numa != null) {
+				command.add("--numa");
+				command.add(numa);
+			}
+			if (prio != null) {
+				command.add("--prio");
+				command.add(prio);
+			}
+			if (delay != null) {
+				command.add("--delay");
+				command.add(delay);
+			}
+			if (outputFormat != null) {
+				command.add("-o");
+				command.add(outputFormat);
+			}
+			if (outputErrFormat != null) {
+				command.add("-oe");
+				command.add(outputErrFormat);
+			}
+			if (verbose) {
+				command.add("-v");
+			}
+			if (progress) {
+				command.add("--progress");
+			}
+			if (rpc != null) {
+				command.add("-rpc");
+				command.add(rpc);
+			}
 			command.add("-m");
 			command.add(modelPath);
 			command.add("-r");
@@ -1717,6 +1884,10 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				command.add("-n");
 				command.add(n);
 			}
+			if (depth != null) {
+				command.add("-d");
+				command.add(depth);
+			}
 			if (batchSize != null) {
 				command.add("-b");
 				command.add(batchSize);
@@ -1725,9 +1896,49 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				command.add("-ub");
 				command.add(ubatchSize);
 			}
+			if (cacheTypeK != null) {
+				command.add("-ctk");
+				command.add(cacheTypeK);
+			}
+			if (cacheTypeV != null) {
+				command.add("-ctv");
+				command.add(cacheTypeV);
+			}
 			if (t != null) {
 				command.add("-t");
 				command.add(t);
+			}
+			if (cpuMask != null) {
+				command.add("-C");
+				command.add(cpuMask);
+			}
+			if (cpuStrict != null) {
+				command.add("--cpu-strict");
+				command.add(cpuStrict);
+			}
+			if (poll != null) {
+				command.add("--poll");
+				command.add(poll);
+			}
+			if (ngl != null) {
+				command.add("-ngl");
+				command.add(ngl);
+			}
+			if (ncmoe != null) {
+				command.add("-ncmoe");
+				command.add(ncmoe);
+			}
+			if (splitMode != null) {
+				command.add("-sm");
+				command.add(splitMode);
+			}
+			if (mg != null) {
+				command.add("-mg");
+				command.add(mg);
+			}
+			if (nkvo != null) {
+				command.add("-nkvo");
+				command.add(nkvo);
 			}
 			if (pg != null) {
 				command.add("-pg");
@@ -1737,9 +1948,29 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				command.add("-fa");
 				command.add(fa);
 			}
+			if (device != null) {
+				command.add("-dev");
+				command.add(device);
+			}
 			if (mmp != null) {
 				command.add("-mmp");
 				command.add(mmp);
+			}
+			if (embd != null) {
+				command.add("-embd");
+				command.add(embd);
+			}
+			if (tensorSplit != null) {
+				command.add("-ts");
+				command.add(tensorSplit);
+			}
+			if (overrideTensors != null) {
+				command.add("-ot");
+				command.add(overrideTensors);
+			}
+			if (noOpOffload != null) {
+				command.add("-nopo");
+				command.add(noOpOffload);
 			}
 			if (extraParams != null && !extraParams.isEmpty()) {
 				String[] parts = extraParams.split("\\s+");

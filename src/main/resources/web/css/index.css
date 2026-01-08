@@ -413,6 +413,10 @@
         #loadModelModal #loadModelForm { display: flex; flex-direction: column; flex: 1; min-height: 0; }
         #loadModelModal .load-model-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: stretch; flex: 1; min-height: 0; }
         #loadModelModal #basicParamsContainer, #loadModelModal #dynamicParamsContainer { overflow-y: auto; min-height: 0; }
+        #modelBenchmarkModal .modal-body { overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+        #modelBenchmarkModal #modelBenchmarkForm { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+        #modelBenchmarkModal .load-model-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: stretch; flex: 1; min-height: 0; }
+        #modelBenchmarkModal #benchmarkBasicParamsContainer, #modelBenchmarkModal #benchmarkParamsContainer { overflow-y: auto; min-height: 0; }
 
         @keyframes slideIn {
             from { opacity: 0; transform: scale(0.95); }
