@@ -380,99 +380,7 @@ function loadModel(modelId, modelName, mode = 'load') {
         });
 }
 
-function buildConfigPayload(modal, form) {
-    const modelId = getFieldString(modal, ['modelId']);
-    const payload = { modelId };
-
-    const ctxSize = parseIntOrNull(getFieldString(modal, ['ctxSize', 'ctx-size', 'param_ctx-size']));
-    if (ctxSize !== null) payload.ctxSize = ctxSize;
-
-    const batchSize = parseIntOrNull(getFieldString(modal, ['batchSize', 'batch-size', 'param_batch-size']));
-    if (batchSize !== null) payload.batchSize = batchSize;
-
-    const ubatchSize = parseIntOrNull(getFieldString(modal, ['ubatchSize', 'ubatch-size', 'param_ubatch-size']));
-    if (ubatchSize !== null) payload.ubatchSize = ubatchSize;
-
-    const temperature = parseFloatOrNull(getFieldString(modal, ['temperature', 'temp', 'param_temp']));
-    if (temperature !== null) payload.temperature = temperature;
-
-    const topP = parseFloatOrNull(getFieldString(modal, ['topP', 'top-p', 'param_top-p']));
-    if (topP !== null) payload.topP = topP;
-
-    const topK = parseIntOrNull(getFieldString(modal, ['topK', 'top-k', 'param_top-k']));
-    if (topK !== null) payload.topK = topK;
-
-    const minP = parseFloatOrNull(getFieldString(modal, ['minP', 'min-p', 'param_min-p']));
-    if (minP !== null) payload.minP = minP;
-
-    const presencePenalty = parseFloatOrNull(getFieldString(modal, ['presencePenalty', 'presence-penalty', 'param_presence-penalty']));
-    if (presencePenalty !== null) payload.presencePenalty = presencePenalty;
-
-    const repeatPenalty = parseFloatOrNull(getFieldString(modal, ['repeatPenalty', 'repeat-penalty', 'param_repeat-penalty']));
-    if (repeatPenalty !== null) payload.repeatPenalty = repeatPenalty;
-
-    const parallel = parseIntOrNull(getFieldString(modal, ['parallel', 'param_parallel']));
-    if (parallel !== null) payload.parallel = parallel;
-
-    const cacheTypeK = getFieldString(modal, ['cacheTypeK', 'cache-type-k', 'param_cache-type-k']);
-    if (cacheTypeK) payload.cacheTypeK = cacheTypeK;
-
-    const cacheTypeV = getFieldString(modal, ['cacheTypeV', 'cache-type-v', 'param_cache-type-v']);
-    if (cacheTypeV) payload.cacheTypeV = cacheTypeV;
-
-    const noMmapEl = findField(modal, 'noMmap') || findFieldByName(modal, 'mmap') || findById(modal, 'param_mmap');
-    if (noMmapEl) {
-        if ('checked' in noMmapEl && noMmapEl.type === 'checkbox') payload.noMmap = !!noMmapEl.checked;
-        else payload.noMmap = String(noMmapEl.value || '') === '1' || String(noMmapEl.value || '').toLowerCase() === 'true' || String(noMmapEl.value || '') === 'on';
-    }
-
-    const mlockEl = findField(modal, 'mlock') || findById(modal, 'param_mlock');
-    if (mlockEl) {
-        if ('checked' in mlockEl && mlockEl.type === 'checkbox') payload.mlock = !!mlockEl.checked;
-        else payload.mlock = String(mlockEl.value || '') === '1' || String(mlockEl.value || '').toLowerCase() === 'true' || String(mlockEl.value || '') === 'on';
-    }
-
-    const embeddingEl = findField(modal, 'embedding') || findById(modal, 'param_embedding');
-    if (embeddingEl) {
-        if ('checked' in embeddingEl && embeddingEl.type === 'checkbox') payload.embedding = !!embeddingEl.checked;
-        else payload.embedding = String(embeddingEl.value || '') === '1' || String(embeddingEl.value || '').toLowerCase() === 'true' || String(embeddingEl.value || '') === 'on';
-    }
-
-    const rerankingEl = findField(modal, 'reranking') || findFieldByName(modal, 'rerank') || findById(modal, 'param_rerank');
-    if (rerankingEl) {
-        if ('checked' in rerankingEl && rerankingEl.type === 'checkbox') payload.reranking = !!rerankingEl.checked;
-        else payload.reranking = String(rerankingEl.value || '') === '1' || String(rerankingEl.value || '').toLowerCase() === 'true' || String(rerankingEl.value || '') === 'on';
-    }
-
-    const flashEl = findField(modal, 'flashAttention') || findFieldByName(modal, 'flash-attn') || findById(modal, 'param_flash-attn');
-    if (flashEl) {
-        if ('checked' in flashEl && flashEl.type === 'checkbox') payload.flashAttention = !!flashEl.checked;
-        else {
-            const v = String(flashEl.value || '').trim().toLowerCase();
-            if (v === 'off' || v === '0' || v === 'false') payload.flashAttention = false;
-            else if (v) payload.flashAttention = true;
-        }
-    }
-
-    const llamaBinPathSelect = findById(modal, 'llamaBinPathSelect') || findFieldByName(modal, 'llamaBinPathSelect');
-    if (llamaBinPathSelect && llamaBinPathSelect.value) payload.llamaBinPath = llamaBinPathSelect.value;
-
-    const extraParams = getFieldString(modal, ['extraParams']);
-    if (extraParams !== undefined) payload.extraParams = extraParams;
-
-    const enableVisionEl = findField(modal, 'enableVision');
-    if (enableVisionEl && 'checked' in enableVisionEl) payload.enableVision = !!enableVisionEl.checked;
-
-    const selectedDevices = getSelectedDevicesFromChecklist();
-    const availableCount = window.__availableDeviceCount;
-    const isAllSelected = Number.isFinite(availableCount) && availableCount > 0 && selectedDevices.length === availableCount;
-    payload.device = isAllSelected ? ['All'] : selectedDevices;
-    payload.mg = getSelectedMainGpu();
-
-    return payload;
-}
-
-function buildLoadModelPayload(form, modal) {
+function buildLoadModelPayload(modal) {
     const modelId = getFieldString(modal, ['modelId']);
     const modelName = getFieldString(modal, ['modelName']);
     const llamaBinPathSelect = getFieldString(modal, ['llamaBinPathSelect']);
@@ -527,12 +435,11 @@ function buildLoadModelPayload(form, modal) {
 function submitModelAction() {
     const mode = window.__modelActionMode === 'config' ? 'config' : 'load';
     const modal = getLoadModelModal();
-    const form = getLoadModelForm(modal);
 
     let payload = null;
     let modelIdForUi = getFieldString(modal, ['modelId']);
     if (mode === 'config') {
-        const base = buildLoadModelPayload(form, modal);
+        const base = buildLoadModelPayload(modal);
         modelIdForUi = base && base.modelId ? base.modelId : modelIdForUi;
         const cfg = {
             llamaBinPath: base && base.llamaBinPathSelect ? base.llamaBinPathSelect : '',
@@ -543,7 +450,7 @@ function submitModelAction() {
         payload = {};
         payload[modelIdForUi] = cfg;
     } else {
-        payload = buildLoadModelPayload(form, modal);
+        payload = buildLoadModelPayload(modal);
         modelIdForUi = payload && payload.modelId ? payload.modelId : modelIdForUi;
     }
 
@@ -557,6 +464,20 @@ function submitModelAction() {
             submitBtn.textContent = mode === 'config' ? '保存' : '加载模型';
         }
         return;
+    }
+    if (mode !== 'config') {
+        const llamaBinPathSelect = payload && payload.llamaBinPathSelect ? String(payload.llamaBinPathSelect).trim() : '';
+        const cmd = payload && payload.cmd ? String(payload.cmd).trim() : '';
+        if (!llamaBinPathSelect) {
+            showToast('错误', '未提供llamaBinPath', 'error');
+            return;
+        }
+        if (!cmd) {
+            showToast('错误', '缺少必需的cmd参数', 'error');
+            return;
+        }
+        payload.llamaBinPathSelect = llamaBinPathSelect;
+        payload.cmd = cmd;
     }
     if (submitBtn) {
         submitBtn.disabled = true;
