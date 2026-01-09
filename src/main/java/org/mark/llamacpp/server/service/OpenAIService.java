@@ -377,7 +377,7 @@ public class OpenAIService {
 		int requestBodyLength = requestBody == null ? 0 : requestBody.length();
 		logger.info("转发请求到llama.cpp进程: {} {} 端口: {} 请求体长度: {}", method.name(), endpoint, port, requestBodyLength);
 		
-		this.worker.execute(() -> {
+		worker.execute(() -> {
 			// 添加断开连接的事件监听
 			HttpURLConnection connection = null;
 			try {

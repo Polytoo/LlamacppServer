@@ -3,6 +3,7 @@ package org.mark.llamacpp.server.channel;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.net.URL;
@@ -160,7 +161,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			return;
 		}
 		// 列出可用的参数API
-		if (uri.startsWith("/api/models/param/list")) {
+		if (uri.startsWith("/api/models/param/server/list")) {
 			this.handleParamListRequest(ctx, request);
 			return;
 		}
@@ -715,7 +716,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 
 	/**
 	 * 处理参数列表请求
-	 * 返回 param.json 文件的全部内容
+	 * 返回 server-params.json 文件的全部内容
 	 *
 	 * @param ctx
 	 * @param request
@@ -726,15 +727,16 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
 
 		try {
-			// 读取 param.json 文件
-			File paramFile = new File("param.json");
-			if (!paramFile.exists()) {
-				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("参数配置文件不存在: param.json"));
+			// 从 resources 目录读取 server-params.json 文件
+			InputStream inputStream = getClass().getClassLoader().getResourceAsStream("server-params.json");
+			if (inputStream == null) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("参数配置文件不存在: server-params.json"));
 				return;
 			}
 			
 			// 读取文件内容
-			String content = new String(Files.readAllBytes(paramFile.toPath()), StandardCharsets.UTF_8);
+			String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+			inputStream.close();
 			
 			// 解析为JSON对象并验证格式
 			Object parsed = gson.fromJson(content, Object.class);
@@ -754,13 +756,15 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
 
 		try {
-			File paramFile = new File("benchmark-params.json");
-			if (!paramFile.exists()) {
+			// 从 resources 目录读取 benchmark-params.json 文件
+			InputStream inputStream = getClass().getClassLoader().getResourceAsStream("benchmark-params.json");
+			if (inputStream == null) {
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("参数配置文件不存在: benchmark-params.json"));
 				return;
 			}
 
-			String content = new String(Files.readAllBytes(paramFile.toPath()), StandardCharsets.UTF_8);
+			String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+			inputStream.close();
 			Object parsed = gson.fromJson(content, Object.class);
 
 			Map<String, Object> response = new HashMap<>();
