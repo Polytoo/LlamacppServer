@@ -98,12 +98,23 @@ jobs:
           echo "Windows JRE 下载完成"
           ls -la build/jre-win/jre/
 
+      - name: 下载精简版 JRE (macOS)
+        run: |
+          mkdir -p build/jre-mac
+          curl -L -o build/jre-mac.zip https://github.com/IIIIIllllIIIIIlllll/Mini-JRE/releases/download/v1.0.0/mini-jre-21.06-mac-x64.zip
+          unzip -q build/jre-mac.zip -d build/jre-mac
+          JRE_NAME=$(ls build/jre-mac | head -1)
+          mv build/jre-mac/$JRE_NAME build/jre-mac/jre
+          rm build/jre-mac.zip
+          echo "macOS JRE 下载完成"
+          ls -la build/jre-mac/jre/
+
       - name: 创建启动脚本 (Linux/Mac)
         run: |
           cat > build/run.sh << 'EOF'
           #!/bin/bash
           cd "$(dirname "$0")"
-          ./jre/bin/java -Xms64m -Xmx96m -classpath "./classes:./lib/*" org.mark.llamacpp.server.LlamaServer "$@"
+          ./jre/bin/java -Xms64m -Xmx64m -classpath "./classes:./lib/*" org.mark.llamacpp.server.LlamaServer "$@"
           EOF
           chmod +x build/run.sh
 
@@ -112,7 +123,7 @@ jobs:
           cat > build/run.bat << 'EOF'
           @echo off
           cd /d "%~dp0"
-          jre\bin\java.exe -Xms64m -Xmx96m -classpath "./classes;./lib/*" org.mark.llamacpp.server.LlamaServer %*
+          jre\bin\java.exe -Xms64m -Xmx64m -classpath "./classes;./lib/*" org.mark.llamacpp.server.LlamaServer %*
           EOF
 
       - name: 复制 README 到 build 目录
@@ -137,7 +148,7 @@ jobs:
         run: |
           cp -r build build-linux
           cp -r build/jre-linux/jre build-linux/jre
-          rm -rf build-linux/jre-linux build-linux/jre-win
+          rm -rf build-linux/jre-linux build-linux/jre-win build-linux/jre-mac
           mv build-linux llama-server-${{ steps.get_version.outputs.version }}-linux
           zip -r llama-server-${{ steps.get_version.outputs.version }}-linux.zip llama-server-${{ steps.get_version.outputs.version }}-linux
 
@@ -145,9 +156,17 @@ jobs:
         run: |
           cp -r build build-win
           cp -r build/jre-win/jre build-win/jre
-          rm -rf build-win/jre-linux build-win/jre-win
+          rm -rf build-win/jre-linux build-win/jre-win build-win/jre-mac
           mv build-win llama-server-${{ steps.get_version.outputs.version }}-windows
           zip -r llama-server-${{ steps.get_version.outputs.version }}-windows.zip llama-server-${{ steps.get_version.outputs.version }}-windows
+
+      - name: 打包 macOS 版本
+        run: |
+          cp -r build build-mac
+          cp -r build/jre-mac/jre build-mac/jre
+          rm -rf build-mac/jre-linux build-mac/jre-win build-mac/jre-mac
+          mv build-mac llama-server-${{ steps.get_version.outputs.version }}-mac
+          zip -r llama-server-${{ steps.get_version.outputs.version }}-mac.zip llama-server-${{ steps.get_version.outputs.version }}-mac
 
       - name: 生成 Release Notes
         id: release_notes
@@ -181,6 +200,7 @@ jobs:
           unzip llama-server-${{ steps.get_version.outputs.version }}-linux.zip
           cd llama-server-${{ steps.get_version.outputs.version }}-linux
           chmod +x run.sh
+          chmod +x jre/bin/java
           ./run.sh
           ```
           
@@ -191,7 +211,18 @@ jobs:
           run.bat
           ```
           
-          **注意：** 本版本已内置精简版 JRE，无需额外安装 Java 环境。
+          **macOS:**
+          ```bash
+          unzip llama-server-${{ steps.get_version.outputs.version }}-mac.zip
+          cd llama-server-${{ steps.get_version.outputs.version }}-mac
+          chmod +x run.sh
+          chmod +x jre/bin/java
+          ./run.sh
+          ```
+          
+          **注意：**
+          - 本版本已内置精简版 JRE，无需额外安装 Java 环境。
+          - Linux 和 macOS 用户需要为 `run.sh` 和 `jre/bin/java` 添加执行权限。
           
           ---
           
@@ -228,6 +259,7 @@ jobs:
           files: |
             llama-server-${{ steps.get_version.outputs.version }}-linux.zip
             llama-server-${{ steps.get_version.outputs.version }}-windows.zip
+            llama-server-${{ steps.get_version.outputs.version }}-mac.zip
           body: ${{ env.NOTES_CONTENT }}
           draft: false
           prerelease: false
@@ -246,4 +278,11 @@ jobs:
         with:
           name: llama-server-${{ steps.get_version.outputs.version }}-windows
           path: llama-server-${{ steps.get_version.outputs.version }}-windows.zip
+          retention-days: 30
+
+      - name: 上传构建产物 (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-server-${{ steps.get_version.outputs.version }}-mac
+          path: llama-server-${{ steps.get_version.outputs.version }}-mac.zip
           retention-days: 30
