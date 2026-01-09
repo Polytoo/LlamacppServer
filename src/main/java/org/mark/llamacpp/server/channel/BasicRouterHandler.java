@@ -34,6 +34,7 @@ import org.mark.llamacpp.server.LlamaServerManager;
 import org.mark.llamacpp.server.exception.RequestMethodException;
 import org.mark.llamacpp.server.struct.ApiResponse;
 import org.mark.llamacpp.server.struct.LlamaCppConfig;
+import org.mark.llamacpp.server.struct.LlamaCppDataStruct;
 import org.mark.llamacpp.server.struct.StopModelRequest;
 import org.mark.llamacpp.server.struct.VramEstimation;
 import org.mark.llamacpp.server.tools.CommandLineRunner;
@@ -1473,31 +1474,28 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求体为空"));
 				return;
 			}
-			JsonObject json = gson.fromJson(content, JsonObject.class);
-			if (json == null || !json.has("path")) {
-				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("缺少必需的path参数"));
-				return;
-			}
-			String pathStr = json.get("path").getAsString();
-			if (pathStr == null || pathStr.trim().isEmpty()) {
+			LlamaCppDataStruct reqData = gson.fromJson(content, LlamaCppDataStruct.class);
+			if (reqData == null || reqData.getPath() == null || reqData.getPath().trim().isEmpty()) {
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("path不能为空"));
 				return;
 			}
+			String normalized = reqData.getPath().trim();
 
 			Path configFile = LlamaServer.getLlamaCppConfigPath();
 			LlamaCppConfig cfg = LlamaServer.readLlamaCppConfig(configFile);
-			List<String> paths = cfg.getPaths();
-			int before = paths == null ? 0 : paths.size();
-			if (paths != null) {
-				paths.removeIf(p -> pathStr.trim().equals(p));
+			List<LlamaCppDataStruct> items = cfg.getItems();
+			int before = items == null ? 0 : items.size();
+			boolean changed = false;
+			if (items != null) {
+				changed = items.removeIf(i -> normalized.equals(i == null || i.getPath() == null ? "" : i.getPath().trim()));
 			}
 			LlamaServer.writeLlamaCppConfig(configFile, cfg);
 
 			Map<String, Object> data = new HashMap<>();
 			data.put("message", "移除llama.cpp路径成功");
-			data.put("removed", pathStr.trim());
-			data.put("count", paths == null ? 0 : paths.size());
-			data.put("changed", before != (paths == null ? 0 : paths.size()));
+			data.put("removed", normalized);
+			data.put("count", items == null ? 0 : items.size());
+			data.put("changed", changed || before != (items == null ? 0 : items.size()));
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
 		} catch (Exception e) {
 			logger.error("移除llama.cpp路径时发生错误", e);
@@ -1518,10 +1516,10 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		try {
 			Path configFile = LlamaServer.getLlamaCppConfigPath();
 			LlamaCppConfig cfg = LlamaServer.readLlamaCppConfig(configFile);
-			List<String> paths = cfg.getPaths();
+			List<LlamaCppDataStruct> items = cfg.getItems();
 			Map<String, Object> data = new HashMap<>();
-			data.put("paths", paths);
-			data.put("count", paths == null ? 0 : paths.size());
+			data.put("items", items);
+			data.put("count", items == null ? 0 : items.size());
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
 		} catch (Exception e) {
 			logger.error("获取llama.cpp路径列表时发生错误", e);
@@ -1545,32 +1543,50 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求体为空"));
 				return;
 			}
-			JsonObject json = gson.fromJson(content, JsonObject.class);
-			if (json == null || !json.has("path")) {
-				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("缺少必需的path参数"));
-				return;
-			}
-			String pathStr = json.get("path").getAsString();
-			if (pathStr == null || pathStr.trim().isEmpty()) {
+			LlamaCppDataStruct reqData = gson.fromJson(content, LlamaCppDataStruct.class);
+			if (reqData == null || reqData.getPath() == null || reqData.getPath().trim().isEmpty()) {
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("path不能为空"));
 				return;
 			}
 
 			Path configFile = LlamaServer.getLlamaCppConfigPath();
 			LlamaCppConfig cfg = LlamaServer.readLlamaCppConfig(configFile);
-			List<String> paths = cfg.getPaths();
-			String normalized = pathStr.trim();
-			if (paths.contains(normalized)) {
+			List<LlamaCppDataStruct> items = cfg.getItems();
+			if (items == null) {
+				items = new ArrayList<>();
+				cfg.setItems(items);
+			}
+			String normalized = reqData.getPath().trim();
+			boolean exists = false;
+			for (LlamaCppDataStruct i : items) {
+				if (i != null && i.getPath() != null && normalized.equals(i.getPath().trim())) {
+					exists = true;
+					break;
+				}
+			}
+			if (exists) {
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("路径已存在"));
 				return;
 			}
-			paths.add(normalized);
+			LlamaCppDataStruct item = new LlamaCppDataStruct();
+			item.setPath(normalized);
+			String name = reqData.getName();
+			if (name == null || name.trim().isEmpty()) {
+				try {
+					name = java.nio.file.Paths.get(normalized).getFileName().toString();
+				} catch (Exception ex) {
+					name = normalized;
+				}
+			}
+			item.setName(name);
+			item.setDescription(reqData.getDescription());
+			items.add(item);
 			LlamaServer.writeLlamaCppConfig(configFile, cfg);
 
 			Map<String, Object> data = new HashMap<>();
 			data.put("message", "添加llama.cpp路径成功");
-			data.put("added", normalized);
-			data.put("count", paths.size());
+			data.put("added", item);
+			data.put("count", items.size());
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
 		} catch (Exception e) {
 			logger.error("添加llama.cpp路径时发生错误", e);

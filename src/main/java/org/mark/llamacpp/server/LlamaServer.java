@@ -465,8 +465,8 @@ public class LlamaServer {
 		if (Files.exists(configFile)) {
 			String json = new String(Files.readAllBytes(configFile), StandardCharsets.UTF_8);
 			LlamaCppConfig read = GSON.fromJson(json, LlamaCppConfig.class);
-			if (read != null && read.getPaths() != null) {
-				cfg.setPaths(read.getPaths());
+			if (read != null && read.getItems() != null) {
+				cfg.setItems(read.getItems());
 			}
 		}
 		return cfg;

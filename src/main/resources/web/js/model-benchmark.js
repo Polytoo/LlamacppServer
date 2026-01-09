@@ -77,13 +77,27 @@ function openModelBenchmarkDialog(modelId, modelName) {
     fetch('/api/llamacpp/list')
         .then(r => r.json())
         .then(listData => {
-            const paths = (listData && listData.success && listData.data) ? (listData.data.paths || []) : [];
+            const items = (listData && listData.success && listData.data) ? (listData.data.items || []) : [];
+            const paths = (Array.isArray(items) ? items : [])
+                .map(i => i && i.path !== undefined && i.path !== null ? String(i.path).trim() : '')
+                .filter(p => p.length > 0);
             if (!paths.length) {
                 binSelect.innerHTML = '<option value="">未配置路径</option>';
                 loadBenchmarkDevices('');
                 return;
             }
-            binSelect.innerHTML = paths.map(p => `<option value="${p}">${p}</option>`).join('');
+            binSelect.innerHTML = (Array.isArray(items) ? items : [])
+                .map(i => {
+                    const p = i && i.path !== undefined && i.path !== null ? String(i.path).trim() : '';
+                    if (!p) return '';
+                    const name = i && i.name !== undefined && i.name !== null ? String(i.name).trim() : '';
+                    const desc = i && i.description !== undefined && i.description !== null ? String(i.description).trim() : '';
+                    const text = name ? `${name} (${p})` : p;
+                    const title = [name, p, desc].filter(Boolean).join('\n');
+                    return `<option value="${escapeAttrCompat(p)}" title="${escapeAttrCompat(title)}">${escapeHtmlCompat(text)}</option>`;
+                })
+                .filter(Boolean)
+                .join('');
             binSelect.value = paths[0];
             loadBenchmarkDevices(paths[0]);
         })

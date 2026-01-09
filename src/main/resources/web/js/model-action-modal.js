@@ -382,8 +382,22 @@ function loadModel(modelId, modelName, mode = 'load') {
 
             fetch('/api/llamacpp/list').then(r => r.json()).then(listData => {
                 const select = findById(modal, 'llamaBinPathSelect') || findFieldByName(modal, 'llamaBinPathSelect');
-                const paths = (listData && listData.success && listData.data) ? (listData.data.paths || []) : [];
-                if (select) select.innerHTML = paths.map(p => `<option value="${p}">${p}</option>`).join('');
+                const items = (listData && listData.success && listData.data) ? (listData.data.items || []) : [];
+                if (select) {
+                    const options = (Array.isArray(items) ? items : [])
+                        .map(i => {
+                            const p = i && i.path !== undefined && i.path !== null ? String(i.path).trim() : '';
+                            if (!p) return '';
+                            const name = i && i.name !== undefined && i.name !== null ? String(i.name).trim() : '';
+                            const desc = i && i.description !== undefined && i.description !== null ? String(i.description).trim() : '';
+                            const text = name ? `${name} (${p})` : p;
+                            const title = [name, p, desc].filter(Boolean).join('\n');
+                            return `<option value="${escapeHtml(p)}" title="${escapeHtml(title)}">${escapeHtml(text)}</option>`;
+                        })
+                        .filter(Boolean)
+                        .join('');
+                    select.innerHTML = options || '<option value="">未配置 Llama.cpp 路径</option>';
+                }
 
                 if (config.llamaBinPath) {
                     if (select) select.value = config.llamaBinPath;

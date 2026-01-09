@@ -9,7 +9,7 @@ import java.util.List;
 public class LlamaCppConfig {
 	
 	
-	private List<String> paths = new ArrayList<>();
+	private List<LlamaCppDataStruct> items = new ArrayList<>();
 	
 	
 	public LlamaCppConfig() {
@@ -17,12 +17,12 @@ public class LlamaCppConfig {
 	}
 	
 	
-	public List<String> getPaths(){
-		return this.paths;
+	public List<LlamaCppDataStruct> getItems(){
+		return this.items;
 	}
 	
 	
-	public void setPaths(List<String> paths) {
-		this.paths = paths;
+	public void setItems(List<LlamaCppDataStruct> items) {
+		this.items = items;
 	}
 }

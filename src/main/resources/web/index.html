@@ -18,7 +18,8 @@
             </a>
         </div>
         <nav class="sidebar-nav">
-            <a href="#" class="nav-item active" onclick="refreshModels(); return false;">
+        
+            <a href="#" class="nav-item active" onclick="showModelList(); return false;">
                 <i class="fas fa-cubes"></i>
                 <span>模型列表</span>
             </a>
@@ -38,6 +39,10 @@
                 <i class="fas fa-terminal"></i>
                 <span>控制台日志</span>
             </a>
+            <a href="#" class="nav-item" onclick="showLlamaCppSetting(); return false;">
+                <i class="fas fa-microchip"></i>
+                <span>Llama.cpp 路径</span>
+            </a>
             <a href="#" class="nav-item" onclick="openSettingsModal(); return false;">
                 <i class="fas fa-cog"></i>
                 <span>系统设置</span>
@@ -56,7 +61,7 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="main-area">
+    <main class="main-area" id="main-model-list">
         <!-- Top Bar -->
         <div class="top-bar">
             <h1 class="page-title">模型管理</h1>
@@ -118,6 +123,82 @@
             </div>
         </div>
     </main>
+
+
+    <main class="main-area" id="main-llamacpp-setting" style="display: none">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <h1 class="page-title">Llama.cpp 路径管理</h1>
+            <div class="top-actions">
+                <button class="btn btn-secondary" onclick="loadLlamaCppList()" title="刷新列表">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="content-scrollable">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-microchip"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="llamacppCount">0</h3>
+                        <p>已配置路径</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Llama.cpp List -->
+            <div class="model-list-container">
+                <div class="model-list-header">
+                    <h2>Llama.cpp 路径列表</h2>
+                    <button class="btn btn-primary" onclick="openAddLlamaCppModal()">
+                        <i class="fas fa-plus"></i> 添加路径
+                    </button>
+                </div>
+                <div id="llamacppList">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Llama.cpp Modal -->
+    <div class="modal" id="addLlamaCppModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 class="modal-title">添加 Llama.cpp 路径</h3>
+                <button class="modal-close" onclick="closeModal('addLlamaCppModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">目录路径 <span style="color: red;">*</span></label>
+                    <input class="form-control" id="addLlamaCppPathInput" placeholder="/path/to/llama.cpp">
+                    <small class="form-text">输入已编译的 llama.cpp 根目录路径。</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">名称</label>
+                    <input class="form-control" id="addLlamaCppNameInput" placeholder="llama.cpp">
+                    <small class="form-text">可选，留空则使用目录名作为名称。</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <textarea class="form-control" id="addLlamaCppDescInput" rows="3" placeholder="描述信息"></textarea>
+                    <small class="form-text">可选，添加关于此路径的描述。</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addLlamaCppModal')">取消</button>
+                <button class="btn btn-primary" onclick="addLlamaCpp()">保存</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Load Model Modal -->
     <div class="modal" id="loadModelModal">
@@ -322,6 +403,8 @@
 
     <script src="js/websocket.js"></script>
     <script src="js/console-modal.js"></script>
+    <script src="js/model-llamacpp-setting.js"></script>
+    
     <script>
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', function() {
@@ -906,35 +989,34 @@
                 else showToast('错误', d.error, 'error');
             });
         }
-        // LlamaCpp Path logic similar to above... (Skipped for brevity in this manual rewrite, but should be included)
-        function loadLlamaCppList() {
-             fetch('/api/llamacpp/list').then(r => r.json()).then(d => {
-                 if (d.success) {
-                     window.__llamaPaths = d.data.paths || [];
-                     renderLlamaPathList();
-                 }
-             });
-        }
         function renderLlamaPathList() {
             const c = document.getElementById('llamaCppListContainer');
-            const paths = window.__llamaPaths || [];
-            if (!paths.length) {
+            const items = window.__llamaCppItems || [];
+            if (!items.length) {
                 c.innerHTML = `<div class="settings-empty">尚未配置任何路径</div>`;
                 return;
             }
-            c.innerHTML = paths.map(p => `
+            c.innerHTML = items.map(i => {
+                const p = (i && i.path) ? i.path : '';
+                const name = (i && i.name) ? i.name : '';
+                const desc = (i && i.description) ? i.description : '';
+                const display = name ? `${name} - ${p}` : p;
+                const title = [name, p, desc].filter(Boolean).join('\n');
+                const escaped = p.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                return `
                 <div class="settings-item">
                     <div class="settings-item-main">
                         <div class="settings-item-icon">
                             <i class="fas fa-microchip"></i>
                         </div>
-                        <span class="settings-item-text" title="${p}">${p}</span>
+                        <span class="settings-item-text" title="${title}">${display}</span>
                     </div>
-                    <button type="button" class="btn-icon danger" onclick="removeLlamaCppPathItem('${p.replace(/\\/g, '\\\\')}')">
+                    <button type="button" class="btn-icon danger" onclick="removeLlamaCppPathItem('${escaped}')">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
         function addLlamaCppPath() {
              const v = document.getElementById('addLlamaCppPathInput').value.trim();
@@ -967,6 +1049,28 @@
         }
         function initModelSearch() {
             document.getElementById('modelSearchInput').addEventListener('input', (e) => filterModels(e.target.value));
+        }
+
+        // 显示模型列表页面
+        function showModelList() {
+            document.getElementById('main-model-list').style.display = '';
+            document.getElementById('main-llamacpp-setting').style.display = 'none';
+            //refreshModels();
+            // 更新导航项高亮
+            const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+            navItems.forEach(item => item.classList.remove('active'));
+            navItems[0].classList.add('active'); // 模型列表
+        }
+
+        // 显示 Llama.cpp 设置页面
+        function showLlamaCppSetting() {
+            document.getElementById('main-model-list').style.display = 'none';
+            document.getElementById('main-llamacpp-setting').style.display = '';
+            loadLlamaCppList();
+            // 更新导航项高亮
+            const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+            navItems.forEach(item => item.classList.remove('active'));
+            navItems[5].classList.add('active'); // Llama.cpp 路径
         }
     </script>
     <script src="js/model-list.js"></script>
