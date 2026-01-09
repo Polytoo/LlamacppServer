@@ -1611,7 +1611,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				LlamaServer.sendTextResponse(ctx, "");
 				return;
 			}
-			long max = 1L * 1024 * 1024;
+			long max = 1L * 256 * 1024;
 			try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
 				long len = raf.length();
 				long start = Math.max(0, len - max);
