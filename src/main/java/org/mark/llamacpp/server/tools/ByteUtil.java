@@ -5,6 +5,10 @@ package org.mark.llamacpp.server.tools;
  */
 public class ByteUtil {
 
+	public static double bytesToMiB(long bytes) {
+		return bytes / (1024.0 * 1024.0);
+	}
+
 	/**
 	 * 将byte数字转换为二进制（以char形式呈现）
 	 * 

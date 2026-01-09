@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.text.SimpleDateFormat;
@@ -268,6 +269,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			this.handleLlamaCppList(ctx, request);
 			return;
 		}
+		// ==============================================================
 		if (uri.startsWith("/api/sys/console")) {
 			this.handleSysConsoleRequest(ctx, request);
 			return;
@@ -287,6 +289,13 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		if (uri.startsWith("/api/models/benchmark/delete")) {
 			this.handleModelBenchmarkDelete(ctx, request);
 			return;
+		}
+		// ==============================================================
+		// 计算参数API
+		if (uri.startsWith("/api/models/fit/params")) {
+			
+			
+			
 		}
 
 		ctx.fireChannelRead(request.retain());
@@ -802,10 +811,12 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			}
 
 			String modelId = json.has("modelId") ? json.get("modelId").getAsString() : null;
-			Integer ctxSize = json.has("ctxSize") ? json.get("ctxSize").getAsInt() : null;
-			Integer batchSize = json.has("batchSize") ? json.get("batchSize").getAsInt() : null;
-			Integer ubatchSize = json.has("ubatchSize") ? json.get("ubatchSize").getAsInt() : null;
-			Boolean enableVision = json.has("enableVision") ? json.get("enableVision").getAsBoolean() : null;
+			Integer ctxSize = json.has("param_ctx-size") ? json.get("param_ctx-size").getAsInt()
+					: (json.has("ctxSize") ? json.get("ctxSize").getAsInt() : null);
+			String cacheTypeKStr = json.has("param_cache-type-k") ? json.get("param_cache-type-k").getAsString() : null;
+			String cacheTypeVStr = json.has("param_cache-type-v") ? json.get("param_cache-type-v").getAsString() : null;
+			Object flashAttnObj = json.has("param_flash-attn") ? json.get("param_flash-attn")
+					: (json.has("flashAttention") ? json.get("flashAttention") : null);
 
 			if (modelId == null || modelId.trim().isEmpty()) {
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
@@ -814,14 +825,31 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			if (ctxSize == null || ctxSize == 0) {
 				ctxSize = 2048;
 			}
-			if (batchSize == null || batchSize <= 0) {
-				batchSize = 512;
+			if (cacheTypeKStr == null || cacheTypeKStr.trim().isEmpty()) {
+				cacheTypeKStr = "f16";
 			}
-			if (ubatchSize == null || ubatchSize <= 0) {
-				ubatchSize = 512;
+			if (cacheTypeVStr == null || cacheTypeVStr.trim().isEmpty()) {
+				cacheTypeVStr = cacheTypeKStr;
 			}
-			if (enableVision == null) {
-				enableVision = true;
+			boolean flashAttention = true;
+			if (flashAttnObj != null) {
+				String raw = null;
+				try {
+					if (flashAttnObj instanceof JsonElement) {
+						JsonElement el = (JsonElement) flashAttnObj;
+						if (el.isJsonPrimitive() && el.getAsJsonPrimitive().isBoolean()) {
+							flashAttention = el.getAsBoolean();
+						} else {
+							raw = el.getAsString();
+						}
+					}
+				} catch (Exception ignore) {
+					raw = null;
+				}
+				if (raw != null) {
+					String v = raw.trim().toLowerCase(Locale.ROOT);
+					flashAttention = !(v.equals("off") || v.equals("0") || v.equals("false"));
+				}
 			}
 
 			LlamaServerManager manager = LlamaServerManager.getInstance();
@@ -838,12 +866,28 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				return;
 			}
 
-			VramEstimation result = VramEstimator.estimateVram(new File(model.getPrimaryModel().getFilePath()),
-					ctxSize.intValue(), 16, batchSize.intValue(), ubatchSize.intValue(), enableVision.booleanValue());
+			VramEstimator.KvCacheType kvK = VramEstimator.KvCacheType.from(cacheTypeKStr);
+			VramEstimator.KvCacheType kvV = VramEstimator.KvCacheType.from(cacheTypeVStr);
+			
+			VramEstimator.Estimate est = VramEstimator.estimate(
+					new File(model.getPrimaryModel().getFilePath()),
+					ctxSize.intValue(), 
+					kvK, 
+					kvV, 
+					flashAttention);
+			
+			VramEstimation result = new VramEstimation(
+					est.getTotalBytes(), 
+					est.getModelWeightsBytes(),
+					est.getKvCacheBytes(), 
+					est.getRuntimeOverheadBytes());
 			// 整合一下
 			Map<String, Object> data = new HashMap<>();
 			data.put("modelId", modelId);
-			data.put("ctxSize", ctxSize);
+			data.put("param_ctx-size", ctxSize);
+			data.put("param_cache-type-k", kvK.id());
+			data.put("param_cache-type-v", kvV.id());
+			data.put("param_flash-attn", flashAttention);
 			data.put("bytes", result);
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
 		} catch (Exception e) {

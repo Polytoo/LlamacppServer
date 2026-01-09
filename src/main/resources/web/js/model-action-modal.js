@@ -568,26 +568,27 @@ function estimateVramAction() {
         showToast('错误', '请先选择模型', 'error');
         return;
     }
-    const ctxSize = parseInt(getFieldString(modal, ['ctxSize', 'ctx-size', 'param_ctx-size']) || '2048', 10);
-    const batchSize = parseInt(getFieldString(modal, ['batchSize', 'batch-size', 'param_batch-size']) || '512', 10);
-    const ubatch = parseInt(getFieldString(modal, ['ubatchSize', 'ubatch-size', 'param_ubatch-size']) || '0', 10);
-    let flashAttention = true;
-    const flashEl = findField(modal, 'flashAttention') || findFieldByName(modal, 'flash-attn') || findById(modal, 'param_flash-attn');
+    const ctxSizeRaw = getFieldString(modal, ['param_ctx-size', 'ctxSize', 'ctx-size']) || '2048';
+    const ctxSize = parseInt(ctxSizeRaw, 10);
+
+    const cacheTypeKRaw = String(getFieldString(modal, ['param_cache-type-k', 'cache-type-k']) || '').trim();
+    const cacheTypeVRaw = String(getFieldString(modal, ['param_cache-type-v', 'cache-type-v']) || '').trim();
+    const cacheTypeK = cacheTypeKRaw || 'f16';
+    const cacheTypeV = cacheTypeVRaw || cacheTypeK;
+
+    let flashAttnValue = '';
+    const flashEl = findById(modal, 'param_flash-attn') || findFieldByName(modal, 'flash-attn') || findField(modal, 'flashAttention');
     if (flashEl) {
-        if ('checked' in flashEl && flashEl.type === 'checkbox') flashAttention = !!flashEl.checked;
-        else {
-            const v = String(flashEl.value || '').trim().toLowerCase();
-            flashAttention = !(v === 'off' || v === '0' || v === 'false');
-        }
+        if ('checked' in flashEl && flashEl.type === 'checkbox') flashAttnValue = flashEl.checked ? 'on' : 'off';
+        else flashAttnValue = String(flashEl.value || '').trim();
     }
-    const enableVisionEl = findField(modal, 'enableVision');
+    if (!flashAttnValue) flashAttnValue = 'on';
     const payload = {
         modelId,
-        ctxSize,
-        batchSize: isNaN(batchSize) || batchSize <= 0 ? null : batchSize,
-        ubatchSize: isNaN(ubatch) || ubatch <= 0 ? null : ubatch,
-        flashAttention,
-        enableVision: enableVisionEl ? enableVisionEl.checked : true
+        'param_cache-type-k': cacheTypeK,
+        'param_cache-type-v': cacheTypeV,
+        'param_ctx-size': Number.isFinite(ctxSize) && ctxSize > 0 ? ctxSize : 2048,
+        'param_flash-attn': flashAttnValue
     };
     fetch('/api/models/vram/estimate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)

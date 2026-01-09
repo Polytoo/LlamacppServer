@@ -11,10 +11,12 @@ import org.mark.llamacpp.gguf.GGUFModel;
 import org.mark.llamacpp.server.LlamaServerManager;
 import org.mark.llamacpp.server.struct.VramEstimation;
 import org.mark.llamacpp.server.tools.VramEstimator;
+import org.mark.llamacpp.server.tools.VramEstimator.Estimate;
+import org.mark.llamacpp.server.tools.VramEstimator.KvCacheType;
 
 public class LlamaServerTest {
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
 		/*
 		//VramEstimator.Result result = VramEstimator.estimate(list.get(1), 8192, 2048, true);
 		
@@ -43,12 +45,20 @@ public class LlamaServerTest {
 		*/
 		
 		
-		BasicDownloader basicDownloader = new BasicDownloader("https://hf-mirror.com/unsloth/GLM-4.6-GGUF/resolve/main/README.md?download=true");
-		try {
-			basicDownloader.download();
-		} catch (IOException | URISyntaxException | InterruptedException e) {
-			e.printStackTrace();
-		}
+//		BasicDownloader basicDownloader = new BasicDownloader("https://hf-mirror.com/unsloth/GLM-4.6-GGUF/resolve/main/README.md?download=true");
+//		try {
+//			basicDownloader.download();
+//		} catch (IOException | URISyntaxException | InterruptedException e) {
+//			e.printStackTrace();
+//		}
+		
+		
+		Estimate est = VramEstimator.estimate(
+			    new File("C:\\Users\\Mark\\Models\\GGUF\\HY-MT1.5-1.8B-Q8_0\\HY-MT1.5-1.8B-Q8_0.gguf"),
+			    8192,
+			    KvCacheType.BF16,
+			    true
+			);
 	}
 
 }
