@@ -43,9 +43,9 @@
                 <i class="fas fa-microchip"></i>
                 <span>Llama.cpp 路径</span>
             </a>
-            <a href="#" class="nav-item" onclick="openSettingsModal(); return false;">
-                <i class="fas fa-cog"></i>
-                <span>系统设置</span>
+            <a href="#" class="nav-item" onclick="showModelPathSetting(); return false;">
+                <i class="fas fa-folder-open"></i>
+                <span>模型路径配置</span>
             </a>
             <div style="flex: 1"></div>
              <a href="#" class="nav-item danger" onclick="shutdownService(); return false;">
@@ -168,6 +168,49 @@
         </div>
     </main>
 
+    <main class="main-area" id="main-model-path-setting" style="display: none">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <h1 class="page-title">模型路径配置</h1>
+            <div class="top-actions">
+                <button class="btn btn-secondary" onclick="loadModelPathList()" title="刷新列表">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="content-scrollable">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="modelPathCount">0</h3>
+                        <p>已配置路径</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Path List -->
+            <div class="model-list-container">
+                <div class="model-list-header">
+                    <h2>模型路径列表</h2>
+                    <button class="btn btn-primary" onclick="openAddModelPathModal()">
+                        <i class="fas fa-plus"></i> 添加路径
+                    </button>
+                </div>
+                <div id="modelPathList">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
     <!-- Add Llama.cpp Modal -->
     <div class="modal" id="addLlamaCppModal">
         <div class="modal-content" style="max-width: 700px;">
@@ -265,69 +308,6 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div class="modal" id="settingsModal">
-        <div class="modal-content" style="max-width: 900px; max-height: 80vh;">
-            <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-cog"></i> 系统设置</h3>
-                <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="settings-section-header">
-                    <div class="settings-section-title">
-                        <i class="fas fa-sliders-h"></i>
-                        <span>全局路径设置</span>
-                    </div>
-                    <div class="settings-section-subtitle">
-                        配置模型根目录和已编译的 llama.cpp 路径，供模型加载与运行使用。
-                    </div>
-                </div>
-                <div class="settings-grid">
-                    <div class="settings-panel">
-                        <div class="panel-header">
-                            <i class="fas fa-folder-open"></i>
-                            <span>模型目录</span>
-                        </div>
-                        <div class="panel-body">
-                            <form id="settingsFormLeft">
-                                <div class="form-group">
-                                    <div class="settings-actions-row">
-                                        <button type="button" class="btn btn-primary" onclick="openAddModelPathModal()"><i class="fas fa-plus"></i></button>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <div id="modelPathListContainer" class="settings-list"></div>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                    <div class="settings-panel">
-                        <div class="panel-header">
-                            <i class="fas fa-microchip"></i>
-                            <span>Llama.cpp 路径</span>
-                        </div>
-                        <div class="panel-body">
-                            <form id="settingsFormRight">
-                                <div class="form-group">
-                                    <div class="settings-actions-row">
-                                        <button type="button" class="btn btn-primary" onclick="openAddLlamaCppPathModal()"><i class="fas fa-plus"></i></button>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <div id="llamaCppListContainer" class="settings-list"></div>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('settingsModal')">取消</button>
-                <button class="btn btn-primary" onclick="saveSettings()">保存更改</button>
-            </div>
-        </div>
-    </div>
-
     <div class="modal" id="addModelPathModal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -336,34 +316,22 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
+                    <label class="form-label">名称</label>
+                    <input class="form-control" id="addModelPathNameInput" placeholder="例如：本地模型库">
+                </div>
+                <div class="form-group">
                     <label class="form-label">目录路径</label>
                     <input class="form-control" id="addModelPathInput" placeholder="/path/to/models">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <input class="form-control" id="addModelPathDescInput" placeholder="可选：说明用途、存放的模型类型等">
                     <small class="form-text">支持多个模型根目录，将合并检索其中所有 GGUF 模型。</small>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('addModelPathModal')">取消</button>
                 <button class="btn btn-primary" onclick="addModelPath()">保存</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="addLlamaCppPathModal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h3 class="modal-title">添加 Llama.cpp 路径</h3>
-                <button class="modal-close" onclick="closeModal('addLlamaCppPathModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label">目录路径</label>
-                    <input class="form-control" id="addLlamaCppPathInput" placeholder="/path/to/llama.cpp">
-                    <small class="form-text">输入已编译的 llama.cpp 根目录路径。</small>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('addLlamaCppPathModal')">取消</button>
-                <button class="btn btn-primary" onclick="addLlamaCppPath()">保存</button>
             </div>
         </div>
     </div>
@@ -925,109 +893,86 @@
         }
         
         // Settings Logic (simplified)
-        function openSettingsModal() {
-            loadSettings();
-            loadLlamaCppList();
-            document.getElementById('settingsModal').classList.add('show');
-        }
+        let editingModelPath = null;
         function openAddModelPathModal() {
+            editingModelPath = null;
+            const nameEl = document.getElementById('addModelPathNameInput');
+            const pathEl = document.getElementById('addModelPathInput');
+            const descEl = document.getElementById('addModelPathDescInput');
+            if (nameEl) nameEl.value = '';
+            if (pathEl) pathEl.value = '';
+            if (descEl) descEl.value = '';
+            const titleEl = document.querySelector('#addModelPathModal .modal-title');
+            if (titleEl) titleEl.textContent = '添加模型目录';
             document.getElementById('addModelPathModal').classList.add('show');
         }
-        function openAddLlamaCppPathModal() {
-            document.getElementById('addLlamaCppPathModal').classList.add('show');
+        function refreshModelPathUi() {
+            if (document.getElementById('modelPathList')) {
+                loadModelPathList();
+            }
         }
-        function loadSettings() {
-             fetch('/api/setting').then(r => r.json()).then(d => {
-                if (d.success) {
-                    const paths = (d.data && d.data.modelPaths) ? d.data.modelPaths : [];
-                    window.__modelPaths = paths;
-                    renderModelPathList();
+        function editModelPath(path, name, desc) {
+            editingModelPath = path;
+            document.getElementById('addModelPathInput').value = path || '';
+            document.getElementById('addModelPathNameInput').value = name || '';
+            document.getElementById('addModelPathDescInput').value = desc || '';
+            const titleEl = document.querySelector('#addModelPathModal .modal-title');
+            if (titleEl) titleEl.textContent = '编辑模型目录';
+            document.getElementById('addModelPathModal').classList.add('show');
+        }
+        async function addModelPath() {
+            const path = document.getElementById('addModelPathInput').value.trim();
+            const name = document.getElementById('addModelPathNameInput').value.trim();
+            const description = document.getElementById('addModelPathDescInput').value.trim();
+            if (path) {
+                const payload = { path };
+                if (name) payload.name = name;
+                if (description) payload.description = description;
+                try {
+                    if (editingModelPath) {
+                        const response = await fetch('/api/model/path/update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ originalPath: editingModelPath, ...payload })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast('成功', '更新成功', 'success');
+                            editingModelPath = null;
+                            document.getElementById('addModelPathInput').value = '';
+                            document.getElementById('addModelPathNameInput').value = '';
+                            document.getElementById('addModelPathDescInput').value = '';
+                            closeModal('addModelPathModal');
+                            refreshModelPathUi();
+                        } else {
+                            showToast('错误', data.error || '更新失败', 'error');
+                        }
+                        return;
+                    }
+
+                    const response = await fetch('/api/model/path/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showToast('成功', '添加成功', 'success');
+                        editingModelPath = null;
+                        document.getElementById('addModelPathInput').value = '';
+                        document.getElementById('addModelPathNameInput').value = '';
+                        document.getElementById('addModelPathDescInput').value = '';
+                        closeModal('addModelPathModal');
+                        refreshModelPathUi();
+                    } else {
+                        showToast('错误', data.error || '添加失败', 'error');
+                    }
+                } catch (error) {
+                    showToast('错误', '网络请求失败', 'error');
                 }
-            });
-        }
-        function renderModelPathList() {
-            const c = document.getElementById('modelPathListContainer');
-            const paths = window.__modelPaths || [];
-            if (!paths.length) {
-                c.innerHTML = `<div class="settings-empty">尚未配置任何目录</div>`;
-                return;
+            } else {
+                showToast('错误', '目录路径不能为空', 'error');
             }
-            c.innerHTML = paths.map(p => `
-                <div class="settings-item">
-                    <div class="settings-item-main">
-                        <div class="settings-item-icon">
-                            <i class="fas fa-folder"></i>
-                        </div>
-                        <span class="settings-item-text" title="${p}">${p}</span>
-                    </div>
-                    <button type="button" class="btn-icon danger" onclick="removeModelPathItem('${p.replace(/\\/g, '\\\\')}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            `).join('');
-        }
-        function addModelPath() {
-            const v = document.getElementById('addModelPathInput').value.trim();
-            if (v) {
-                if (!window.__modelPaths) window.__modelPaths = [];
-                window.__modelPaths.push(v);
-                renderModelPathList();
-                document.getElementById('addModelPathInput').value = '';
-                closeModal('addModelPathModal');
-            }
-        }
-        function removeModelPathItem(p) {
-             window.__modelPaths = window.__modelPaths.filter(x => x !== p);
-             renderModelPathList();
-        }
-        function saveSettings() {
-            fetch('/api/setting', {
-                method: 'POST', headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ modelPaths: window.__modelPaths })
-            }).then(r => r.json()).then(d => {
-                if(d.success) { showToast('成功', '设置已保存', 'success'); closeModal('settingsModal'); refreshModels(); }
-                else showToast('错误', d.error, 'error');
-            });
-        }
-        function renderLlamaPathList() {
-            const c = document.getElementById('llamaCppListContainer');
-            const items = window.__llamaCppItems || [];
-            if (!items.length) {
-                c.innerHTML = `<div class="settings-empty">尚未配置任何路径</div>`;
-                return;
-            }
-            c.innerHTML = items.map(i => {
-                const p = (i && i.path) ? i.path : '';
-                const name = (i && i.name) ? i.name : '';
-                const desc = (i && i.description) ? i.description : '';
-                const display = name ? `${name} - ${p}` : p;
-                const title = [name, p, desc].filter(Boolean).join('\n');
-                const escaped = p.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                return `
-                <div class="settings-item">
-                    <div class="settings-item-main">
-                        <div class="settings-item-icon">
-                            <i class="fas fa-microchip"></i>
-                        </div>
-                        <span class="settings-item-text" title="${title}">${display}</span>
-                    </div>
-                    <button type="button" class="btn-icon danger" onclick="removeLlamaCppPathItem('${escaped}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            `;
-            }).join('');
-        }
-        function addLlamaCppPath() {
-             const v = document.getElementById('addLlamaCppPathInput').value.trim();
-             if(v) {
-                 fetch('/api/llamacpp/add', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path:v}) })
-                 .then(r=>r.json()).then(d=>{ if(d.success) { loadLlamaCppList(); document.getElementById('addLlamaCppPathInput').value=''; closeModal('addLlamaCppPathModal'); } else showToast('错误', d.error, 'error'); });
-             }
-        }
-        function removeLlamaCppPathItem(p) {
-             fetch('/api/llamacpp/remove', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path:p}) })
-                 .then(r=>r.json()).then(d=>{ if(d.success) loadLlamaCppList(); else showToast('错误', d.error, 'error'); });
         }
         
         function shutdownService() {
@@ -1055,6 +1000,7 @@
         function showModelList() {
             document.getElementById('main-model-list').style.display = '';
             document.getElementById('main-llamacpp-setting').style.display = 'none';
+            document.getElementById('main-model-path-setting').style.display = 'none';
             //refreshModels();
             // 更新导航项高亮
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
@@ -1066,11 +1012,111 @@
         function showLlamaCppSetting() {
             document.getElementById('main-model-list').style.display = 'none';
             document.getElementById('main-llamacpp-setting').style.display = '';
+            document.getElementById('main-model-path-setting').style.display = 'none';
             loadLlamaCppList();
             // 更新导航项高亮
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
             navItems.forEach(item => item.classList.remove('active'));
             navItems[5].classList.add('active'); // Llama.cpp 路径
+        }
+
+        // 显示模型路径配置页面
+        function showModelPathSetting() {
+            document.getElementById('main-model-list').style.display = 'none';
+            document.getElementById('main-llamacpp-setting').style.display = 'none';
+            document.getElementById('main-model-path-setting').style.display = '';
+            loadModelPathList();
+            // 更新导航项高亮
+            const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+            navItems.forEach(item => item.classList.remove('active'));
+            navItems[6].classList.add('active'); // 模型路径配置
+        }
+
+        // 加载模型路径列表
+        function loadModelPathList() {
+            const container = document.getElementById('modelPathList');
+            container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+            fetch('/api/model/path/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const items = data.data.items || [];
+                        document.getElementById('modelPathCount').textContent = data.data.count || 0;
+                        renderModelPathListContent(items);
+                    } else {
+                        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">加载失败</div><div class="empty-state-text">' + (data.error || '无法加载模型路径列表') + '</div></div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('加载模型路径列表出错:', error);
+                    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">网络错误</div><div class="empty-state-text">无法连接到服务器</div></div>';
+                });
+        }
+
+        // 渲染模型路径列表内容
+        function renderModelPathListContent(items) {
+            const container = document.getElementById('modelPathList');
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-folder-open"></i></div><div class="empty-state-title">暂无路径</div><div class="empty-state-text">尚未配置任何模型路径</div></div>';
+                return;
+            }
+
+            let html = '';
+            items.forEach((item, index) => {
+                const path = item.path || '';
+                const name = item.name || '';
+                const desc = item.description || '';
+                const displayName = name || path;
+                const escapedPath = path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const escapedName = name ? name.replace(/'/g, "\\'") : '';
+                const escapedDesc = desc ? desc.replace(/'/g, "\\'") : '';
+                html += `
+                    <div class="model-item">
+                        <div class="model-icon-wrapper">
+                            <i class="fas fa-folder-open"></i>
+                        </div>
+                        <div class="model-details">
+                            <div class="model-name" title="${displayName}">${displayName}</div>
+                            <div class="model-meta">
+                                <span><i class="fas fa-folder"></i> ${path}</span>
+                            </div>
+                            ${desc ? `<div class="model-desc" title="${desc}"><i class="fas fa-info-circle"></i> ${desc}</div>` : ''}
+                        </div>
+                        <div class="model-actions">
+                            <button class="btn-icon" onclick="editModelPath('${escapedPath}', '${escapedName}', '${escapedDesc}')" title="编辑">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon danger" onclick="removeModelPath('${escapedPath}')" title="删除">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>                        
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // 删除模型路径
+        function removeModelPath(path) {
+            if (confirm('确定要删除此路径吗？')) {
+                fetch('/api/model/path/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('成功', '路径已删除', 'success');
+                        refreshModelPathUi();
+                    } else {
+                        showToast('错误', data.error || '删除失败', 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('错误', '网络请求失败', 'error');
+                });
+            }
         }
     </script>
     <script src="js/model-list.js"></script>

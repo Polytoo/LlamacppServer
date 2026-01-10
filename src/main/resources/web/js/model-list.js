@@ -139,8 +139,8 @@ function renderModelsList(models) {
                     <div class="empty-state">
                         <div class="empty-state-icon"><i class="fas fa-box-open"></i></div>
                         <div class="empty-state-title">没有模型</div>
-                        <div class="empty-state-text">请在设置中添加模型目录</div>
-                        <button class="btn btn-primary" onclick="openSettingsModal()">去设置</button>
+                        <div class="empty-state-text">请先在“模型路径配置”中添加模型目录</div>
+                        <button class="btn btn-primary" onclick="showModelPathSetting()">去配置</button>
                     </div>
                 `;
         return;

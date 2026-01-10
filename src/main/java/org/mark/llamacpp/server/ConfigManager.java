@@ -29,6 +29,9 @@ public class ConfigManager {
     private static final String LAUNCH_CONFIG_FILE = CONFIG_DIR + "/launch_config.json";
     
     private final Gson gson;
+
+    private volatile List<Map<String, Object>> cachedModelsConfig = null;
+    private volatile long cachedModelsConfigLastModified = -1L;
     
     private ConfigManager() {
         // 创建Gson实例，设置美观格式化
@@ -73,6 +76,8 @@ public class ConfigManager {
             try (FileWriter writer = new FileWriter(MODELS_CONFIG_FILE)) {
                 gson.toJson(modelsData, writer);
                 System.out.println("模型配置已保存到: " + MODELS_CONFIG_FILE);
+                this.cachedModelsConfig = null;
+                this.cachedModelsConfigLastModified = -1L;
                 return true;
             }
         } catch (IOException e) {
@@ -127,6 +132,24 @@ public class ConfigManager {
             System.err.println("加载模型配置失败: " + e.getMessage());
             return List.of();
         }
+    }
+
+    public List<Map<String, Object>> loadModelsConfigCached() {
+        File configFile = new File(MODELS_CONFIG_FILE);
+        if (!configFile.exists()) {
+            this.cachedModelsConfig = List.of();
+            this.cachedModelsConfigLastModified = -1L;
+            return List.of();
+        }
+        long lastModified = configFile.lastModified();
+        List<Map<String, Object>> cached = this.cachedModelsConfig;
+        if (cached != null && this.cachedModelsConfigLastModified == lastModified) {
+            return cached;
+        }
+        List<Map<String, Object>> loaded = loadModelsConfig();
+        this.cachedModelsConfig = loaded;
+        this.cachedModelsConfigLastModified = lastModified;
+        return loaded;
     }
     
     /**
@@ -217,6 +240,8 @@ public class ConfigManager {
             }
             try (FileWriter writer = new FileWriter(MODELS_CONFIG_FILE)) {
                 gson.toJson(models, writer);
+                this.cachedModelsConfig = null;
+                this.cachedModelsConfigLastModified = -1L;
                 return true;
             }
         } catch (IOException e) {
@@ -230,7 +255,7 @@ public class ConfigManager {
      */
     public Map<String, String> loadAliasMap() {
         Map<String, String> aliases = new HashMap<>();
-        List<Map<String, Object>> models = loadModelsConfig();
+        List<Map<String, Object>> models = loadModelsConfigCached();
         for (Map<String, Object> m : models) {
             Object id = m.get("modelId");
             Object alias = m.get("alias");
@@ -261,6 +286,8 @@ public class ConfigManager {
             }
             try (FileWriter writer = new FileWriter(MODELS_CONFIG_FILE)) {
                 gson.toJson(models, writer);
+                this.cachedModelsConfig = null;
+                this.cachedModelsConfigLastModified = -1L;
                 return true;
             }
         } catch (IOException e) {
@@ -271,7 +298,7 @@ public class ConfigManager {
 
     public Map<String, Boolean> loadFavouriteMap() {
         Map<String, Boolean> favourites = new HashMap<>();
-        List<Map<String, Object>> models = loadModelsConfig();
+        List<Map<String, Object>> models = loadModelsConfigCached();
         for (Map<String, Object> m : models) {
             Object id = m.get("modelId");
             Object fav = m.get("favourite");

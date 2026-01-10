@@ -401,11 +401,6 @@ function loadModel(modelId, modelName, mode = 'load') {
 
                 if (config.llamaBinPath) {
                     if (select) select.value = config.llamaBinPath;
-                } else {
-                    fetch('/api/setting').then(rs => rs.json()).then(s => {
-                        const currentBin = (s && s.success && s.data) ? s.data.llamaBin : null;
-                        if (currentBin && select) select.value = currentBin;
-                    }).catch(() => {});
                 }
 
                 if (select) select.onchange = function() { loadDeviceList(); };

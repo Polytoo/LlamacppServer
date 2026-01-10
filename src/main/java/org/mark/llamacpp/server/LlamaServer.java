@@ -20,6 +20,7 @@ import org.mark.llamacpp.server.channel.DownloadRouterHandler;
 import org.mark.llamacpp.server.channel.OpenAIRouterHandler;
 import org.mark.llamacpp.server.io.ConsoleBroadcastOutputStream;
 import org.mark.llamacpp.server.struct.LlamaCppConfig;
+import org.mark.llamacpp.server.struct.ModelPathConfig;
 import org.mark.llamacpp.server.websocket.WebSocketManager;
 import org.mark.llamacpp.server.websocket.WebSocketServerHandler;
 import org.slf4j.Logger;
@@ -478,7 +479,34 @@ public class LlamaServer {
 		Files.write(configFile, json.getBytes(StandardCharsets.UTF_8));
 		logger.info("llama.cpp配置已保存到文件: {}", configFile.toString());
 	}
-	
+
+	public synchronized static Path getModelPathConfigPath() throws IOException {
+		String currentDir = System.getProperty("user.dir");
+		Path configDir = Paths.get(currentDir, "config");
+		if (!Files.exists(configDir)) {
+			Files.createDirectories(configDir);
+		}
+		return configDir.resolve("modelpaths.json");
+	}
+
+	public synchronized static ModelPathConfig readModelPathConfig(Path configFile) throws IOException {
+		ModelPathConfig cfg = new ModelPathConfig();
+		if (Files.exists(configFile)) {
+			String json = new String(Files.readAllBytes(configFile), StandardCharsets.UTF_8);
+			ModelPathConfig read = GSON.fromJson(json, ModelPathConfig.class);
+			if (read != null && read.getItems() != null) {
+				cfg.setItems(read.getItems());
+			}
+		}
+		return cfg;
+	}
+
+	public synchronized static void writeModelPathConfig(Path configFile, ModelPathConfig cfg) throws IOException {
+		String json = GSON.toJson(cfg);
+		Files.write(configFile, json.getBytes(StandardCharsets.UTF_8));
+		logger.info("模型路径配置已保存到文件: {}", configFile.toString());
+	}
+
 	//================================================================================================
 	
 	/**

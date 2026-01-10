@@ -5,6 +5,7 @@ import java.util.List;
 /**
  * 加载模型请求参数
  */
+@Deprecated
 public class LoadModelRequest {
     /**
      * 模型ID（必需）

@@ -210,9 +210,4 @@ function shutdownService() {
             window.location.href = 'index.html';
         };
     }
-    if (typeof window.openSettingsModal !== 'function') {
-        window.openSettingsModal = function () {
-            window.location.href = 'index.html';
-        };
-    }
 })();

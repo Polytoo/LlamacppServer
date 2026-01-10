@@ -32,6 +32,8 @@ import org.mark.llamacpp.gguf.GGUFBundle;
 import org.mark.llamacpp.gguf.GGUFMetaData;
 import org.mark.llamacpp.gguf.GGUFModel;
 import org.mark.llamacpp.server.struct.ApiResponse;
+import org.mark.llamacpp.server.struct.ModelPathConfig;
+import org.mark.llamacpp.server.struct.ModelPathDataStruct;
 import org.mark.llamacpp.server.tools.CommandLineRunner;
 import org.mark.llamacpp.server.tools.PortChecker;
 import org.slf4j.Logger;
@@ -122,6 +124,41 @@ public class LlamaServerManager {
 	 */
     private void loadSettingsFromFile() {
         try {
+			try {
+				Path configFile = LlamaServer.getModelPathConfigPath();
+				ModelPathConfig cfg = LlamaServer.readModelPathConfig(configFile);
+				List<String> paths = new ArrayList<>();
+				if (cfg != null && cfg.getItems() != null) {
+					for (ModelPathDataStruct item : cfg.getItems()) {
+						if (item == null || item.getPath() == null) continue;
+						String p = item.getPath().trim();
+						if (p.isEmpty()) continue;
+						boolean exists = false;
+						for (String e : paths) {
+							if (e == null) continue;
+							String os = System.getProperty("os.name");
+							if (os != null && os.toLowerCase().contains("win")) {
+								if (p.equalsIgnoreCase(e)) {
+									exists = true;
+									break;
+								}
+							} else {
+								if (p.equals(e)) {
+									exists = true;
+									break;
+								}
+							}
+						}
+						if (!exists) paths.add(p);
+					}
+				}
+				if (!paths.isEmpty()) {
+					this.modelPaths = paths;
+					return;
+				}
+			} catch (Exception e) {
+			}
+
 			// 获取当前工作目录
 			String currentDir = System.getProperty("user.dir");
 			Path configDir = Paths.get(currentDir, "config");
@@ -215,23 +252,40 @@ public class LlamaServerManager {
                         e.printStackTrace();
                     }
                 }
-                // 合并别名：从已保存的配置加载别名并应用到当前列表
-                Map<String, String> aliasMap = this.configManager.loadAliasMap();
+                List<Map<String, Object>> persisted = this.configManager.loadModelsConfigCached();
+                Map<String, String> aliasMap = new HashMap<>();
+                Map<String, Boolean> favouriteMap = new HashMap<>();
+                for (Map<String, Object> rec : persisted) {
+                    if (rec == null) continue;
+                    Object id = rec.get("modelId");
+                    if (id == null) continue;
+                    String modelId = String.valueOf(id);
+                    Object alias = rec.get("alias");
+                    if (alias != null) {
+                        String a = String.valueOf(alias);
+                        if (!a.isEmpty()) aliasMap.put(modelId, a);
+                    }
+                    Object fav = rec.get("favourite");
+                    if (fav != null) {
+                        boolean v;
+                        if (fav instanceof Boolean) {
+                            v = (Boolean) fav;
+                        } else {
+                            v = Boolean.parseBoolean(String.valueOf(fav));
+                        }
+                        favouriteMap.put(modelId, v);
+                    }
+                }
                 for (GGUFModel m : this.list) {
                     String alias = aliasMap.get(m.getModelId());
                     if (alias != null && !alias.isEmpty()) {
                         m.setAlias(alias);
                     }
-                }
-                Map<String, Boolean> favouriteMap = this.configManager.loadFavouriteMap();
-                for (GGUFModel m : this.list) {
                     Boolean fav = favouriteMap.get(m.getModelId());
                     if (fav != null) {
                         m.setFavourite(fav);
                     }
                 }
-                // 保存模型信息到配置文件
-                this.configManager.saveModelsConfig(this.list);
             }
             // 如果集合不是空的，就直接返回。
             else {
