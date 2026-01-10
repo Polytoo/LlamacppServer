@@ -821,7 +821,7 @@ public class LlamaServerManager {
 		sb.append(" --port ");
 		sb.append(port);
 
-		if (targetModel.getMmproj() != null && !cmdHasFlag(cmd, "--mmproj")) {
+		if (targetModel.getMmproj() != null && !cmdHasFlag(cmd, "--mmproj") && !cmdHasFlag(cmd, "--no-mmproj")) {
 			sb.append(" --mmproj ");
 			String mmprojFile = targetModel.getPath() + "/" + targetModel.getMmproj().getFileName();
 			sb.append(quoteIfNeeded(mmprojFile));

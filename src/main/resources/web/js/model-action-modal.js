@@ -416,6 +416,8 @@ function buildLoadModelPayload(modal) {
     const modelId = getFieldString(modal, ['modelId']);
     const modelName = getFieldString(modal, ['modelName']);
     const llamaBinPathSelect = getFieldString(modal, ['llamaBinPathSelect']);
+    const enableVisionEl = findField(modal, 'enableVision');
+    const enableVision = enableVisionEl && 'checked' in enableVisionEl ? !!enableVisionEl.checked : true;
 
     const selectedDevices = getSelectedDevicesFromChecklist();
     const availableCount = window.__availableDeviceCount;
@@ -458,6 +460,7 @@ function buildLoadModelPayload(modal) {
         modelId,
         modelName,
         llamaBinPathSelect,
+        enableVision,
         device: isAllSelected ? ['All'] : selectedDevices,
         mg: getSelectedMainGpu(),
         cmd: cmdParts.join(' ').trim()
@@ -485,6 +488,7 @@ function submitModelAction() {
             llamaBinPath: base && base.llamaBinPathSelect ? base.llamaBinPathSelect : '',
             mg: base && base.mg !== undefined ? base.mg : -1,
             cmd: base && base.cmd ? base.cmd : '',
+            enableVision: base && base.enableVision !== undefined ? !!base.enableVision : true,
             device: base && Array.isArray(base.device) ? base.device : ['All']
         };
         payload = {};

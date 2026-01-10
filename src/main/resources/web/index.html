@@ -266,6 +266,15 @@
                                 <label class="form-label" for="llamaBinPathSelect">Llama.cpp 版本</label>
                                 <select class="form-control" id="llamaBinPathSelect" name="llamaBinPathSelect"></select>
                             </div>
+
+                            <div class="form-group" id="enableVisionGroup" style="display:none;">
+                                <label class="form-label">启用视觉</label>
+                                <div class="form-check" style="margin-bottom: 0;">
+                                    <input class="form-check-input" type="checkbox" id="enableVision" name="enableVision" checked>
+                                    <label class="form-check-label" for="enableVision">启用</label>
+                                </div>
+                                <small class="form-text">关闭后将不会使用 --mmproj 参数，即不启用多模态</small>
+                            </div>
                             
                             <div class="form-group" id="mainGpuGroup">
                                 <label class="form-label" for="mainGpuSelect">主GPU (main-gpu)</label>

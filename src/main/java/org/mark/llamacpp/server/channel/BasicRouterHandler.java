@@ -1084,6 +1084,10 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				return;
 			}
 			cmd = cmd.trim();
+			boolean enableVision = parseJsonBoolean(obj, "enableVision", true);
+			if (!enableVision) {
+				cmd = sanitizeCmdDisableVision(cmd);
+			}
 
 			String modelId = JsonUtil.getJsonString(obj, "modelId", null);
 			String modelNameCmd = JsonUtil.getJsonString(obj, "modelName", null);
@@ -1116,6 +1120,21 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				return;
 			}
 
+			try {
+				ConfigManager cfgManager = ConfigManager.getInstance();
+				Map<String, Map<String, Object>> all = cfgManager.loadAllLaunchConfigs();
+				Map<String, Object> prev = all.get(modelId);
+				Map<String, Object> merged = prev != null ? new HashMap<>(prev) : new HashMap<>();
+				merged.put("llamaBinPath", llamaBinPathSelect);
+				merged.put("mg", mg);
+				merged.put("cmd", cmd);
+				merged.put("device", device);
+				merged.put("enableVision", enableVision);
+				normalizeEnableVisionInConfigMap(merged);
+				cfgManager.saveLaunchConfig(modelId, merged);
+			} catch (Exception ignore) {
+			}
+
 			boolean started = manager.loadModelAsyncFromCmd(modelId, llamaBinPathSelect, device, mg, cmd);
 			if (!started) {
 				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("提交加载任务失败"));
@@ -1130,6 +1149,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			data.put("device", device);
 			data.put("mg", mg);
 			data.put("cmd", cmd);
+			data.put("enableVision", enableVision);
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
 		} catch (Exception e) {
 			logger.error("加载模型时发生错误", e);
@@ -1259,6 +1279,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				if (cfgMap == null) cfgMap = new HashMap<>();
 				cfgMap.remove("modelId");
 				cfgMap.remove("config");
+				normalizeEnableVisionInConfigMap(cfgMap);
 				boolean saved = configManager.saveLaunchConfig(modelId, cfgMap);
 				if (!saved) {
 					LlamaServer.sendJsonResponse(ctx, ApiResponse.error("保存模型启动配置失败"));
@@ -1277,6 +1298,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				if (!cfgEl.isJsonObject()) continue;
 				Map<String, Object> cfgMap = gson.fromJson(cfgEl, mapType);
 				if (cfgMap == null) cfgMap = new HashMap<>();
+				normalizeEnableVisionInConfigMap(cfgMap);
 				boolean saved = configManager.saveLaunchConfig(modelId, cfgMap);
 				if (!saved) {
 					LlamaServer.sendJsonResponse(ctx, ApiResponse.error("保存模型启动配置失败"));
@@ -2364,6 +2386,113 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		}
 		if (buf.length() > 0) tokens.add(buf.toString());
 		return tokens;
+	}
+
+	private static boolean parseJsonBoolean(JsonObject obj, String key, boolean fallback) {
+		if (obj == null || key == null || key.isEmpty() || !obj.has(key) || obj.get(key) == null || obj.get(key).isJsonNull()) {
+			return fallback;
+		}
+		try {
+			return obj.get(key).getAsBoolean();
+		} catch (Exception e) {
+			try {
+				String s = obj.get(key).getAsString();
+				if (s == null) return fallback;
+				String t = s.trim().toLowerCase();
+				if (t.isEmpty()) return fallback;
+				if ("true".equals(t) || "1".equals(t) || "yes".equals(t) || "on".equals(t)) return true;
+				if ("false".equals(t) || "0".equals(t) || "no".equals(t) || "off".equals(t)) return false;
+				return fallback;
+			} catch (Exception e2) {
+				return fallback;
+			}
+		}
+	}
+
+	private static String sanitizeCmdDisableVision(String cmd) {
+		List<String> tokens = splitCmdArgs(cmd);
+		List<String> out = new ArrayList<>();
+		boolean hasNoMmproj = false;
+		for (int i = 0; i < tokens.size(); i++) {
+			String t = tokens.get(i);
+			if (t == null || t.isEmpty()) continue;
+
+			if ("--no-mmproj".equals(t)) {
+				hasNoMmproj = true;
+				out.add(t);
+				continue;
+			}
+
+			if ("--mmproj".equals(t) || "-mm".equals(t) || "--mmproj-url".equals(t) || "-mmu".equals(t)) {
+				i++;
+				continue;
+			}
+			if (t.startsWith("--mmproj=") || t.startsWith("--mmproj-url=")) {
+				continue;
+			}
+			out.add(t);
+		}
+		if (!hasNoMmproj) {
+			out.add("--no-mmproj");
+		}
+		return joinCmdArgs(out).trim();
+	}
+
+	private static String joinCmdArgs(List<String> args) {
+		if (args == null || args.isEmpty()) return "";
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < args.size(); i++) {
+			String a = args.get(i);
+			if (a == null) continue;
+			String t = a.trim();
+			if (t.isEmpty()) continue;
+			if (sb.length() > 0) sb.append(' ');
+			sb.append(quoteIfNeeded(t));
+		}
+		return sb.toString();
+	}
+
+	private static String quoteIfNeeded(String s) {
+		if (s == null) return "";
+		boolean needs = false;
+		for (int i = 0; i < s.length(); i++) {
+			char c = s.charAt(i);
+			if (Character.isWhitespace(c) || c == '"') {
+				needs = true;
+				break;
+			}
+		}
+		if (!needs) return s;
+		return "\"" + s.replace("\"", "\\\"") + "\"";
+	}
+
+	private static void normalizeEnableVisionInConfigMap(Map<String, Object> cfgMap) {
+		if (cfgMap == null) return;
+		Object v = cfgMap.get("enableVision");
+		if (v == null) {
+			cfgMap.put("enableVision", true);
+			return;
+		}
+		if (v instanceof Boolean) return;
+		String s = String.valueOf(v);
+		if (s == null) {
+			cfgMap.put("enableVision", true);
+			return;
+		}
+		String t = s.trim().toLowerCase();
+		if (t.isEmpty()) {
+			cfgMap.put("enableVision", true);
+			return;
+		}
+		if ("true".equals(t) || "1".equals(t) || "yes".equals(t) || "on".equals(t)) {
+			cfgMap.put("enableVision", true);
+			return;
+		}
+		if ("false".equals(t) || "0".equals(t) || "no".equals(t) || "off".equals(t)) {
+			cfgMap.put("enableVision", false);
+			return;
+		}
+		cfgMap.put("enableVision", true);
 	}
 	
 	private static List<String> sanitizeBenchmarkCmdArgs(List<String> args) {
