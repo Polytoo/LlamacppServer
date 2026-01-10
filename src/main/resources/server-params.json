@@ -223,5 +223,14 @@
     "defaultValue": "-1",
     "description": "随机数生成器种子，用于控制采样的可复现性：在相同模型、相同提示词与相同采样参数下，固定 seed 通常能得到一致或高度一致的输出，便于回归测试与问题复现。设置为 -1 表示每次启动/请求使用随机种子，从而获得更多样化结果。",
     "sort": 21
+  },
+  {
+    "name": "DirectIO",
+    "fullName": "-no-direct-io",
+    "abbreviation": "-ndio",
+    "type": "LOGIC",
+    "defaultValue": "0",
+    "description": "禁用DirectIO，vulkan后端需要禁用这个选项，否则会无法加载模型。",
+    "sort": 22
   }
 ]
