@@ -62,6 +62,9 @@ function renderLlamaCppList() {
                     ${desc ? `<div class="model-desc" title="${desc}"><i class="fas fa-info-circle"></i> ${desc}</div>` : ''}
                 </div>
                 <div class="model-actions">
+                    <button class="btn-icon" onclick="testLlamaCpp('${escapedPath}', '${escapedName}', '${escapedDesc}')" title="测试">
+                        <i class="fas fa-vial"></i>
+                    </button>
                     <button class="btn-icon" onclick="editLlamaCpp('${escapedPath}', '${escapedName}', '${escapedDesc}')" title="编辑">
                         <i class="fas fa-edit"></i>
                     </button>
@@ -164,6 +167,125 @@ function removeLlamaCpp(path) {
         console.error('删除 Llama.cpp 出错:', error);
         showToast('错误', '网络请求失败', 'error');
     });
+}
+
+function ensureLlamaCppTestModal() {
+    const modalId = 'llamaCppTestModal';
+    let modal = document.getElementById(modalId);
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 980px; height: 85vh;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="llamaCppTestModalTitle"><i class="fas fa-vial"></i> Llama.cpp 测试</h3>
+                <button class="modal-close" onclick="closeModal('${modalId}')">&times;</button>
+            </div>
+            <div class="modal-body" style="height: calc(85vh - 132px); overflow: auto;">
+                <div style="margin-bottom: 14px;">
+                    <div style="font-weight: 600; margin-bottom: 6px;">llama-cli --version</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 6px;">
+                        <span id="llamaCppTestVersionCmd"></span>
+                        <span style="margin-left: 10px;">exitCode: <span id="llamaCppTestVersionExit"></span></span>
+                    </div>
+                    <pre id="llamaCppTestVersionOut" style="white-space: pre-wrap; padding: 10px; border: 1px solid var(--border-color); border-radius: 10px; background: #0b1220; color: #e5e7eb;"></pre>
+                    <pre id="llamaCppTestVersionErr" style="white-space: pre-wrap; padding: 10px; border: 1px solid var(--border-color); border-radius: 10px; background: #1f2937; color: #fca5a5;"></pre>
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <div style="font-weight: 600; margin-bottom: 6px;">llama-cli --list-devices</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 6px;">
+                        <span id="llamaCppTestDevicesCmd"></span>
+                        <span style="margin-left: 10px;">exitCode: <span id="llamaCppTestDevicesExit"></span></span>
+                    </div>
+                    <pre id="llamaCppTestDevicesOut" style="white-space: pre-wrap; padding: 10px; border: 1px solid var(--border-color); border-radius: 10px; background: #0b1220; color: #e5e7eb;"></pre>
+                    <pre id="llamaCppTestDevicesErr" style="white-space: pre-wrap; padding: 10px; border: 1px solid var(--border-color); border-radius: 10px; background: #1f2937; color: #fca5a5;"></pre>
+                </div>
+                <div style="font-size: 0.875rem; color: var(--text-secondary);">原始响应</div>
+                <pre id="llamaCppTestRaw" style="white-space: pre-wrap; padding: 10px; border: 1px solid var(--border-color); border-radius: 10px; background: #111827; color: #d1d5db;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('${modalId}')">关闭</button>
+            </div>
+        </div>
+    `;
+
+    const root = document.getElementById('dynamicModalRoot') || document.body;
+    root.appendChild(modal);
+    return modal;
+}
+
+function setLlamaCppTestModalLoading(titleText) {
+    const titleEl = document.getElementById('llamaCppTestModalTitle');
+    if (titleEl) titleEl.textContent = titleText || 'Llama.cpp 测试';
+    const ids = [
+        'llamaCppTestVersionCmd', 'llamaCppTestVersionExit', 'llamaCppTestVersionOut', 'llamaCppTestVersionErr',
+        'llamaCppTestDevicesCmd', 'llamaCppTestDevicesExit', 'llamaCppTestDevicesOut', 'llamaCppTestDevicesErr',
+        'llamaCppTestRaw'
+    ];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = id.endsWith('Out') || id.endsWith('Err') || id.endsWith('Raw') ? '加载中...' : '';
+    });
+}
+
+function fillLlamaCppTestModal(res) {
+    const data = res && res.data ? res.data : null;
+    const version = data && data.version ? data.version : null;
+    const listDevices = data && data.listDevices ? data.listDevices : null;
+
+    const setText = (id, v) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = v == null ? '' : String(v);
+    };
+
+    setText('llamaCppTestVersionCmd', version ? version.command : '');
+    setText('llamaCppTestVersionExit', version ? version.exitCode : '');
+    setText('llamaCppTestVersionOut', version ? (version.output || '') : '');
+    setText('llamaCppTestVersionErr', version ? (version.error || '') : '');
+
+    setText('llamaCppTestDevicesCmd', listDevices ? listDevices.command : '');
+    setText('llamaCppTestDevicesExit', listDevices ? listDevices.exitCode : '');
+    setText('llamaCppTestDevicesOut', listDevices ? (listDevices.output || '') : '');
+    setText('llamaCppTestDevicesErr', listDevices ? (listDevices.error || '') : '');
+
+    setText('llamaCppTestRaw', JSON.stringify(res, null, 2));
+}
+
+async function testLlamaCpp(path, name, desc) {
+    const modal = ensureLlamaCppTestModal();
+    modal.classList.add('show');
+
+    const displayName = (name && name.trim()) ? name.trim() : path;
+    setLlamaCppTestModalLoading('Llama.cpp 测试 - ' + displayName);
+
+    try {
+        const payload = { path };
+        if (name) payload.name = name;
+        if (desc) payload.description = desc;
+
+        const resp = await fetch('/api/llamacpp/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+
+        if (!data || !data.success) {
+            const rawEl = document.getElementById('llamaCppTestRaw');
+            if (rawEl) rawEl.textContent = JSON.stringify(data, null, 2);
+            showToast('错误', (data && data.error) ? data.error : '测试失败', 'error');
+            fillLlamaCppTestModal(data || { success: false, error: '测试失败' });
+            return;
+        }
+
+        fillLlamaCppTestModal(data);
+    } catch (e) {
+        const rawEl = document.getElementById('llamaCppTestRaw');
+        if (rawEl) rawEl.textContent = String(e && e.message ? e.message : e);
+        showToast('错误', '网络请求失败', 'error');
+    }
 }
 
 // --- Modal Functions ---

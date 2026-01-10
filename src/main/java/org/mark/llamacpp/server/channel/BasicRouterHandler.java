@@ -295,6 +295,11 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			this.handleLlamaCppList(ctx, request);
 			return;
 		}
+		// 执行测试
+		if (uri.startsWith("/api/llamacpp/test")) {
+			this.handleLlamaCppTest(ctx, request);
+			return;
+		}
 		// ==============================================================
 		if (uri.startsWith("/api/sys/console")) {
 			this.handleSysConsoleRequest(ctx, request);
@@ -1495,6 +1500,63 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		} catch (Exception e) {
 			logger.error("获取llama.cpp路径列表时发生错误", e);
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("获取llama.cpp路径列表失败: " + e.getMessage()));
+		}
+	}
+
+	private void handleLlamaCppTest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		this.assertRequestMethod(request.method() != HttpMethod.POST, "只支持POST请求");
+		try {
+			String content = request.content().toString(CharsetUtil.UTF_8);
+			if (content == null || content.trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求体为空"));
+				return;
+			}
+			LlamaCppDataStruct reqData = gson.fromJson(content, LlamaCppDataStruct.class);
+			if (reqData == null || reqData.getPath() == null || reqData.getPath().trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("path不能为空"));
+				return;
+			}
+
+			String llamaBinPath = reqData.getPath().trim();
+			String exeName = "llama-cli";
+			File exeFile = new File(llamaBinPath, exeName);
+			if (!exeFile.exists() || !exeFile.isFile()) {
+				String osName = System.getProperty("os.name");
+				String os = osName == null ? "" : osName.toLowerCase(Locale.ROOT);
+				if (os.contains("win")) {
+					File exeFileWin = new File(llamaBinPath, exeName + ".exe");
+					if (exeFileWin.exists() && exeFileWin.isFile()) {
+						exeFile = exeFileWin;
+					}
+				}
+			}
+
+			String cmdVersion = exeFile.getAbsolutePath() + " --version";
+			CommandLineRunner.CommandResult versionResult = CommandLineRunner.execute(cmdVersion, 30);
+
+			String cmdListDevices = exeFile.getAbsolutePath() + " --list-devices";
+			CommandLineRunner.CommandResult listDevicesResult = CommandLineRunner.execute(cmdListDevices, 30);
+
+			Map<String, Object> data = new HashMap<>();
+
+			Map<String, Object> version = new HashMap<>();
+			version.put("command", cmdVersion);
+			version.put("exitCode", versionResult.getExitCode());
+			version.put("output", versionResult.getOutput());
+			version.put("error", versionResult.getError());
+
+			Map<String, Object> devices = new HashMap<>();
+			devices.put("command", cmdListDevices);
+			devices.put("exitCode", listDevicesResult.getExitCode());
+			devices.put("output", listDevicesResult.getOutput());
+			devices.put("error", listDevicesResult.getError());
+
+			data.put("version", version);
+			data.put("listDevices", devices);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
+		} catch (Exception e) {
+			logger.error("执行llama.cpp测试命令时发生错误", e);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("执行llama.cpp测试失败: " + e.getMessage()));
 		}
 	}
 
