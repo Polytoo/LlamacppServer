@@ -25,6 +25,7 @@ import org.mark.llamacpp.server.struct.LlamaCppDataStruct;
 import org.mark.llamacpp.server.struct.ModelPathConfig;
 import org.mark.llamacpp.server.websocket.WebSocketManager;
 import org.mark.llamacpp.server.websocket.WebSocketServerHandler;
+import org.mark.llamacpp.win.SystemTrayIcon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -304,6 +305,34 @@ public class LlamaServer {
 			LlamaServer.bindAnthropic(anthropicPort);
 		});
 		t2.start();
+		
+		try {
+			SystemTrayIcon tray = new SystemTrayIcon();
+			
+			// 添加"打开首页"菜单项
+			tray.addMenuItem("打开首页", e -> {
+				try {
+					java.awt.Desktop.getDesktop().browse(new java.net.URI("http://127.0.0.1:8080"));
+				} catch (Exception ex) {
+					logger.error("打开浏览器失败", ex);
+				}
+			});
+			
+			// 添加分隔符
+			tray.addMenuSeparator();
+			
+			// 添加"退出程序"菜单项
+			tray.addMenuItem("退出程序", e -> {
+				tray.removeTrayIcon();
+				System.exit(0);
+			});
+			
+			// 使用资源文件中的图标创建托盘
+			tray.createTrayIconFromResource("/icon/icon.png", "LlamaCpp Server - 运行中");
+			tray.displayInfoMessage("启动成功", "LlamaCpp Server 已在后台运行");
+		} catch (Exception e) {
+			logger.warn("创建系统托盘图标失败: {}", e.getMessage());
+		}
 	}
     
     
