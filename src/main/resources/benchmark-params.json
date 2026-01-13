@@ -229,10 +229,10 @@
     "type": "STRING",
     "defaultValue": "0",
     "description": "禁用（0对应禁用）后不使用内存映射（mmap）方式加载模型文件，而是将权重数据以常规方式读入内存。mmap 通常能减少启动时的拷贝并让操作系统按需分页加载，启动更快且对内存更友好；禁用 mmap 在某些文件系统/网络盘/权限限制/容器环境下可避免映射失败、SIGBUS、或异常卡顿，但往往会增加一次性内存占用并延长加载时间。建议在“加载慢、加载失败或运行不稳定”时切换该选项做对比测试，选择更稳定/更快的组合。",
-	"values": [
-	  "0",
-	  "1"
-	],
+	  "values": [
+	    "0",
+	    "1"
+	  ],
     "sort": 2
   },
   {
@@ -243,5 +243,18 @@
     "defaultValue": "",
     "description": "在多 GPU 间分配张量的比例。例如: 0 表示自动，0.5/0.5 表示平均分配到两个 GPU。",
     "sort": 30
+  },
+  {
+    "name": "DirectIO",
+    "fullName": "--direct-io",
+    "abbreviation": "-dio",
+    "type": "STRING",
+    "defaultValue": "0",
+    "description": "是否弃用DirectIO，影响模型的加载速度。",
+    "values": [
+	    "0",
+	    "1"
+    ],
+    "sort": 31
   }
 ]
