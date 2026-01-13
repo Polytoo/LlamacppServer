@@ -429,13 +429,7 @@ public class BasicDownloader {
 		this.errorMessage = null;
 		
 		try {
-			// 如果finalUri还未设置，需要重新解析
-			if (this.finalUri == null) {
-				this.prepare();
-			} else {
-				// 验证文件是否仍然有效
-				this.validateRemoteFile();
-			}
+			this.prepareForResume();
 			
 			if (this.contentLength <= 0) {
 				throw new IOException("无法获取文件大小");
@@ -475,6 +469,37 @@ public class BasicDownloader {
 				this.finishedAtNanos = System.nanoTime();
 			}
 		}
+	}
+
+	private void prepareForResume() throws IOException, URISyntaxException, InterruptedException {
+		this.checkStop();
+		this.state = DownloadState.PREPARING;
+
+		URI resolvedFinalUri = this.resolveFinalUri(this.sourceUri);
+		HttpResponse<Void> headResponse = this.sendHeadOrFallback(resolvedFinalUri);
+		if (headResponse == null) {
+			throw new IOException("无法获取文件头信息");
+		}
+
+		String currentEtag = firstHeaderValue(headResponse.headers().map(), "etag");
+		if (this.etag != null && currentEtag != null && !normalizeEtag(this.etag).equals(normalizeEtag(currentEtag))) {
+			throw new IOException("远程文件已更改，无法断点续传");
+		}
+
+		long remoteContentLength = parseContentLength(headResponse.headers().map());
+		if (this.contentLength > 0 && remoteContentLength > 0 && this.contentLength != remoteContentLength) {
+			throw new IOException("远程文件大小已更改，无法断点续传");
+		}
+		if (remoteContentLength <= 0) {
+			throw new IOException("无法获取文件大小");
+		}
+
+		this.finalUri = resolvedFinalUri;
+		this.contentLength = remoteContentLength;
+		this.etag = currentEtag;
+
+		HttpResponse<Void> rangeProbe = this.sendRangeProbe(this.finalUri);
+		this.rangeSupported = rangeProbe != null && rangeProbe.statusCode() == 206;
 	}
 	
 	/**

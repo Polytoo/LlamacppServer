@@ -54,6 +54,8 @@ public class DownloadManager {
 		
 		// 添加WebSocket监听器
 		this.addProgressListener(new DownloadWebSocketListener());
+		// 添加下载监听器
+		this.addProgressListener(new DownloadModelListener());
 	}
     
     /**
