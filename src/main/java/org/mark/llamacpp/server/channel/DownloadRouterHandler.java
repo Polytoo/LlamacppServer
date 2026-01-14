@@ -24,21 +24,21 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
     public DownloadRouterHandler() {
     }
     
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
-        // 处理CORS
-        if (request.method() == HttpMethod.OPTIONS) {
-        	LlamaServer.sendCorsResponse(ctx);
-            return;
-        }
-        String uri = request.uri();
-        // 解析路径
-        String[] pathParts = uri.split("/");
-        if (pathParts.length < 2) {
-        	LlamaServer.sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "无效的API路径");
-            return;
-        }
-        
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+		// 处理CORS
+		if (request.method() == HttpMethod.OPTIONS) {
+			LlamaServer.sendCorsResponse(ctx);
+			return;
+		}
+		String uri = request.uri();
+		// 解析路径
+		String[] pathParts = uri.split("/");
+		if (pathParts.length < 2) {
+			LlamaServer.sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "无效的API路径");
+			return;
+		}
+
 		if (uri.startsWith("/api/downloads/list")) {
 			this.handleListDownloads(ctx);
 		}
@@ -58,18 +58,18 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 		if (uri.startsWith("/api/downloads/stats")) {
 			this.handleGetStats(ctx);
 		}
-		
+
 		if (uri.startsWith("/api/downloads/path/get")) {
 			this.handleGetDownloadPath(ctx);
 			return;
 		}
-		
+
 		if (uri.startsWith("/api/downloads/path/set")) {
 			this.handleSetDownloadPath(ctx, request);
 			return;
 		}
-		      ctx.fireChannelRead(request.retain());
-    }
+		ctx.fireChannelRead(request.retain());
+	}
     
 	/**
 	 * 处理获取下载列表请求

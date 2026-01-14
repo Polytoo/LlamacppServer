@@ -27,6 +27,7 @@ import java.util.Date;
 import org.mark.llamacpp.gguf.GGUFMetaData;
 import org.mark.llamacpp.gguf.GGUFMetaDataReader;
 import org.mark.llamacpp.gguf.GGUFModel;
+import org.mark.llamacpp.crawler.HuggingFaceModelCrawler;
 import org.mark.llamacpp.server.ConfigManager;
 import org.mark.llamacpp.server.LlamaCppProcess;
 import org.mark.llamacpp.server.LlamaServer;
@@ -255,6 +256,14 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			this.handleShutdownRequest(ctx, request);
 			return;
 		}
+		if (uri.startsWith("/api/hf/search")) {
+			this.handleHfSearchRequest(ctx, request);
+			return;
+		}
+		if (uri.startsWith("/api/hf/gguf")) {
+			this.handleHfGgufRequest(ctx, request);
+			return;
+		}
 		// ==============================================================
 		
 		
@@ -328,6 +337,79 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			
 		}
 		ctx.fireChannelRead(request.retain());
+	}
+
+	private void handleHfSearchRequest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
+		try {
+			Map<String, String> params = this.getQueryParam(request.uri());
+			String query = params.get("query");
+			if (query == null || query.trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("缺少必需的query参数"));
+				return;
+			}
+			int limit = parseIntOrDefault(params.get("limit"), 30);
+			int timeoutSeconds = parseIntOrDefault(params.get("timeoutSeconds"), 20);
+			int startPage = parseIntOrDefault(params.get("startPage"), 0);
+			int maxPages = parseIntOrDefault(params.get("maxPages"), 0);
+			String base = firstNonBlank(params.get("base"), params.get("baseUrl"), params.get("host"));
+
+			var result = HuggingFaceModelCrawler.searchModels(query.trim(), limit, timeoutSeconds, startPage, maxPages, base);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(result));
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求被中断: " + e.getMessage()));
+		} catch (Exception e) {
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("搜索失败: " + e.getMessage()));
+		}
+	}
+
+	private void handleHfGgufRequest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
+		try {
+			Map<String, String> params = this.getQueryParam(request.uri());
+			String input = firstNonBlank(params.get("model"), params.get("repoId"), params.get("modelUrl"), params.get("url"),
+					params.get("input"));
+			if (input == null || input.trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("缺少必需的model参数"));
+				return;
+			}
+			int timeoutSeconds = parseIntOrDefault(params.get("timeoutSeconds"), 20);
+			String base = firstNonBlank(params.get("base"), params.get("baseUrl"), params.get("host"));
+			var result = HuggingFaceModelCrawler.crawlGGUFFiles(input.trim(), timeoutSeconds, base);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(result));
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求被中断: " + e.getMessage()));
+		} catch (Exception e) {
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("解析GGUF失败: " + e.getMessage()));
+		}
+	}
+
+	private static int parseIntOrDefault(String value, int fallback) {
+		if (value == null)
+			return fallback;
+		String s = value.trim();
+		if (s.isEmpty())
+			return fallback;
+		try {
+			return Integer.parseInt(s);
+		} catch (Exception e) {
+			return fallback;
+		}
+	}
+
+	private static String firstNonBlank(String... values) {
+		if (values == null)
+			return null;
+		for (String v : values) {
+			if (v == null)
+				continue;
+			String s = v.trim();
+			if (!s.isEmpty())
+				return s;
+		}
+		return null;
 	}
 
 	/**
