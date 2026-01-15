@@ -1,4 +1,4 @@
-package org.mark.llamacpp.server.struct;
+package org.mark.llamacpp.server.tools.struct;
 
 
 

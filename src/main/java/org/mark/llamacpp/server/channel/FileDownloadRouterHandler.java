@@ -14,14 +14,14 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.CharsetUtil;
 
 /**
- * 下载API路由处理器
+ * 模型下载API路由处理器
  */
-public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
     
     private final DownloadService downloadService = new DownloadService();
     private final Gson gson = new Gson();
     
-    public DownloadRouterHandler() {
+    public FileDownloadRouterHandler() {
     }
     
 	@Override
@@ -38,41 +38,68 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 			LlamaServer.sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "无效的API路径");
 			return;
 		}
-
+		// 列出全部的下载任务
 		if (uri.startsWith("/api/downloads/list")) {
 			this.handleListDownloads(ctx);
+			return;
 		}
-
+		// 创建下载任务
 		if (uri.startsWith("/api/downloads/create")) {
 			this.handleCreateDownload(ctx, request);
+			return;
 		}
+		// 创建模型下载任务
+		if (uri.startsWith("/api/downloads/model/create")) {
+			this.handleModelDonwload(ctx, request);
+			return;
+		}
+		
+		// 暂停指定的下载任务
 		if (uri.startsWith("/api/downloads/pause")) {
 			this.handlePauseDownload(ctx, request);
+			return;
 		}
+		// 恢复下载任务
 		if (uri.startsWith("/api/downloads/resume")) {
 			this.handleResumeDownload(ctx, request);
+			return;
 		}
+		// 删除下载任务
 		if (uri.startsWith("/api/downloads/delete")) {
 			this.handleDeleteDownload(ctx, request);
+			return;
 		}
+		// 获取状态
 		if (uri.startsWith("/api/downloads/stats")) {
 			this.handleGetStats(ctx);
+			return;
 		}
-
+		// 获取下载路径
 		if (uri.startsWith("/api/downloads/path/get")) {
 			this.handleGetDownloadPath(ctx);
 			return;
 		}
-
+		// 设置下载路径
 		if (uri.startsWith("/api/downloads/path/set")) {
 			this.handleSetDownloadPath(ctx, request);
 			return;
 		}
 		ctx.fireChannelRead(request.retain());
 	}
+	
+	
+	/**
+	 * 	处理模型下载的请求。
+	 * @param ctx
+	 * @param request
+	 */
+	private void handleModelDonwload(ChannelHandlerContext ctx, FullHttpRequest request) {
+		
+	}
     
 	/**
-	 * 处理获取下载列表请求
+	 * 	处理获取下载列表请求
+	 * @param ctx
 	 */
 	private void handleListDownloads(ChannelHandlerContext ctx) {
 		try {
@@ -84,7 +111,9 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 	}
     
 	/**
-	 * 处理创建下载任务请求
+	 * 	处理创建下载任务请求
+	 * @param ctx
+	 * @param request
 	 */
 	private void handleCreateDownload(ChannelHandlerContext ctx, FullHttpRequest request) {
 		
@@ -115,7 +144,9 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 	}
     
 	/**
-	 * 处理暂停下载任务请求
+	 * 	处理暂停下载任务请求
+	 * @param ctx
+	 * @param request
 	 */
 	private void handlePauseDownload(ChannelHandlerContext ctx, FullHttpRequest request) {
 		try {
@@ -138,7 +169,9 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 	}
     
 	/**
-	 * 处理恢复下载任务请求
+	 * 	处理恢复下载任务请求
+	 * @param ctx
+	 * @param request
 	 */
 	private void handleResumeDownload(ChannelHandlerContext ctx, FullHttpRequest request) {
 		try {
@@ -161,7 +194,9 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 	}
     
 	/**
-	 * 处理删除下载任务请求
+	 * 	处理删除下载任务请求
+	 * @param ctx
+	 * @param request
 	 */
 	private void handleDeleteDownload(ChannelHandlerContext ctx, FullHttpRequest request) {
 		try {
@@ -184,7 +219,8 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 	}
     
 	/**
-	 * 处理获取下载统计信息请求
+	 * 	处理获取下载统计信息请求
+	 * @param ctx
 	 */
 	private void handleGetStats(ChannelHandlerContext ctx) {
 		try {
@@ -196,7 +232,8 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 	}
 
 	/**
-	 * 处理获取下载路径请求
+	 * 	处理获取下载路径请求
+	 * @param ctx
 	 */
 	private void handleGetDownloadPath(ChannelHandlerContext ctx) {
 		try {
@@ -210,7 +247,9 @@ public class DownloadRouterHandler extends SimpleChannelInboundHandler<FullHttpR
 	}
 
 	/**
-	 * 处理设置下载路径请求
+	 * 	处理设置下载路径请求
+	 * @param ctx
+	 * @param request
 	 */
 	private void handleSetDownloadPath(ChannelHandlerContext ctx, FullHttpRequest request) {
 		try {
