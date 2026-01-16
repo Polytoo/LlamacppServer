@@ -265,6 +265,11 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			return;
 		}
 
+		if (uri.startsWith("/api/model/template/delete")) {
+			this.handleModelTemplateDeleteRequest(ctx, request);
+			return;
+		}
+
 		if (uri.startsWith("/api/model/template/default")) {
 			this.handleModelTemplateDefaultRequest(ctx, request);
 			return;
@@ -1450,6 +1455,38 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		} catch (Exception e) {
 			logger.error("设置模型聊天模板时发生错误", e);
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("设置模型聊天模板失败: " + e.getMessage()));
+		}
+	}
+
+	private void handleModelTemplateDeleteRequest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		this.assertRequestMethod(request.method() != HttpMethod.POST, "只支持POST请求");
+		try {
+			String content = request.content().toString(CharsetUtil.UTF_8);
+			if (content == null || content.trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求体为空"));
+				return;
+			}
+			JsonObject obj = gson.fromJson(content, JsonObject.class);
+			if (obj == null) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求体解析失败"));
+				return;
+			}
+			String modelId = JsonUtil.getJsonString(obj, "modelId", null);
+			if (modelId == null || modelId.trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
+				return;
+			}
+
+			boolean existed = ChatTemplateFileTool.getChatTemplateCacheFilePathIfExists(modelId) != null;
+			boolean deleted = ChatTemplateFileTool.deleteChatTemplateCacheFile(modelId);
+			Map<String, Object> data = new HashMap<>();
+			data.put("modelId", modelId);
+			data.put("existed", existed);
+			data.put("deleted", deleted);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
+		} catch (Exception e) {
+			logger.error("删除模型聊天模板时发生错误", e);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("删除模型聊天模板失败: " + e.getMessage()));
 		}
 	}
 

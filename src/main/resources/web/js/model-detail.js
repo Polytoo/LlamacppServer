@@ -52,6 +52,7 @@ function showModelDetailModal(model) {
                         `<button class="btn btn-primary" id="${modalId}ChatTemplateDefaultBtn">默认</button>` +
                         `<button class="btn btn-primary" id="${modalId}ChatTemplateReloadBtn">刷新</button>` +
                         `<button class="btn btn-primary" id="${modalId}ChatTemplateSaveBtn">保存</button>` +
+                        `<button class="btn btn-danger" id="${modalId}ChatTemplateDeleteBtn">删除</button>` +
                         `</div>` +
                         `<textarea class="form-control" id="${modalId}ChatTemplateTextarea" rows="18" placeholder="(可选)" style="height:calc(100% - 48px); resize: vertical;"></textarea>` +
                         `</div>`;
@@ -68,6 +69,7 @@ function showModelDetailModal(model) {
     const tplReloadBtn = document.getElementById(modalId + 'ChatTemplateReloadBtn');
     const tplDefaultBtn = document.getElementById(modalId + 'ChatTemplateDefaultBtn');
     const tplSaveBtn = document.getElementById(modalId + 'ChatTemplateSaveBtn');
+    const tplDeleteBtn = document.getElementById(modalId + 'ChatTemplateDeleteBtn');
     if (tabInfo) tabInfo.onclick = () => openModelDetailTab('info');
     if (tabMetrics) tabMetrics.onclick = () => { openModelDetailTab('metrics'); loadModelMetrics(); };
     if (tabProps) tabProps.onclick = () => { openModelDetailTab('props'); loadModelProps(); };
@@ -77,6 +79,7 @@ function showModelDetailModal(model) {
     if (tplReloadBtn) tplReloadBtn.onclick = () => loadModelChatTemplate(true);
     if (tplDefaultBtn) tplDefaultBtn.onclick = () => loadModelDefaultChatTemplate();
     if (tplSaveBtn) tplSaveBtn.onclick = () => saveModelChatTemplate();
+    if (tplDeleteBtn) tplDeleteBtn.onclick = () => deleteModelChatTemplate();
     openModelDetailTab('info');
 }
 
@@ -94,10 +97,16 @@ function openModelDetailTab(tab) {
     if (metrics) metrics.style.display = tab === 'metrics' ? '' : 'none';
     if (props) props.style.display = tab === 'props' ? '' : 'none';
     if (chatTemplate) chatTemplate.style.display = tab === 'chatTemplate' ? '' : 'none';
-    if (btnInfo) { btnInfo.classList.remove('btn-primary'); btnInfo.classList.add(tab === 'info' ? 'btn-primary' : 'btn-secondary'); }
-    if (btnMetrics) { btnMetrics.classList.remove('btn-primary'); btnMetrics.classList.add(tab === 'metrics' ? 'btn-primary' : 'btn-secondary'); }
-    if (btnProps) { btnProps.classList.remove('btn-primary'); btnProps.classList.add(tab === 'props' ? 'btn-primary' : 'btn-secondary'); }
-    if (btnChatTemplate) { btnChatTemplate.classList.remove('btn-primary'); btnChatTemplate.classList.add(tab === 'chatTemplate' ? 'btn-primary' : 'btn-secondary'); }
+    const applyTabBtnStyle = (btn, active) => {
+        if (!btn) return;
+        btn.classList.remove('btn-primary');
+        btn.classList.remove('btn-secondary');
+        btn.classList.add(active ? 'btn-primary' : 'btn-secondary');
+    };
+    applyTabBtnStyle(btnInfo, tab === 'info');
+    applyTabBtnStyle(btnMetrics, tab === 'metrics');
+    applyTabBtnStyle(btnProps, tab === 'props');
+    applyTabBtnStyle(btnChatTemplate, tab === 'chatTemplate');
 }
 
 function loadModelMetrics() {
@@ -215,3 +224,33 @@ function saveModelChatTemplate() {
         });
 }
 
+function deleteModelChatTemplate() {
+    const modelId = window.__modelDetailModelId;
+    const el = document.getElementById('modelDetailModalChatTemplateTextarea');
+    if (!modelId || !el) return;
+    if (!confirm('确定要删除该模型已保存的聊天模板吗？')) return;
+    fetch('/api/model/template/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId })
+    })
+        .then(r => r.json())
+        .then(res => {
+            if (res && res.success) {
+                const d = res.data || {};
+                if (d.deleted) {
+                    el.value = '';
+                    showToast('成功', '聊天模板已删除', 'success');
+                } else if (d.existed === false) {
+                    showToast('提示', '该模型暂无已保存的聊天模板', 'info');
+                } else {
+                    showToast('提示', '聊天模板未删除', 'info');
+                }
+            } else {
+                showToast('错误', (res && res.error) ? res.error : '删除失败', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('错误', '网络请求失败', 'error');
+        });
+}
