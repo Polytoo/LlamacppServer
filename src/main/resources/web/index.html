@@ -35,10 +35,6 @@
                 <i class="fas fa-download"></i>
                 <span>下载管理</span>
             </a>
-            <a href="#" class="nav-item" id="nav-hf" onclick="showHuggingFace(); return false;">
-                <i class="fas fa-cloud"></i>
-                <span>HuggingFace 模型</span>
-            </a>
             <a href="#" class="nav-item" onclick="openConsoleModal(); return false;">
                 <i class="fas fa-terminal"></i>
                 <span>控制台日志</span>
@@ -132,11 +128,7 @@
         <div class="top-bar">
             <h1 class="page-title">下载管理</h1>
             <div class="top-actions">
-                <button class="btn btn-secondary" onclick="DownloadManager.openHfCrawlerModal()">
-                    <i class="fas fa-cloud"></i>
-                    HuggingFace 爬虫
-                </button>
-                <button class="btn btn-primary" onclick="DownloadManager.openCreateDownloadModal()">
+                <button class="btn btn-primary" onclick="DownloadManager.openCreateDownloadModal()" style="display: none">
                     <i class="fas fa-plus"></i>
                     创建下载任务
                 </button>
@@ -283,42 +275,6 @@
                     <div class="loading-spinner">
                         <div class="spinner"></div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <main class="main-area" id="main-hf" style="display: none">
-        <div class="top-bar">
-            <h1 class="page-title">HuggingFace 模型浏览</h1>
-        </div>
-
-        <div class="content-scrollable">
-            <div class="hf-search-row">
-                <div class="search-box">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" id="hfSearchInput" class="search-input" placeholder="搜索 GGUF 模型（例如：Qwen3 8B）">
-                </div>
-                <select id="hfBaseSelect" class="form-control" style="padding: 4px 8px; width: auto; font-size: 0.875rem;">
-                    <option value="mirror" selected>hf-mirror.com</option>
-                    <option value="official">huggingface.co</option>
-                </select>
-                <select id="hfLimit" class="form-control" style="padding: 4px 8px; width: auto; font-size: 0.875rem;">
-                    <option value="30" selected>30</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-                <button class="btn btn-primary" onclick="hfSearch()">
-                    <i class="fas fa-search"></i>
-                    搜索
-                </button>
-            </div>
-            <div class="model-list-container">
-                <div id="hfHitsList">
-                    <div class="empty-state">输入关键字并点击搜索</div>
-                </div>
-                <div class="hf-hits-footer" id="hfHitsFooter" style="display:none;">
-                    <button class="btn btn-secondary" id="hfLoadMoreBtn" onclick="hfLoadMore()">加载更多</button>
                 </div>
             </div>
         </div>
@@ -569,78 +525,6 @@
         </div>
     </div>
 
-    <div class="modal" id="hfCrawlerModal">
-        <div class="modal-content" style="max-width: 1100px; height: 85vh;">
-            <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-cloud"></i> HuggingFace 爬虫</h3>
-                <button class="modal-close" onclick="closeModal('hfCrawlerModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1rem;">
-                    <div style="flex: 1; min-width: 260px;">
-                        <label class="form-label" for="hfQueryInput">搜索关键字</label>
-                        <input type="text" class="form-control" id="hfQueryInput" placeholder="例如：Qwen3 8B GGUF">
-                    </div>
-                    <div style="width: 120px;">
-                        <label class="form-label" for="hfLimitSelect">数量</label>
-                        <select id="hfLimitSelect" class="form-control">
-                            <option value="30">30</option>
-                            <option value="50" selected>50</option>
-                            <option value="100">100</option>
-                        </select>
-                    </div>
-                    <div style="width: 180px;">
-                        <label class="form-label" for="hfBaseSelectModal">域名</label>
-                        <select id="hfBaseSelectModal" class="form-control">
-                            <option value="mirror" selected>hf-mirror.com</option>
-                            <option value="official">huggingface.co</option>
-                        </select>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-primary" onclick="DownloadManager.hfSearchFromModal()">
-                            <i class="fas fa-search"></i>
-                            搜索
-                        </button>
-                        <button class="btn btn-secondary" onclick="DownloadManager.hfParseRepoFromModal()">
-                            <i class="fas fa-list"></i>
-                            解析GGUF
-                        </button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="hfRepoInput">模型 RepoId / URL（可直接解析）</label>
-                    <input type="text" class="form-control mono" id="hfRepoInput" placeholder="例如：Qwen/Qwen3-8B-GGUF 或 https://huggingface.co/Qwen/Qwen3-8B-GGUF">
-                    <small class="form-text">选择搜索结果或直接粘贴链接，然后解析 GGUF 文件列表</small>
-                </div>
-
-                <div class="hf-split">
-                    <div class="hf-panel">
-                        <div class="hf-panel-header">
-                            <div class="hf-panel-title"><i class="fas fa-list"></i> 搜索结果</div>
-                            <div class="mono" id="hfHitsCountLabel" style="color: var(--text-secondary); font-size: 0.8125rem;">0</div>
-                        </div>
-                        <div class="hf-panel-body" id="hfSearchResults">
-                            <div class="empty-state">输入关键字并点击搜索</div>
-                        </div>
-                    </div>
-                    <div class="hf-panel">
-                        <div class="hf-panel-header">
-                            <div class="hf-panel-title"><i class="fas fa-file"></i> GGUF 文件</div>
-                            <div class="mono" id="hfSelectedLabel" style="color: var(--text-secondary); font-size: 0.8125rem;">-</div>
-                        </div>
-                        <div class="hf-panel-body" id="hfGgufResults">
-                            <div class="empty-state">选择一个模型或粘贴 RepoId 解析</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('hfCrawlerModal')">关闭</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Notification Container -->
     <div id="dynamicModalRoot"></div>
     <div class="toast-container" id="toastContainer"></div>
@@ -648,7 +532,6 @@
     <script src="js/websocket.js"></script>
     <script src="js/console-modal.js"></script>
     <script src="js/model-llamacpp-setting.js"></script>
-    <script src="js/hf.js"></script>
     <script src="js/download.js"></script>
     
     <script>
@@ -1286,7 +1169,6 @@
             document.getElementById('main-model-list').style.display = '';
             document.getElementById('main-llamacpp-setting').style.display = 'none';
             document.getElementById('main-model-path-setting').style.display = 'none';
-            document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             //refreshModels();
             // 更新导航项高亮
@@ -1301,7 +1183,6 @@
             document.getElementById('main-model-list').style.display = 'none';
             document.getElementById('main-llamacpp-setting').style.display = '';
             document.getElementById('main-model-path-setting').style.display = 'none';
-            document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             loadLlamaCppList();
             // 更新导航项高亮
@@ -1316,7 +1197,6 @@
             document.getElementById('main-model-list').style.display = 'none';
             document.getElementById('main-llamacpp-setting').style.display = 'none';
             document.getElementById('main-model-path-setting').style.display = '';
-            document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             loadModelPathList();
             // 更新导航项高亮
@@ -1326,23 +1206,10 @@
             if (nav) nav.classList.add('active');
         }
 
-        function showHuggingFace() {
-            document.getElementById('main-model-list').style.display = 'none';
-            document.getElementById('main-llamacpp-setting').style.display = 'none';
-            document.getElementById('main-model-path-setting').style.display = 'none';
-            document.getElementById('main-hf').style.display = '';
-            document.getElementById('main-download').style.display = 'none';
-            const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
-            navItems.forEach(item => item.classList.remove('active'));
-            const nav = document.getElementById('nav-hf');
-            if (nav) nav.classList.add('active');
-        }
-
         function showDownloadManager() {
             document.getElementById('main-model-list').style.display = 'none';
             document.getElementById('main-llamacpp-setting').style.display = 'none';
             document.getElementById('main-model-path-setting').style.display = 'none';
-            document.getElementById('main-hf').style.display = 'none';
             const main = document.getElementById('main-download');
             const hasEntered = main && main.dataset && main.dataset.entered === '1';
             if (main) main.style.display = '';
