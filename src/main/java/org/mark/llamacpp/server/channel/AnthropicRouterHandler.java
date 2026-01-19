@@ -3,10 +3,9 @@ package org.mark.llamacpp.server.channel;
 
 import org.mark.llamacpp.server.service.AnthropicService;
 import org.mark.llamacpp.server.struct.ApiResponse;
+import org.mark.llamacpp.server.tools.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.gson.Gson;
 
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -28,8 +27,6 @@ public class AnthropicRouterHandler extends SimpleChannelInboundHandler<FullHttp
 
 	private static final Logger logger = LoggerFactory.getLogger(OpenAIRouterHandler.class);
 
-	private static final Gson gson = new Gson();
-	
 	/**
 	 * 	OpenAI接口的实现。
 	 */
@@ -81,7 +78,7 @@ public class AnthropicRouterHandler extends SimpleChannelInboundHandler<FullHttp
 	 * @param data
 	 */
 	private void sendJsonResponse(ChannelHandlerContext ctx, Object data) {
-		String json = gson.toJson(data);
+		String json = JsonUtil.toJson(data);
 		logger.info("Anthropic router response body={}", json);
 		byte[] content = json.getBytes(CharsetUtil.UTF_8);
 

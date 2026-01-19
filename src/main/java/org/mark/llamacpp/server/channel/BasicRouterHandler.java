@@ -5,6 +5,8 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.mark.llamacpp.server.LlamaServer;
 import org.mark.llamacpp.server.controller.BaseController;
@@ -27,6 +29,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * 基本路由处理器。 实现本项目用到的API端点。
@@ -35,6 +38,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 
 	private static final Logger logger = LoggerFactory.getLogger(BasicRouterHandler.class);
 
+	private static final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
 	
 	private static final List<BaseController> pipeline = new LinkedList<>();
 	
@@ -57,6 +61,17 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+		FullHttpRequest retained = request.retainedDuplicate();
+		async.execute(() -> {
+			try {
+				this.handleRequest(ctx, retained);
+			} finally {
+				ReferenceCountUtil.release(retained);
+			}
+		});
+	}
+
+	private void handleRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
 		if (!request.decoderResult().isSuccess()) {
 			LlamaServer.sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "请求解析失败");
 			return;
@@ -71,20 +86,19 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 			return;
 		}
 
-		// 处理模型API请求
-		if (uri.startsWith("/api/") || uri.startsWith("/v1") || uri.startsWith("/session")) {
-			boolean result = false;
-			for(BaseController c : pipeline) {
-				result = c.handleRequest(uri, ctx, request);
-				if(result)
-					break;
-			}
-			// 如果一直是false
-			ctx.fireChannelRead(request.retain());
-			return;
-		}
-
 		try {
+			// 处理模型API请求
+			if (uri.startsWith("/api/") || uri.startsWith("/v1") || uri.startsWith("/session")) {
+				boolean result = false;
+				for(BaseController c : pipeline) {
+					result = c.handleRequest(uri, ctx, request);
+					if(result)
+						break;
+				}
+				// 如果一直是false
+				ctx.fireChannelRead(request.retain());
+				return;
+			}
 			// 断言一下请求方式
 			this.assertRequestMethod(request.method() != HttpMethod.GET, "仅支持GET请求");
 			// 解码URI

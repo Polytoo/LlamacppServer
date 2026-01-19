@@ -6,13 +6,16 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 
 import org.mark.llamacpp.server.service.OpenAIService;
 import org.mark.llamacpp.server.struct.ApiResponse;
+import org.mark.llamacpp.server.tools.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.Gson;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 	服务端的主要实现。
@@ -21,7 +24,7 @@ public class OpenAIRouterHandler extends SimpleChannelInboundHandler<FullHttpReq
 
 	private static final Logger logger = LoggerFactory.getLogger(OpenAIRouterHandler.class);
 
-	private static final Gson gson = new Gson();
+	private static final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
 	
 	/**
 	 * 	OpenAI接口的实现。
@@ -34,6 +37,17 @@ public class OpenAIRouterHandler extends SimpleChannelInboundHandler<FullHttpReq
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+		FullHttpRequest retained = request.retainedDuplicate();
+		async.execute(() -> {
+			try {
+				this.handleRequest(ctx, retained);
+			} finally {
+				ReferenceCountUtil.release(retained);
+			}
+		});
+	}
+
+	private void handleRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
 		String uri = request.uri();
 		
 		// 处理CORS预检请求
@@ -102,7 +116,7 @@ public class OpenAIRouterHandler extends SimpleChannelInboundHandler<FullHttpReq
   * @param data
   */
  private void sendJsonResponse(ChannelHandlerContext ctx, Object data) {
-		String json = gson.toJson(data);
+		String json = JsonUtil.toJson(data);
 		byte[] content = json.getBytes(CharsetUtil.UTF_8);
 
 		FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);

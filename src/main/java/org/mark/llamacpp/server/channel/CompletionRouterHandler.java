@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.mark.llamacpp.server.LlamaServer;
 import org.mark.llamacpp.server.service.CompletionService;
@@ -34,6 +36,7 @@ import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
 import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.handler.stream.ChunkedFile;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * 	这是自用的创作服务的路由控制器。
@@ -47,6 +50,8 @@ public class CompletionRouterHandler extends SimpleChannelInboundHandler<FullHtt
 
 	private static final String LZ_PREFIX = "lz:";
 	private static final long MAX_UPLOAD_BYTES = 16L * 1024L * 1024L;
+
+	private static final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
 	
 	/**
 	 * 	
@@ -63,6 +68,17 @@ public class CompletionRouterHandler extends SimpleChannelInboundHandler<FullHtt
 	
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) throws Exception {
+		FullHttpRequest retained = msg.retainedDuplicate();
+		async.execute(() -> {
+			try {
+				this.handleRequest(ctx, retained);
+			} finally {
+				ReferenceCountUtil.release(retained);
+			}
+		});
+	}
+
+	private void handleRequest(ChannelHandlerContext ctx, FullHttpRequest msg) {
 		String uri = msg.uri();
 		if (uri == null) {
 			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "缺少URI");

@@ -364,7 +364,7 @@ public class LlamaServer {
     
     
     private static void bindOpenAI(int port) {
-        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+        EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
         
         try {

@@ -9,13 +9,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 
 import org.mark.llamacpp.download.struct.ModelDownloadRequest;
 import org.mark.llamacpp.server.LlamaServer;
 import org.mark.llamacpp.server.service.DownloadService;
-
-import com.google.gson.Gson;
+import org.mark.llamacpp.server.tools.JsonUtil;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -23,6 +24,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * 模型下载API路由处理器
@@ -33,12 +35,8 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 	 * 	下载服务
 	 */
     private static final DownloadService downloadService = DownloadService.getInstance();
-    
-    /**
-     * 	JSON处理器
-     */
-    private static final Gson gson = new Gson();
-    
+
+	private static final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
     
     /**
      * 	空的构造器。
@@ -49,6 +47,17 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
     
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+		FullHttpRequest retained = request.retainedDuplicate();
+		async.execute(() -> {
+			try {
+				this.handleRequest(ctx, retained);
+			} finally {
+				ReferenceCountUtil.release(retained);
+			}
+		});
+	}
+
+	private void handleRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
 		// 处理CORS
 		if (request.method() == HttpMethod.OPTIONS) {
 			LlamaServer.sendCorsResponse(ctx);
@@ -127,7 +136,7 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 				LlamaServer.sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "请求体为空");
 				return;
 			}
-			ModelDownloadRequest req = gson.fromJson(content, ModelDownloadRequest.class);
+			ModelDownloadRequest req = JsonUtil.fromJson(content, ModelDownloadRequest.class);
 			if (req == null) {
 				LlamaServer.sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "请求体解析失败");
 				return;
@@ -316,7 +325,7 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 		try {
 			String content = request.content().toString(CharsetUtil.UTF_8);
 			@SuppressWarnings("unchecked")
-			java.util.Map<String, Object> requestData = gson.fromJson(content, java.util.Map.class);
+			java.util.Map<String, Object> requestData = JsonUtil.fromJson(content, java.util.Map.class);
 
 			String url = (String) requestData.get("url");
 			String path = (String) requestData.get("path");
@@ -348,7 +357,7 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 		try {
 			String content = request.content().toString(CharsetUtil.UTF_8);
 			@SuppressWarnings("unchecked")
-			java.util.Map<String, Object> requestData = gson.fromJson(content, java.util.Map.class);
+			java.util.Map<String, Object> requestData = JsonUtil.fromJson(content, java.util.Map.class);
 
 			String taskId = (String) requestData.get("taskId");
 
@@ -373,7 +382,7 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 		try {
 			String content = request.content().toString(CharsetUtil.UTF_8);
 			@SuppressWarnings("unchecked")
-			java.util.Map<String, Object> requestData = gson.fromJson(content, java.util.Map.class);
+			java.util.Map<String, Object> requestData = JsonUtil.fromJson(content, java.util.Map.class);
 
 			String taskId = (String) requestData.get("taskId");
 
@@ -398,7 +407,7 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 		try {
 			String content = request.content().toString(CharsetUtil.UTF_8);
 			@SuppressWarnings("unchecked")
-			java.util.Map<String, Object> requestData = gson.fromJson(content, java.util.Map.class);
+			java.util.Map<String, Object> requestData = JsonUtil.fromJson(content, java.util.Map.class);
 
 			String taskId = (String) requestData.get("taskId");
 
@@ -451,7 +460,7 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 		try {
 			String content = request.content().toString(CharsetUtil.UTF_8);
 			@SuppressWarnings("unchecked")
-			java.util.Map<String, Object> requestData = gson.fromJson(content, java.util.Map.class);
+			java.util.Map<String, Object> requestData = JsonUtil.fromJson(content, java.util.Map.class);
 
 			String path = (String) requestData.get("path");
 
