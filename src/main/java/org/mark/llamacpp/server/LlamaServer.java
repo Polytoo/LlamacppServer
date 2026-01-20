@@ -159,6 +159,12 @@ public class LlamaServer {
 	
 	private static String downloadDirectory = DEFAULT_DOWNLOAD_DIRECTORY;
 
+	private static final Object APPLICATION_CONFIG_LOCK = new Object();
+	
+	private static volatile boolean apiKeyValidationEnabled = false;
+	
+	private static volatile String apiKey = "";
+
 	//##############################################################################################################################
 	
 	public static final String SLOTS_SAVE_KEYWORD = "~SLOTSAVE";
@@ -205,40 +211,52 @@ public class LlamaServer {
      * 读取application.json配置文件
      */
 	private static void loadApplicationConfig() {
-		try {
-			Path configPath = Paths.get("config/application.json");
-			
-			if (Files.exists(configPath)) {
-				String json = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
-				JsonObject root = GSON.fromJson(json, com.google.gson.JsonObject.class);
-
-				if (root != null) {
-					// 读取服务器端口配置
-					if (root.has("server")) {
-						JsonObject server = root.getAsJsonObject("server");
-						if (server.has("webPort")) {
-							webPort = server.get("webPort").getAsInt();
+		synchronized (APPLICATION_CONFIG_LOCK) {
+			try {
+				Path configPath = Paths.get("config/application.json");
+				
+				if (Files.exists(configPath)) {
+					String json = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
+					JsonObject root = GSON.fromJson(json, com.google.gson.JsonObject.class);
+	
+					if (root != null) {
+						// 读取服务器端口配置
+						if (root.has("server")) {
+							JsonObject server = root.getAsJsonObject("server");
+							if (server.has("webPort")) {
+								webPort = server.get("webPort").getAsInt();
+							}
+							if (server.has("anthropicPort")) {
+								anthropicPort = server.get("anthropicPort").getAsInt();
+							}
 						}
-						if (server.has("anthropicPort")) {
-							anthropicPort = server.get("anthropicPort").getAsInt();
+	
+						// 读取下载目录配置
+						if (root.has("download")) {
+							JsonObject download = root.getAsJsonObject("download");
+							if (download.has("directory")) {
+								downloadDirectory = download.get("directory").getAsString();
+							}
+						}
+						
+						// 读取apikey配置
+						if (root.has("security")) {
+							JsonObject security = root.getAsJsonObject("security");
+							if (security.has("apiKeyEnabled")) {
+								apiKeyValidationEnabled = security.get("apiKeyEnabled").getAsBoolean();
+							}
+							if (security.has("apiKey")) {
+								apiKey = security.get("apiKey").getAsString();
+							}
 						}
 					}
-
-					// 读取下载目录配置
-					if (root.has("download")) {
-						JsonObject download = root.getAsJsonObject("download");
-						if (download.has("directory")) {
-							downloadDirectory = download.get("directory").getAsString();
-						}
-					}
+				} else {
+					logger.warn("配置文件不存在，使用默认配置");
+					LlamaServer.saveApplicationConfig();
 				}
-			} else {
-				logger.warn("配置文件不存在，使用默认配置");
-				// 创建默认的
-				LlamaServer.saveApplicationConfig();
+			} catch (Exception e) {
+				logger.warn("加载配置文件失败，使用默认配置: {}", e.getMessage());
 			}
-		} catch (Exception e) {
-			logger.warn("加载配置文件失败，使用默认配置: {}", e.getMessage());
 		}
 	}
     
@@ -246,33 +264,40 @@ public class LlamaServer {
      * 保存配置到application.json文件
      */
 	public static void saveApplicationConfig() {
-		try {
-			JsonObject root = new JsonObject();
-
-			JsonObject server = new JsonObject();
-			server.addProperty("webPort", webPort);
-			server.addProperty("anthropicPort", anthropicPort);
-			root.add("server", server);
-
-			JsonObject download = new JsonObject();
-			download.addProperty("directory", downloadDirectory);
-			root.add("download", download);
-
-			String json = GSON.toJson(root);
-
-			Path configPath = Paths.get("config/application.json");
-			
-			// 确保config目录存在
-			if (!Files.exists(configPath.getParent())) {
-				Files.createDirectories(configPath.getParent());
+		synchronized (APPLICATION_CONFIG_LOCK) {
+			try {
+				JsonObject root = new JsonObject();
+	
+				JsonObject server = new JsonObject();
+				server.addProperty("webPort", webPort);
+				server.addProperty("anthropicPort", anthropicPort);
+				root.add("server", server);
+	
+				JsonObject download = new JsonObject();
+				download.addProperty("directory", downloadDirectory);
+				root.add("download", download);
+				
+				JsonObject security = new JsonObject();
+				security.addProperty("apiKeyEnabled", apiKeyValidationEnabled);
+				security.addProperty("apiKey", apiKey == null ? "" : apiKey);
+				root.add("security", security);
+	
+				String json = GSON.toJson(root);
+	
+				Path configPath = Paths.get("config/application.json");
+				
+				// 确保config目录存在
+				if (!Files.exists(configPath.getParent())) {
+					Files.createDirectories(configPath.getParent());
+				}
+				
+				Files.write(configPath, json.getBytes(StandardCharsets.UTF_8));
+	
+				logger.info("配置已保存到文件: {}", configPath.toString());
+			} catch (IOException e) {
+				logger.error("保存配置文件失败", e);
+				throw new RuntimeException("保存配置文件失败: " + e.getMessage(), e);
 			}
-			
-			Files.write(configPath, json.getBytes(StandardCharsets.UTF_8));
-
-			logger.info("配置已保存到文件: {}", configPath.toString());
-		} catch (IOException e) {
-			logger.error("保存配置文件失败", e);
-			throw new RuntimeException("保存配置文件失败: " + e.getMessage(), e);
 		}
 	}
     
@@ -302,6 +327,36 @@ public class LlamaServer {
     
     public static void setDownloadDirectory(String downloadDirectory) {
         LlamaServer.downloadDirectory = downloadDirectory;
+    }
+    
+    public static boolean isApiKeyValidationEnabled() {
+    	return apiKeyValidationEnabled;
+    }
+    
+    public static String getApiKey() {
+    	return apiKey;
+    }
+    
+    public static void setApiKeyValidationEnabled(boolean enabled) {
+    	synchronized (APPLICATION_CONFIG_LOCK) {
+			apiKeyValidationEnabled = enabled;
+			saveApplicationConfig();
+		}
+    }
+    
+    public static void setApiKey(String apiKeyValue) {
+    	synchronized (APPLICATION_CONFIG_LOCK) {
+			apiKey = apiKeyValue == null ? "" : apiKeyValue;
+			saveApplicationConfig();
+		}
+    }
+    
+    public static void updateApiKeyConfig(boolean enabled, String apiKeyValue) {
+    	synchronized (APPLICATION_CONFIG_LOCK) {
+			apiKeyValidationEnabled = enabled;
+			apiKey = apiKeyValue == null ? "" : apiKeyValue;
+			saveApplicationConfig();
+		}
     }
     
     // ==================== 默认路径的get方法 ====================
