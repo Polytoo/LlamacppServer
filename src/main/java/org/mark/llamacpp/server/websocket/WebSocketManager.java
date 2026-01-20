@@ -173,14 +173,31 @@ public class WebSocketManager {
      * 发送模型加载事件
      */
     public void sendModelLoadEvent(String modelId, boolean success, String message) {
+        sendModelLoadEvent(modelId, success, message, null);
+    }
+
+    public void sendModelLoadEvent(String modelId, boolean success, String message, Integer port) {
         String eventMessage = String.format(
-            "{\"type\":\"modelLoad\",\"modelId\":\"%s\",\"success\":%s,\"message\":\"%s\",\"timestamp\":%d}",
-            modelId,
+            "{\"type\":\"modelLoad\",\"modelId\":\"%s\",\"success\":%s,\"message\":\"%s\",\"port\":%s,\"timestamp\":%d}",
+            modelId != null ? modelId.replace("\"", "\\\"") : "",
             success,
+            message != null ? message.replace("\"", "\\\"") : "",
+            port == null ? "null" : String.valueOf(port),
+            System.currentTimeMillis()
+        );
+
+        broadcast(eventMessage);
+    }
+
+    public void sendModelLoadStartEvent(String modelId, Integer port, String message) {
+        String eventMessage = String.format(
+            "{\"type\":\"modelLoadStart\",\"modelId\":\"%s\",\"port\":%s,\"message\":\"%s\",\"timestamp\":%d}",
+            modelId != null ? modelId.replace("\"", "\\\"") : "",
+            port == null ? "null" : String.valueOf(port),
             message != null ? message.replace("\"", "\\\"") : "",
             System.currentTimeMillis()
         );
-        
+
         broadcast(eventMessage);
     }
     

@@ -542,10 +542,8 @@ function submitModelAction() {
                 closeModal('loadModelModal');
             } else {
                 if (res.data && res.data.async) {
-                    showToast('模型加载中', '正在后台加载...', 'info');
-                    showModelLoadingState(modelIdForUi);
                     window.pendingModelLoad = { modelId: modelIdForUi };
-                    loadModels();
+					closeModal('loadModelModal');
                 } else {
                     if (res.data && res.data.processOnly) {
                         showToast('成功', '参数已接收（未加载模型）', 'success');
@@ -553,7 +551,6 @@ function submitModelAction() {
                         showToast('成功', '模型加载成功', 'success');
                     }
                     closeModal('loadModelModal');
-                    loadModels();
                 }
             }
         } else {

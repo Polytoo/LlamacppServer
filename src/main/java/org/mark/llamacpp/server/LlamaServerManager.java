@@ -717,6 +717,7 @@ public class LlamaServerManager {
 			synchronized (this.loadingModels) {
 				this.loadingModels.add(targetModel.getModelId());
 			}
+			LlamaServer.sendModelLoadStartEvent(modelId, port, "模型启动中");
 		}
 
 		try {
@@ -730,7 +731,7 @@ public class LlamaServerManager {
 			if (loadSuccess.get()) {
 				this.loadedProcesses.put(modelId, process);
 				this.modelPorts.put(modelId, port);
-				LlamaServer.sendModelLoadEvent(modelId, true, "模型加载成功，端口: " + port);
+				LlamaServer.sendModelLoadEvent(modelId, true, "模型加载成功", port);
 			} else {
 				process.stop();
 				LlamaServer.sendModelLoadEvent(modelId, false, "模型加载失败");

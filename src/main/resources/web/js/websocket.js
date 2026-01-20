@@ -34,6 +34,7 @@ function handleWebSocketMessage(message) {
         const data = JSON.parse(message);
         if (data.type) {
             switch (data.type) {
+                case 'modelLoadStart': handleModelLoadStartEvent(data); break;
                 case 'modelLoad': handleModelLoadEvent(data); break;
                 case 'modelStop': handleModelStopEvent(data); break;
                 case 'notification': showToast(data.title || '通知', data.message || '', data.level || 'info'); break;
@@ -60,14 +61,37 @@ function handleWebSocketMessage(message) {
     } catch (error) {}
 }
 
+function applyModelPatch(modelId, patch) {
+    try {
+        if (!modelId) return;
+        if (!Array.isArray(currentModelsData)) return;
+        const i = currentModelsData.findIndex(m => m && m.id === modelId);
+        if (i < 0) return;
+        const prev = currentModelsData[i] || {};
+        currentModelsData[i] = Object.assign({}, prev, patch || {});
+        if (typeof sortAndRenderModels === 'function') sortAndRenderModels();
+        const loadedCountEl = document.getElementById('loadedModelsCount');
+        if (loadedCountEl) {
+            const loadedCount = currentModelsData.filter(m => m && m.isLoaded).length;
+            loadedCountEl.textContent = loadedCount;
+        }
+    } catch (e) {}
+}
+
+function handleModelLoadStartEvent(data) {
+    if (!data || !data.modelId) return;
+    if (typeof showModelLoadingState === 'function') showModelLoadingState(data.modelId);
+    applyModelPatch(data.modelId, { isLoading: true, isLoaded: false, status: 'stopped', port: data.port ?? null });
+}
+
 function handleModelStatusUpdate(data) {
     if (data.modelId && data.status) {
-        loadModels();
+        applyModelPatch(data.modelId, { status: data.status });
     }
 }
 
 function handleModelLoadEvent(data) {
-    removeModelLoadingState(data.modelId);
+    if (typeof removeModelLoadingState === 'function') removeModelLoadingState(data.modelId);
     const action = data.success ? '成功' : '失败';
     showToast('模型加载', `模型 ${data.modelId} 加载${action}`, data.success ? 'success' : 'error');
 
@@ -75,11 +99,17 @@ function handleModelLoadEvent(data) {
         closeModal('loadModelModal');
         window.pendingModelLoad = null;
     }
-    loadModels();
+    if (data.success) {
+        applyModelPatch(data.modelId, { isLoading: false, isLoaded: true, status: 'running', port: data.port ?? null });
+    } else {
+        applyModelPatch(data.modelId, { isLoading: false, isLoaded: false, status: 'stopped', port: null });
+    }
 }
 
 function handleModelStopEvent(data) {
     showToast('模型停止', `模型 ${data.modelId} 停止${data.success ? '成功' : '失败'}`, data.success ? 'success' : 'error');
-    loadModels();
+    if (data.success) {
+        applyModelPatch(data.modelId, { isLoading: false, isLoaded: false, status: 'stopped', port: null });
+    }
 }
 
