@@ -63,7 +63,7 @@
     "fullName": "--temp",
     "abbreviation": "--temp",
     "type": "FLOAT",
-    "defaultValue": "0.8",
+    "defaultValue": "0.7",
     "description": "控制采样随机性的温度参数。温度越低，输出越确定、更贴近高概率 token（更保守、重复更少但可能更“死板”）；温度越高，分布越平坦，生成更发散、更有创意但也更容易跑题或出现不可靠内容。常见范围约 0.1–1.2；设置为 0 时通常接近贪心/确定性选择（具体行为依实现而定）。",
     "sort": 6
   },
@@ -72,7 +72,7 @@
     "fullName": "--top-p",
     "abbreviation": "--top-p",
     "type": "FLOAT",
-    "defaultValue": "0.9",
+    "defaultValue": "0.95",
     "description": "核采样（Top-P / Nucleus Sampling）：每一步只在“按概率从高到低累加，直到累计概率达到 P”的最小 token 集合中进行采样。P 越小，候选集合越窄、输出越稳；P 越大，候选更丰富、表达更灵活。设置为 1.0 表示不做 Top-P 截断（等价于禁用）。",
     "sort": 7
   },
@@ -90,7 +90,7 @@
     "fullName": "--min-p",
     "abbreviation": "--min-p",
     "type": "FLOAT",
-    "defaultValue": "0.0",
+    "defaultValue": "0.05",
     "description": "最小概率阈值（Min-P）：仅保留概率不低于“当前最可能 token 概率 × P”的 token 作为候选，用于过滤尾部极低概率 token，从而减少怪词/乱码/极端跳跃。P 越大过滤越强、输出越稳，但也更容易变得保守。设置为 0.0 表示禁用。",
     "sort": 9
   },
@@ -248,7 +248,7 @@
 	"abbreviation": "--chat-template",
 	"type": "STRING",
 	"defaultValue": "",
-	"description": "如果要使用，请将‘禁用Jinja’设置为1，否则目前的llamacpp，是不会让内置聊天模板生效的。默认为空值，即使用模型的内置聊天模板，如果模型的内置模板不准确，则再尝试修改模板。",
+	"description": "一般情况下不要使用，除非你使用的GGUF模型没有内置的聊天模板。如果要使用，请将‘禁用Jinja’设置为1，否则目前的llamacpp，是不会让内置聊天模板生效的。默认为空值，即使用模型的内置聊天模板，如果模型的内置模板不准确，则再尝试修改模板。",
 	"values": ["", "bailing", "bailing-think", "bailing2", "chatglm3", "chatglm4", "chatml", "command-r", "deepseek", "deepseek2", "deepseek3", "exaone3", "exaone4", "falcon3", "gemma", "gigachat", "glmedge", "gpt-oss", "granite", "grok-2", "hunyuan-dense", "hunyuan-moe", "kimi-k2", "llama2", "llama2-sys", "llama2-sys-bos", "llama2-sys-strip", "llama3", "llama4", "megrez", "minicpm", "mistral-v1", "mistral-v3", "mistral-v3-tekken", "mistral-v7", "mistral-v7-tekken", "monarch", "openchat", "orion", "pangu-embedded", "phi3", "phi4", "rwkv-world", "seed_oss", "smolvlm", "solar-open", "vicuna", "vicuna-orca", "yandex", "zephyr"],
 	"sort": 24
   }
