@@ -509,6 +509,20 @@ function openModelBenchmarkList(modelId, modelName) {
     const modalId = 'modelBenchmarkCompareModal';
     let modal = document.getElementById(modalId);
     if (!modal) {
+        const isMobileView = !!document.getElementById('mobileMainModels') || /index-mobile\.html$/i.test((location && location.pathname) ? location.pathname : '');
+        const layoutStyle = isMobileView
+            ? 'display:flex; flex-direction:column; gap:12px; flex:1; min-height:0;'
+            : 'display:flex; gap:16px; height:60vh;';
+        const sidebarStyle = isMobileView
+            ? 'border:1px solid #e5e7eb; border-radius:0.75rem; overflow:hidden; background:#f9fafb; flex:1; min-height:0;'
+            : 'width:25%; border:1px solid #e5e7eb; border-radius:0.75rem; overflow:hidden; background:#f9fafb;';
+        const listStyle = isMobileView
+            ? 'flex:1; min-height:0; overflow:auto; font-size:13px; color:#374151;'
+            : 'max-height:calc(60vh - 36px); overflow:auto; font-size:13px; color:#374151;';
+        const preStyle = isMobileView
+            ? 'flex:1; min-height:0; overflow:auto; font-size:13px; background:#111827; color:#e5e7eb; padding:10px; border-radius:0.75rem;'
+            : 'flex:1; max-height:calc(60vh - 36px); overflow:auto; font-size:13px; background:#111827; color:#e5e7eb; padding:10px; border-radius:0.75rem;';
+
         modal = document.createElement('div');
         modal.id = modalId;
         modal.className = 'modal';
@@ -519,10 +533,10 @@ function openModelBenchmarkList(modelId, modelName) {
                     <button class="modal-close" onclick="closeModal('${modalId}')">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <div style="display:flex; gap:16px; height:60vh;">
-                        <div style="width:100%; border:1px solid #e5e7eb; border-radius:0.75rem; overflow:hidden; background:#f9fafb;">
+                    <div style="${layoutStyle}">
+                        <div style="${sidebarStyle}">
                             <div style="padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:13px; color:#374151;">测试结果文件</div>
-                            <div id="${modalId}List" style="max-height:calc(60vh - 36px); overflow:auto; font-size:13px; color:#374151;">加载中...</div>
+                            <div id="${modalId}List" style="${listStyle}">加载中...</div>
                         </div>
                         <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -531,7 +545,7 @@ function openModelBenchmarkList(modelId, modelName) {
                                     <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="clearBenchmarkResultContent()">清空内容</button>
                                 </div>
                             </div>
-                            <pre id="${modalId}Content" style="flex:1; max-height:calc(60vh - 36px); overflow:auto; font-size:13px; background:#111827; color:#e5e7eb; padding:10px; border-radius:0.75rem;"></pre>
+                            <pre id="${modalId}Content" style="${preStyle}"></pre>
                         </div>
                     </div>
                 </div>

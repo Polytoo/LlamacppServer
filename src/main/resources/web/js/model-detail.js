@@ -17,6 +17,7 @@ function showModelDetailModal(model) {
         document.body.appendChild(modal);
     }
     const content = document.getElementById(modalId + 'Content');
+    const isMobileView = !!document.getElementById('mobileMainModels') || /index-mobile\.html$/i.test((location && location.pathname) ? location.pathname : '');
     let tabs = `<div style="display:flex; gap:8px; margin-bottom:12px;">` +
                 `<button class="btn btn-secondary" id="${modalId}TabInfo">概览</button>` +
                 `<button class="btn btn-secondary" id="${modalId}TabMetrics">metrics</button>` +
@@ -24,7 +25,9 @@ function showModelDetailModal(model) {
                 `<button class="btn btn-secondary" id="${modalId}TabChatTemplate">聊天模板</button>` +
                 `<button class="btn btn-secondary" id="${modalId}TabToken">Token计算</button>` +
                 `</div>`;
-    let wrapperStart = `<div style="display:flex; flex-direction:column; height:60vh; min-height:60vh;">`;
+    let wrapperStart = isMobileView
+        ? `<div style="display:flex; flex-direction:column; flex:1; min-height:0;">`
+        : `<div style="display:flex; flex-direction:column; height:60vh; min-height:60vh;">`;
     let bodyStart = `<div style="flex:1; min-height:0;">`;
     let infoPanel = `<div id="${modalId}InfoPanel" style="height:100%;">` +
                     `<div style="display:grid; grid-template-columns: 1fr 2fr; gap: 10px; height:100%; overflow:auto;">` +
@@ -64,11 +67,9 @@ function showModelDetailModal(model) {
                         `</div>` +
                         `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; height:calc(100% - 48px); min-height:0;">` +
                             `<div style="display:flex; flex-direction:column; min-height:0;">` +
-                                `<div style="font-size:13px; color:#374151; margin-bottom:6px;">输入</div>` +
                                 `<textarea class="form-control" id="${modalId}TokenInput" rows="12" placeholder="输入要计算的文本..." style="flex:1; min-height:0; resize:none;"></textarea>` +
                             `</div>` +
                             `<div style="display:flex; flex-direction:column; min-height:0;">` +
-                                `<div style="font-size:13px; color:#374151; margin-bottom:6px;">apply-template 输出 prompt</div>` +
                                 `<textarea class="form-control" id="${modalId}TokenPromptOutput" rows="12" readonly style="flex:1; min-height:0; resize:none; background:#f9fafb;"></textarea>` +
                             `</div>` +
                         `</div>` +

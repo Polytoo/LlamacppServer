@@ -418,6 +418,26 @@
         #modelBenchmarkModal .load-model-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: stretch; flex: 1; min-height: 0; }
         #modelBenchmarkModal #benchmarkBasicParamsContainer, #modelBenchmarkModal #benchmarkParamsContainer { overflow-y: auto; min-height: 0; }
 
+        @media (max-width: 768px) {
+            .modal-content.model-detail {
+                width: 100vw;
+                height: 100vh;
+                max-width: none;
+                max-height: none;
+                border-radius: 0;
+            }
+            #modelDetailModal .modal-body {
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                flex: 1;
+                min-height: 0;
+            }
+            #modelDetailModal .modal-footer {
+                border-radius: 0;
+            }
+        }
+
         @keyframes slideIn {
             from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
