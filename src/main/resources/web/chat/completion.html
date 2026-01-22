@@ -219,25 +219,15 @@
     .msg {
       display: flex;
       gap: 10px;
-      margin: 0 0 12px 0;
+      margin: 0;
+      padding: 10px 0;
       align-items: flex-start;
-    }
-
-    .msg.user {
-      justify-content: flex-end;
-    }
-
-    .msg.user .avatar {
-      order: 2;
-    }
-
-    .msg.user .bubble {
-      order: 1;
+      border-bottom: 1px solid var(--border);
     }
 
     .avatar {
-      width: 34px;
-      height: 34px;
+      width: 64px;
+      height: 64px;
       border-radius: 12px;
       border: 1px solid var(--border);
       background: rgba(2, 6, 23, 0.35);
@@ -251,24 +241,33 @@
     }
 
     .bubble {
-      max-width: min(78%, 680px);
-      border: 1px solid var(--border);
-      border-radius: 14px;
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: 100%;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      background: transparent;
+      overflow: visible;
+    }
+
+    .msg.user .bubble,
+    .msg.assistant .bubble,
+    .msg.system .bubble {
+      border-radius: 12px;
       padding: 10px 12px;
-      background: rgba(2, 6, 23, 0.28);
-      overflow: hidden;
     }
 
     .msg.user .bubble {
-      background: var(--bubble-user);
+      background: linear-gradient(90deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.00) 70%);
     }
 
     .msg.assistant .bubble {
-      background: var(--bubble-ai);
+      background: linear-gradient(90deg, rgba(16, 163, 127, 0.16), rgba(16, 163, 127, 0.00) 70%);
     }
 
     .msg.system .bubble {
-      background: var(--bubble-sys);
+      background: linear-gradient(90deg, rgba(148, 163, 184, 0.14), rgba(148, 163, 184, 0.00) 70%);
     }
 
     .meta {
@@ -279,6 +278,14 @@
       margin: 0 0 6px 0;
       color: var(--muted);
       font-size: 12px;
+    }
+
+    .meta-left {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1 1 auto;
     }
 
     .meta-right {
@@ -333,6 +340,7 @@
       word-break: break-word;
       line-height: 1.55;
       font-size: 14px;
+      text-align: left;
     }
 
     .reasoning {
@@ -1491,16 +1499,15 @@
     function refreshCompletionTitleInMessages() {
       if (!state.currentCompletionId) return;
       const taskName = getCurrentCompletionTitle();
+      const userName = getUserSpeakerName();
       for (const msgEl of els.chatList.querySelectorAll('.msg')) {
         const id = msgEl.dataset.id;
         if (!id) continue;
         const msg = state.messages.find(m => m && m.id === id);
         if (!msg) continue;
-        const left = msgEl.querySelector('.meta > div:first-child');
+        const left = msgEl.querySelector('.meta-left');
         if (!left) continue;
-        //const roleLabel = msg.role === 'user' ? '用户' : (msg.role === 'assistant' ? '助手' : '系统');
-        //left.textContent = roleLabel + ' · ' + taskName;
-        left.textContent = taskName;
+        left.textContent = msg.role === 'user' ? userName : (msg.role === 'assistant' ? taskName : '系统');
       }
     }
 
@@ -1609,6 +1616,7 @@
       const meta = document.createElement('div');
       meta.className = 'meta';
       const left = document.createElement('div');
+      left.className = 'meta-left';
       const taskName = getCurrentCompletionTitle();
       const userName = getUserSpeakerName();
       // 只显示名字
@@ -1644,8 +1652,7 @@
 
       right.appendChild(timeEl);
       right.appendChild(actions);
-      // 不太适合手机端，先注释掉
-      //meta.appendChild(left);
+      meta.appendChild(left);
       meta.appendChild(right);
 
       const content = document.createElement('div');

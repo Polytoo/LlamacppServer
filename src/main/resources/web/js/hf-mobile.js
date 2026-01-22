@@ -155,6 +155,29 @@
         return best && Array.isArray(best.urls) ? best.urls.slice() : [];
     }
 
+    function formatCount(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '';
+        try {
+            return new Intl.NumberFormat('zh-CN').format(n);
+        } catch (e) {
+            return String(n);
+        }
+    }
+
+    function formatLastModified(value) {
+        const s = value == null ? '' : String(value).trim();
+        if (!s) return '';
+        const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+        const d = new Date(s);
+        if (Number.isNaN(d.getTime())) return '';
+        const y = String(d.getFullYear());
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${mo}-${day}`;
+    }
+
     function renderHits() {
         const container = byId('mobileHfHits');
         if (!container) return;
@@ -173,18 +196,25 @@
 
         container.innerHTML = hits.map((h) => {
             const repoId = h && h.repoId != null ? String(h.repoId) : '';
-            const url = h && h.modelUrl != null ? String(h.modelUrl) : '';
             const title = repoId ? escapeHtml(repoId) : '未知';
-            const badge = h && h.likes != null ? `<span class="badge"><i class="fas fa-star"></i> ${escapeHtml(h.likes)}</span>` : '';
-            const linkBtn = url ? `<button class="btn btn-secondary btn-sm" data-hf-act="open" data-hf-url="${escapeHtml(url)}"><i class="fas fa-external-link-alt"></i> 主页</button>` : '';
-            const actions = [linkBtn].filter(Boolean).join('');
+            const likes = h && h.likes != null ? Number(h.likes) : NaN;
+            const downloads = h && h.downloads != null ? Number(h.downloads) : NaN;
+            const lastModified = h ? formatLastModified(h.lastModified) : '';
+            const pipelineTag = h && h.pipelineTag != null ? String(h.pipelineTag).trim() : '';
+
+            const badges = [];
+            if (Number.isFinite(likes)) badges.push(`<span class="badge"><i class="fas fa-star"></i> ${escapeHtml(formatCount(likes))}</span>`);
+            if (Number.isFinite(downloads)) badges.push(`<span class="badge"><i class="fas fa-download"></i> ${escapeHtml(formatCount(downloads))}</span>`);
+            if (lastModified) badges.push(`<span class="badge"><i class="fas fa-clock"></i> ${escapeHtml(lastModified)}</span>`);
+            if (pipelineTag) badges.push(`<span class="badge"><i class="fas fa-tag"></i> ${escapeHtml(pipelineTag)}</span>`);
+            const meta = badges.length ? `<div class="model-meta hf-hit-meta">${badges.join('')}</div>` : '';
+
             return `
-                <div class="model-item" style="align-items: flex-start;">
+                <div class="model-item hf-hit-item">
                     <div class="model-details">
-                        <div class="model-name" style="margin-bottom: 0.35rem; cursor:pointer;" data-hf-act="gguf" data-hf-repo="${escapeHtml(repoId)}">${title}</div>
-                        <div class="model-meta" style="gap: 0.5rem;">${badge}</div>
+                        <div class="model-name hf-hit-title" data-hf-act="gguf" data-hf-repo="${escapeHtml(repoId)}">${title}</div>
+                        ${meta}
                     </div>
-                    ${actions ? `<div style="display:flex; gap:0.5rem; margin-left:auto;">${actions}</div>` : ''}
                 </div>
             `;
         }).join('');
@@ -211,7 +241,6 @@
         if (state.loading) return;
         const input = byId('mobileHfQueryInput');
         const baseEl = byId('mobileHfBaseSelect');
-        const limitEl = byId('mobileHfLimitSelect');
         const query = input ? String(input.value || '').trim() : '';
         if (!query) {
             showToast('提示', '请输入搜索关键字', 'info');
@@ -220,7 +249,7 @@
 
         state.query = query;
         state.base = baseEl ? String(baseEl.value || 'mirror') : 'mirror';
-        state.limit = limitEl ? Number(limitEl.value || 30) : 30;
+        state.limit = 30;
 
         if (reset) {
             state.hits = [];
@@ -275,7 +304,7 @@
             return `
                 <div class="model-item" style="align-items: flex-start;">
                     <div class="model-details" style="min-width:0;">
-                        <div class="model-name" style="font-size:0.95rem; word-break: break-all;">${title}</div>
+                        <div class="model-name" style="font-size:0.8rem; word-break: break-all;">${title}</div>
                         ${badges}
                     </div>
                     <div style="display:flex; gap:0.5rem; margin-left:auto;">
@@ -394,9 +423,6 @@
                 const act = btn.getAttribute('data-hf-act');
                 if (act === 'gguf') {
                     openRepo(btn.getAttribute('data-hf-repo'));
-                } else if (act === 'open') {
-                    const url = btn.getAttribute('data-hf-url');
-                    if (url) window.open(url, '_blank');
                 }
             });
         }

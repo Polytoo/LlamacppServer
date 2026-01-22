@@ -8,6 +8,12 @@
         modelpaths: 'mobileMainModelPaths'
     };
 
+    function updateBottomNavSpace() {
+        const nav = document.getElementById('mobileBottomNav');
+        const h = nav ? nav.offsetHeight : 0;
+        document.documentElement.style.setProperty('--mobile-bottom-nav-space', `${h}px`);
+    }
+
     function setActiveButton(page) {
         const resolved = (page === 'llamacpp' || page === 'modelpaths') ? 'settings' : page;
         const nav = document.getElementById('mobileBottomNav');
@@ -51,6 +57,9 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         const nav = document.getElementById('mobileBottomNav');
+        updateBottomNavSpace();
+        setTimeout(updateBottomNavSpace, 0);
+        setTimeout(updateBottomNavSpace, 250);
         if (nav) {
             nav.addEventListener('click', function (e) {
                 const target = e && e.target ? e.target.closest('button[data-mobile-page]') : null;
@@ -61,6 +70,10 @@
         }
 
         showPage('models');
+    });
+
+    window.addEventListener('resize', function () {
+        updateBottomNavSpace();
     });
 
     window.MobilePage = { show: showPage };

@@ -43,6 +43,12 @@
         return `${formatFileSize(n)}/s`;
     }
 
+    function normalizeTimestampMs(value) {
+        const n = typeof value === 'number' && Number.isFinite(value) ? value : Number(value);
+        if (!Number.isFinite(n)) return Date.now();
+        return n < 1e12 ? n * 1000 : n;
+    }
+
     function statusMeta(stateName) {
         const s = stateName == null ? '' : String(stateName).toUpperCase();
         if (s === 'DOWNLOADING') return { text: '下载中', icon: 'fa-spinner fa-spin', cls: 'status-downloading' };
@@ -51,6 +57,25 @@
         if (s === 'FAILED') return { text: '失败', icon: 'fa-exclamation-circle', cls: 'status-failed' };
         if (s === 'PAUSED') return { text: '已暂停', icon: 'fa-pause-circle', cls: 'status-paused' };
         return { text: '未知', icon: 'fa-question-circle', cls: 'status-idle' };
+    }
+
+    function getDownloadCreatedAtMs(download) {
+        const value = download && download.createdAt != null ? download.createdAt : null;
+        if (value === null) return 0;
+        if (typeof value === 'number' && Number.isFinite(value)) return value < 1e12 ? value * 1000 : value;
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return 0;
+            if (/^\d+$/.test(trimmed)) {
+                const num = Number(trimmed);
+                if (!Number.isFinite(num)) return 0;
+                return num < 1e12 ? num * 1000 : num;
+            }
+            const ms = new Date(trimmed).getTime();
+            return Number.isFinite(ms) ? ms : 0;
+        }
+        const ms = new Date(value).getTime();
+        return Number.isFinite(ms) ? ms : 0;
     }
 
     function updateStats() {
@@ -84,9 +109,9 @@
         }
 
         const sorted = list.slice().sort((a, b) => {
-            const ta = a && a.createdAt != null ? Number(a.createdAt) : 0;
-            const tb = b && b.createdAt != null ? Number(b.createdAt) : 0;
-            return tb - ta;
+            const diff = getDownloadCreatedAtMs(b) - getDownloadCreatedAtMs(a);
+            if (diff !== 0) return diff;
+            return String(b && b.taskId ? b.taskId : '').localeCompare(String(a && a.taskId ? a.taskId : ''));
         });
 
         container.innerHTML = sorted.map((d) => {
@@ -96,8 +121,11 @@
             const total = d && d.totalBytes != null ? Number(d.totalBytes) : 0;
             const done = d && d.downloadedBytes != null ? Number(d.downloadedBytes) : 0;
             const pct = total > 0 ? Math.min(100, Math.max(0, Math.round(done / total * 100))) : 0;
-            const speed = state.speedByTaskId[taskId];
-            const speedText = formatSpeed(speed);
+            const speedEntry = state.speedByTaskId[taskId];
+            const speedBps = (typeof speedEntry === 'number')
+                ? speedEntry
+                : (speedEntry && typeof speedEntry.speedBps === 'number' ? speedEntry.speedBps : 0);
+            const speedText = formatSpeed(speedBps);
 
             const canResume = st.text === '等待中' || st.text === '失败' || st.text === '已暂停';
             const canPause = st.text === '下载中';
@@ -177,8 +205,27 @@
             }
             if (data.type === 'download_progress' && data.taskId) {
                 const id = String(data.taskId);
-                const speed = data.speedBytesPerSecond != null ? Number(data.speedBytesPerSecond) : (data.speed != null ? Number(data.speed) : NaN);
-                if (Number.isFinite(speed)) state.speedByTaskId[id] = speed;
+                const nowMs = normalizeTimestampMs(data && data.timestamp);
+                const downloadedBytes = data && data.downloadedBytes != null ? Number(data.downloadedBytes) : 0;
+                const serverSpeed = data && data.speedBytesPerSecond != null
+                    ? Number(data.speedBytesPerSecond)
+                    : (data && data.speed != null ? Number(data.speed) : NaN);
+
+                const prev = state.speedByTaskId ? state.speedByTaskId[id] : null;
+                const prevObj = (prev && typeof prev === 'object') ? prev : null;
+
+                let speedBps = 0;
+                if (Number.isFinite(serverSpeed) && serverSpeed >= 0) {
+                    speedBps = serverSpeed;
+                } else if (prevObj && typeof prevObj.atMs === 'number' && typeof prevObj.bytes === 'number') {
+                    const dtMs = nowMs - prevObj.atMs;
+                    const deltaBytes = downloadedBytes - prevObj.bytes;
+                    if (dtMs > 0 && deltaBytes >= 0) speedBps = (deltaBytes * 1000) / dtMs;
+                    else if (typeof prevObj.speedBps === 'number') speedBps = prevObj.speedBps;
+                }
+
+                if (!state.speedByTaskId) state.speedByTaskId = {};
+                state.speedByTaskId[id] = { atMs: nowMs, bytes: downloadedBytes, speedBps };
                 mergeUpdate(id, {
                     downloadedBytes: data.downloadedBytes,
                     totalBytes: data.totalBytes
