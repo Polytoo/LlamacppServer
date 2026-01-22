@@ -767,6 +767,13 @@
     .setting input::placeholder {
       color: rgba(148, 163, 184, 0.75);
     }
+    
+    .avatar-setting .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
 
     .sys-prompt {
       display: none;
@@ -1113,6 +1120,11 @@
 
             <div class="settings-body">
               <div class="settings-left">
+                <div class="setting avatar-setting">
+                  <label>头像</label>
+                  <div id="avatarSettingPreview" class="avatar clickable" title="点击更换头像">AI</div>
+                  <button id="avatarSettingUpload" class="btn" type="button">更换</button>
+                </div>
                 <div class="setting">
                   <label for="userName">用户名字</label>
                   <input id="userName" type="text" placeholder="例如：我" />
@@ -1184,10 +1196,14 @@
           </div>
 
           <div class="prompt-row">
-            <button id="modelRowToggle" style="width: 48px; height: 100%" class="btn icon-btn ghost" type="button" title="显示模型栏" aria-label="显示模型栏" aria-expanded="false">☰</button>
-            <textarea id="promptInput" placeholder="输入消息…（Ctrl+Enter 发送）"></textarea>
+          	<div class="prompt-actions">
+          		<button id="modelRowToggle" style="width: 48px; height: 100%" class="btn icon-btn ghost" type="button" title="显示模型栏" aria-label="显示模型栏" aria-expanded="false">☰</button>
+          		<button id="attachBtn" class="btn" type="button">附件</button>
+          	</div>
+            
+            <textarea id="promptInput" placeholder="输入消息…（Ctrl+Enter 发送）" style="min-height: 48px; max-height: 48px"></textarea>
             <div class="prompt-actions">
-              <button id="attachBtn" class="btn" type="button">附件</button>
+              
               <button id="sendBtn" class="btn primary" type="button">发送</button>
               <button id="stopBtn" class="btn danger" type="button" disabled>停止</button>
             </div>
@@ -1310,6 +1326,8 @@
       assistantPrefix: document.getElementById('assistantPrefix'),
       assistantSuffix: document.getElementById('assistantSuffix'),
       apiModelSelect: document.getElementById('apiModelSelect'),
+      avatarSettingPreview: document.getElementById('avatarSettingPreview'),
+      avatarSettingUpload: document.getElementById('avatarSettingUpload'),
 
       autoScroll: document.getElementById('autoScroll'),
       streamToggle: document.getElementById('streamToggle'),
@@ -2046,6 +2064,7 @@
         body: fd
       });
       state.avatarNonce = Date.now();
+      if (els.avatarSettingPreview) applyAssistantAvatar(els.avatarSettingPreview);
       rerenderAll();
     }
 
@@ -2683,6 +2702,7 @@
 
       state.messages = normalizeHistory(ext?.history);
       rerenderAll();
+      if (els.avatarSettingPreview) applyAssistantAvatar(els.avatarSettingPreview);
       setSaveHint('');
     }
 
@@ -2823,6 +2843,7 @@
         els.sysPromptBox.classList.toggle('open', open);
         els.rolePromptBox.classList.toggle('open', open);
         document.documentElement.style.overflow = open ? 'hidden' : '';
+        if (open && els.avatarSettingPreview) applyAssistantAvatar(els.avatarSettingPreview);
       });
       els.closeSettings.addEventListener('click', () => {
         els.settingsPanel.classList.remove('open');
@@ -2830,6 +2851,19 @@
         els.rolePromptBox.classList.remove('open');
         document.documentElement.style.overflow = '';
       });
+      
+      if (els.avatarSettingPreview) {
+        els.avatarSettingPreview.addEventListener('click', () => {
+          if (!state.currentCompletionId) return;
+          getAvatarUploadInput().click();
+        });
+      }
+      if (els.avatarSettingUpload) {
+        els.avatarSettingUpload.addEventListener('click', () => {
+          if (!state.currentCompletionId) return;
+          getAvatarUploadInput().click();
+        });
+      }
 
       els.newSessionBtn.addEventListener('click', () => createCompletion());
       els.reloadSessionsBtn.addEventListener('click', () => loadCompletions(false));
