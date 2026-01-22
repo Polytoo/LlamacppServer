@@ -1,5 +1,8 @@
 name: Build and Release
 
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -13,6 +16,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 设置 JDK 21
         uses: actions/setup-java@v4
@@ -134,121 +139,165 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "版本号: $VERSION"
 
-      - name: 获取 llama.cpp 最新版本号
-        id: get_llamacpp_version
+      - name: 获取 llama.cpp Releases 列表
         run: |
-          echo "正在获取 llama.cpp 最新版本号..."
-          LLAMACPP_VERSION=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "llama.cpp 最新版本: $LLAMACPP_VERSION"
-          echo "llamacpp_version=$LLAMACPP_VERSION" >> $GITHUB_OUTPUT
-          echo "LLAMACPP_VERSION=$LLAMACPP_VERSION" >> $GITHUB_ENV
+          curl -fsSL "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=50" -o llama_releases.json
+
+      - name: 下载 llama.cpp 预编译版本（自动降级）
+        id: download_llamacpp
+        run: |
           mkdir -p build/llamacpp
 
-      - name: 下载 llama.cpp 预编译版本 (Windows CUDA12)
-        run: |
-          echo "下载 llama.cpp Windows CUDA12 版本..."
-          curl -L -o llama-cuda12.zip https://github.com/ggml-org/llama.cpp/releases/download/${{ steps.get_llamacpp_version.outputs.llamacpp_version }}/llama-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-bin-win-cuda-12.4-x64.zip
-          mkdir win-cuda12
-          unzip -q llama-cuda12.zip -d win-cuda12
-          rm llama-cuda12.zip
-          echo "Windows CUDA12 版本下载完成"
+          TAGS=$(python3 - << 'PY'
+          import json
+          with open("llama_releases.json","r",encoding="utf-8") as f:
+              releases = json.load(f)
+          tags = [r.get("tag_name","") for r in releases if r.get("tag_name")]
+          print(" ".join(tags))
+          PY
+          )
 
-      - name: 下载 llama.cpp 预编译版本 (Windows CUDA13)
-        run: |
-          echo "下载 llama.cpp Windows CUDA13 版本..."
-          curl -L -o llama-cuda13.zip https://github.com/ggml-org/llama.cpp/releases/download/${{ steps.get_llamacpp_version.outputs.llamacpp_version }}/llama-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-bin-win-cuda-13.1-x64.zip
-          mkdir win-cuda13
-          unzip -q llama-cuda13.zip -d win-cuda13
-          rm llama-cuda13.zip
-          echo "Windows CUDA13 版本下载完成"
+          if [ -z "$TAGS" ]; then
+            echo "无法获取 llama.cpp releases 列表"
+            exit 1
+          fi
 
-      - name: 下载 llama.cpp 预编译版本 (Windows Vulkan)
-        run: |
-          echo "下载 llama.cpp Windows Vulkan 版本..."
-          curl -L -o llama-vulkan.zip https://github.com/ggml-org/llama.cpp/releases/download/${{ steps.get_llamacpp_version.outputs.llamacpp_version }}/llama-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-bin-win-vulkan-x64.zip
-          mkdir win-vulkan
-          unzip -q llama-vulkan.zip -d win-vulkan
-          rm llama-vulkan.zip
-          echo "Windows Vulkan 版本下载完成"
+          flatten_one_level_dir() {
+            local target_dir="$1"
+            local inner_dir
+            inner_dir=$(find "$target_dir" -maxdepth 1 -mindepth 1 -type d | head -1 || true)
+            if [ -n "$inner_dir" ]; then
+              shopt -s dotglob
+              mv "$inner_dir"/* "$target_dir"/
+              rmdir "$inner_dir" || true
+              shopt -u dotglob
+            fi
+          }
 
-      - name: 下载 llama.cpp 预编译版本 (Windows HIP)
-        run: |
-          echo "下载 llama.cpp Windows HIP 版本..."
-          curl -L -o llama-hip.zip https://github.com/ggml-org/llama.cpp/releases/download/${{ steps.get_llamacpp_version.outputs.llamacpp_version }}/llama-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-bin-win-hip-radeon-x64.zip
-          mkdir win-hip
-          unzip -q llama-hip.zip -d win-hip
-          rm llama-hip.zip
-          echo "Windows HIP 版本下载完成"
+          try_download() {
+            local backend="$1"
+            local asset_template="$2"
+            local archive_name="$3"
+            local out_dir="$4"
+            local extract_kind="$5"
+            local optional_extra_asset="$6"
+            local optional_extra_archive="$7"
 
-      - name: 下载 llama.cpp 预编译版本 (Ubuntu Vulkan)
-        run: |
-          echo "下载 llama.cpp Ubuntu Vulkan 版本..."
-          curl -L -o llama-ubuntu-vulkan.tar.gz https://github.com/ggml-org/llama.cpp/releases/download/${{ steps.get_llamacpp_version.outputs.llamacpp_version }}/llama-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-bin-ubuntu-vulkan-x64.tar.gz
-          mkdir ubuntu-vulkan
-          tar -xzf llama-ubuntu-vulkan.tar.gz -C ubuntu-vulkan
-          rm llama-ubuntu-vulkan.tar.gz
-          echo "Ubuntu Vulkan 版本下载完成"
+            for tag in $TAGS; do
+              local asset="${asset_template/\{tag\}/$tag}"
+              local url="https://github.com/ggml-org/llama.cpp/releases/download/${tag}/${asset}"
+              echo "[$backend] 尝试下载: $url"
+              if curl -fL -o "$archive_name" "$url"; then
+                mkdir -p "$out_dir"
+                if [ "$extract_kind" = "zip" ]; then
+                  unzip -q "$archive_name" -d "$out_dir"
+                else
+                  tar -xzf "$archive_name" -C "$out_dir"
+                fi
+                rm -f "$archive_name"
+                flatten_one_level_dir "$out_dir"
 
-      - name: 打包 Linux Vulkan 版本
+                if [ -n "$optional_extra_asset" ] && [ -n "$optional_extra_archive" ]; then
+                  local extra_url="https://github.com/ggml-org/llama.cpp/releases/download/${tag}/${optional_extra_asset}"
+                  echo "[$backend] 尝试下载附加依赖: $extra_url"
+                  if curl -fL -o "$optional_extra_archive" "$extra_url"; then
+                    mkdir -p "${out_dir}-tmp-extra"
+                    unzip -q "$optional_extra_archive" -d "${out_dir}-tmp-extra"
+                    rm -f "$optional_extra_archive"
+                    local extra_inner
+                    extra_inner=$(find "${out_dir}-tmp-extra" -maxdepth 1 -mindepth 1 -type d | head -1 || true)
+                    shopt -s dotglob
+                    if [ -n "$extra_inner" ]; then
+                      mv "$extra_inner"/* "$out_dir"/
+                    else
+                      mv "${out_dir}-tmp-extra"/* "$out_dir"/ || true
+                    fi
+                    shopt -u dotglob
+                    rm -rf "${out_dir}-tmp-extra"
+                  fi
+                fi
+
+                echo "${backend}_TAG=$tag" >> $GITHUB_ENV
+                echo "${backend}_AVAILABLE=1" >> $GITHUB_ENV
+                echo "[$backend] 下载完成，使用 tag: $tag"
+                return 0
+              fi
+              rm -f "$archive_name" || true
+            done
+
+            echo "${backend}_AVAILABLE=0" >> $GITHUB_ENV
+            echo "[$backend] 未找到可下载的版本，已跳过"
+            return 0
+          }
+
+          try_download "WIN_CUDA12" "llama-{tag}-bin-win-cuda-12.4-x64.zip" "llama-win-cuda12.zip" "win-cuda12" "zip" "cudart-llama-bin-win-cuda-12.4-x64.zip" "cudart-win-cuda12.zip"
+          try_download "WIN_CUDA13" "llama-{tag}-bin-win-cuda-13.1-x64.zip" "llama-win-cuda13.zip" "win-cuda13" "zip" "cudart-llama-bin-win-cuda-13.1-x64.zip" "cudart-win-cuda13.zip"
+          try_download "WIN_VULKAN" "llama-{tag}-bin-win-vulkan-x64.zip" "llama-win-vulkan.zip" "win-vulkan" "zip" "" ""
+          try_download "WIN_HIP" "llama-{tag}-bin-win-hip-radeon-x64.zip" "llama-win-hip.zip" "win-hip" "zip" "" ""
+          try_download "UBUNTU_VULKAN" "llama-{tag}-bin-ubuntu-vulkan-x64.tar.gz" "llama-ubuntu-vulkan.tar.gz" "ubuntu-vulkan" "tar" "" ""
+
+      - name: 打包（按实际下载到的后端动态生成）
+        id: package
         run: |
-          cp -r build build-linux-vulkan
-          cp -r jre-linux/jre build-linux-vulkan/jre
-          mkdir -p build-linux-vulkan/llamacpp
-          cp -r ubuntu-vulkan build-linux-vulkan/llamacpp/
-          mv build-linux-vulkan llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan
-          zip -r llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan.zip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan
-      
-      - name: 打包 Linux 无llamacpp 版本
-        run: |
+          mkdir -p dist
+
+          make_zip() {
+            local work_dir="$1"
+            local root_name="$2"
+            local zip_name="$3"
+            mv "$work_dir" "$root_name"
+            zip -r "dist/$zip_name" "$root_name"
+          }
+
           cp -r build build-linux-no-llamacpp
           cp -r jre-linux/jre build-linux-no-llamacpp/jre
           mkdir -p build-linux-no-llamacpp/llamacpp
-          mv build-linux-no-llamacpp llama-server-${{ steps.get_version.outputs.version }}-linux
-          zip -r llama-server-${{ steps.get_version.outputs.version }}-linux.zip llama-server-${{ steps.get_version.outputs.version }}-linux
+          make_zip "build-linux-no-llamacpp" "llama-server-${VERSION}-linux" "llama-server-${VERSION}-linux.zip"
 
-      - name: 打包 Windows CUDA12 版本
-        run: |
-          cp -r build build-win-cuda12
-          cp -r jre-win/jre build-win-cuda12/jre
-          mkdir -p build-win-cuda12/llamacpp
-          cp -r win-cuda12 build-win-cuda12/llamacpp/
-          mv build-win-cuda12 llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12
-          zip -r llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12.zip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12
-
-      - name: 打包 Windows CUDA13 版本
-        run: |
-          cp -r build build-win-cuda13
-          cp -r jre-win/jre build-win-cuda13/jre
-          mkdir -p build-win-cuda13/llamacpp
-          cp -r win-cuda13 build-win-cuda13/llamacpp/
-          mv build-win-cuda13 llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda13
-          zip -r llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda13.zip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda13
-
-      - name: 打包 Windows Vulkan 版本
-        run: |
-          cp -r build build-win-vulkan
-          cp -r jre-win/jre build-win-vulkan/jre
-          mkdir -p build-win-vulkan/llamacpp
-          cp -r win-vulkan build-win-vulkan/llamacpp/
-          mv build-win-vulkan llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-vulkan
-          zip -r llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-vulkan.zip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-vulkan
-
-      - name: 打包 Windows HIP 版本
-        run: |
-          cp -r build build-win-hip
-          cp -r jre-win/jre build-win-hip/jre
-          mkdir -p build-win-hip/llamacpp
-          cp -r win-hip build-win-hip/llamacpp/
-          mv build-win-hip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-hip
-          zip -r llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-hip.zip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-hip
-
-      - name: 打包 Windows 无llamacpp 版本
-        run: |
           cp -r build build-win-no-llamacpp
           cp -r jre-win/jre build-win-no-llamacpp/jre
           mkdir -p build-win-no-llamacpp/llamacpp
-          mv build-win-no-llamacpp llama-server-${{ steps.get_version.outputs.version }}-windows
-          zip -r llama-server-${{ steps.get_version.outputs.version }}-windows.zip llama-server-${{ steps.get_version.outputs.version }}-windows
+          make_zip "build-win-no-llamacpp" "llama-server-${VERSION}-windows" "llama-server-${VERSION}-windows.zip"
+
+          if [ "${UBUNTU_VULKAN_AVAILABLE:-0}" = "1" ]; then
+            cp -r build build-linux-vulkan
+            cp -r jre-linux/jre build-linux-vulkan/jre
+            mkdir -p build-linux-vulkan/llamacpp
+            cp -r ubuntu-vulkan build-linux-vulkan/llamacpp/
+            make_zip "build-linux-vulkan" "llama-server-${VERSION}-${UBUNTU_VULKAN_TAG}-linux-vulkan" "llama-server-${VERSION}-${UBUNTU_VULKAN_TAG}-linux-vulkan.zip"
+          fi
+
+          if [ "${WIN_CUDA12_AVAILABLE:-0}" = "1" ]; then
+            cp -r build build-win-cuda12
+            cp -r jre-win/jre build-win-cuda12/jre
+            mkdir -p build-win-cuda12/llamacpp
+            cp -r win-cuda12 build-win-cuda12/llamacpp/
+            make_zip "build-win-cuda12" "llama-server-${VERSION}-${WIN_CUDA12_TAG}-windows-cuda12" "llama-server-${VERSION}-${WIN_CUDA12_TAG}-windows-cuda12.zip"
+          fi
+
+          if [ "${WIN_CUDA13_AVAILABLE:-0}" = "1" ]; then
+            cp -r build build-win-cuda13
+            cp -r jre-win/jre build-win-cuda13/jre
+            mkdir -p build-win-cuda13/llamacpp
+            cp -r win-cuda13 build-win-cuda13/llamacpp/
+            make_zip "build-win-cuda13" "llama-server-${VERSION}-${WIN_CUDA13_TAG}-windows-cuda13" "llama-server-${VERSION}-${WIN_CUDA13_TAG}-windows-cuda13.zip"
+          fi
+
+          if [ "${WIN_VULKAN_AVAILABLE:-0}" = "1" ]; then
+            cp -r build build-win-vulkan
+            cp -r jre-win/jre build-win-vulkan/jre
+            mkdir -p build-win-vulkan/llamacpp
+            cp -r win-vulkan build-win-vulkan/llamacpp/
+            make_zip "build-win-vulkan" "llama-server-${VERSION}-${WIN_VULKAN_TAG}-windows-vulkan" "llama-server-${VERSION}-${WIN_VULKAN_TAG}-windows-vulkan.zip"
+          fi
+
+          if [ "${WIN_HIP_AVAILABLE:-0}" = "1" ]; then
+            cp -r build build-win-hip
+            cp -r jre-win/jre build-win-hip/jre
+            mkdir -p build-win-hip/llamacpp
+            cp -r win-hip build-win-hip/llamacpp/
+            make_zip "build-win-hip" "llama-server-${VERSION}-${WIN_HIP_TAG}-windows-hip" "llama-server-${VERSION}-${WIN_HIP_TAG}-windows-hip.zip"
+          fi
 
 
       - name: 生成 Release Notes
@@ -266,7 +315,9 @@ jobs:
             COMMITS_SINCE_TAG=$(git log --pretty=format:"- %s (%h)" --no-merges | head -20)
           fi
           
-          # 生成 release notes
+          LINUX_ZIPS=$(ls dist/*linux*.zip 2>/dev/null || true)
+          WINDOWS_ZIPS=$(ls dist/*windows*.zip 2>/dev/null || true)
+
           cat > release_notes.md << 'EOF'
           ## 🚀 Release Notes
           
@@ -275,27 +326,66 @@ jobs:
           - 所有依赖库（lib/*.jar）
           - 精简版 JRE 21.08（内置，无需安装 Java）
           - 启动脚本（run.sh / run.bat）
-          - llama.cpp 预编译版本（${{ steps.get_llamacpp_version.outputs.llamacpp_version }}）
-          
-          ### 📦 可用版本
-          
-          **Linux:**
-          - `llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan.zip` - Ubuntu Vulkan 版本
-          - `llama-server-${{ steps.get_version.outputs.version }}-linux.zip` - 无llamacpp
 
-          **Windows:**
-          - `llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12.zip` - CUDA 12.4 版本（NVIDIA GPU）
-          - `llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda13.zip` - CUDA 13.1 版本（NVIDIA GPU）
-          - `llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-vulkan.zip` - Vulkan 版本（通用 GPU）
-          - `llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-hip.zip` - HIP 版本（AMD GPU）
-          - `llama-server-${{ steps.get_version.outputs.version }}-windows.zip` - 无llamacpp
-          
+          ### 🧩 llama.cpp 版本（按后端分别自动降级）
+          EOF
+
+          ANY_BACKEND=0
+
+          if [ "${UBUNTU_VULKAN_AVAILABLE:-0}" = "1" ]; then
+            echo "- Linux Vulkan: ${UBUNTU_VULKAN_TAG}" >> release_notes.md
+            ANY_BACKEND=1
+          fi
+          if [ "${WIN_CUDA12_AVAILABLE:-0}" = "1" ]; then
+            echo "- Windows CUDA12: ${WIN_CUDA12_TAG}" >> release_notes.md
+            ANY_BACKEND=1
+          fi
+          if [ "${WIN_CUDA13_AVAILABLE:-0}" = "1" ]; then
+            echo "- Windows CUDA13: ${WIN_CUDA13_TAG}" >> release_notes.md
+            ANY_BACKEND=1
+          fi
+          if [ "${WIN_VULKAN_AVAILABLE:-0}" = "1" ]; then
+            echo "- Windows Vulkan: ${WIN_VULKAN_TAG}" >> release_notes.md
+            ANY_BACKEND=1
+          fi
+          if [ "${WIN_HIP_AVAILABLE:-0}" = "1" ]; then
+            echo "- Windows HIP: ${WIN_HIP_TAG}" >> release_notes.md
+            ANY_BACKEND=1
+          fi
+          if [ "$ANY_BACKEND" = "0" ]; then
+            echo "- 无" >> release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "### 📦 可用版本" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "**Linux:**" >> release_notes.md
+          if [ -n "$LINUX_ZIPS" ]; then
+            while IFS= read -r f; do
+              [ -n "$f" ] && echo "- \`$(basename "$f")\`" >> release_notes.md
+            done <<< "$LINUX_ZIPS"
+          else
+            echo "- 无" >> release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "**Windows:**" >> release_notes.md
+          if [ -n "$WINDOWS_ZIPS" ]; then
+            while IFS= read -r f; do
+              [ -n "$f" ] && echo "- \`$(basename "$f")\`" >> release_notes.md
+            done <<< "$WINDOWS_ZIPS"
+          else
+            echo "- 无" >> release_notes.md
+          fi
+
+          cat >> release_notes.md << 'EOF'
+
           ### 📝 使用方法
           
           **Linux:**
           ```bash
-          unzip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan.zip
-          cd llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan
+          unzip <你下载的 linux zip 包>
+          cd <解压后的目录>
           chmod +x run.sh
           chmod +x jre/bin/java
           ./run.sh
@@ -303,9 +393,8 @@ jobs:
           
           **Windows:**
           ```cmd
-          REM 选择适合你 GPU 的版本
-          unzip llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12.zip
-          cd llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12
+          unzip <你下载的 windows zip 包>
+          cd <解压后的目录>
           run.bat
           ```
           
@@ -317,7 +406,7 @@ jobs:
             - 其他 GPU（如核显） 或不确定: 使用 vulkan 版本
             - 不需要llamacpp：使用无 llamacpp 版本
           ---
-          
+
           ### 📌 最新提交
           EOF
           
@@ -338,62 +427,24 @@ jobs:
           # 输出内容供调试
           echo "生成的 Release Notes:"
           cat release_notes.md
-          
-          # 保存为 artifact
-          echo "NOTES_CONTENT<<EOF" >> $GITHUB_ENV
-          cat release_notes.md >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
 
       - name: 创建 Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan.zip
-            llama-server-${{ steps.get_version.outputs.version }}-linux.zip
-            llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12.zip
-            llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda13.zip
-            llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-vulkan.zip
-            llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-hip.zip
-            llama-server-${{ steps.get_version.outputs.version }}-windows.zip
-          body: ${{ env.NOTES_CONTENT }}
+          files: dist/*.zip
+          body_path: release_notes.md
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 上传构建产物 (Linux Vulkan)
+      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan
-          path: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-linux-vulkan.zip
-          retention-days: 30
-
-      - name: 上传构建产物 (Windows CUDA12)
-        uses: actions/upload-artifact@v4
-        with:
-          name: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12
-          path: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda12.zip
-          retention-days: 30
-
-      - name: 上传构建产物 (Windows CUDA13)
-        uses: actions/upload-artifact@v4
-        with:
-          name: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda13
-          path: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-cuda13.zip
-          retention-days: 30
-
-      - name: 上传构建产物 (Windows Vulkan)
-        uses: actions/upload-artifact@v4
-        with:
-          name: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-vulkan
-          path: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-vulkan.zip
-          retention-days: 30
-
-      - name: 上传构建产物 (Windows HIP)
-        uses: actions/upload-artifact@v4
-        with:
-          name: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-hip
-          path: llama-server-${{ steps.get_version.outputs.version }}-${{ steps.get_llamacpp_version.outputs.llamacpp_version }}-windows-hip.zip
+          name: llama-server-${{ steps.get_version.outputs.version }}
+          path: |
+            dist/*.zip
+            release_notes.md
           retention-days: 30
 
