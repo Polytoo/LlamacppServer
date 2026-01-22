@@ -113,6 +113,31 @@ public class LlamaServer {
 		createWindowsSystemTray();
 	}
 	
+	/**
+	 * 	
+	 * @return
+	 */
+	public static String getTag() {
+		return "{tag}";
+	}
+	
+	/**
+	 * 	
+	 * @return
+	 */
+	public static String getVersion() {
+		return "{version}";
+	}
+	
+	/**
+	 * 	
+	 * @return
+	 */
+	public static String getCreatedTime() {
+		return "{createdTime}";
+	}
+	
+	
 	private static final Logger logger = LoggerFactory.getLogger(LlamaServer.class);
 	
 	/**
