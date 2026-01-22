@@ -50,6 +50,7 @@ public class CompletionRouterHandler extends SimpleChannelInboundHandler<FullHtt
 
 	private static final String LZ_PREFIX = "lz:";
 	private static final long MAX_UPLOAD_BYTES = 16L * 1024L * 1024L;
+	private static final long MAX_AVATAR_UPLOAD_BYTES = 1L * 1024L * 1024L;
 
 	private static final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
 	
@@ -166,11 +167,144 @@ public class CompletionRouterHandler extends SimpleChannelInboundHandler<FullHtt
 				this.handleChatFileDownload(ctx, name);
 				return;
 			}
+			
+			if ("/api/chat/completion/avatar/upload".equals(path) && HttpMethod.POST.equals(method)) {
+				String name = getQueryParam(query, "name");
+				this.handleAvatarUpload(ctx, msg, name);
+				return;
+			}
+			
+			if ("/api/chat/completion/avatar/get".equals(path) && HttpMethod.GET.equals(method)) {
+				String name = getQueryParam(query, "name");
+				this.handleAvatarGet(ctx, name);
+				return;
+			}
 
 			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.NOT_FOUND, "404 Not Found");
 		} catch (Exception e) {
 			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, "服务器内部错误: " + e.getMessage());
 		}
+	}
+
+	private void handleAvatarUpload(ChannelHandlerContext ctx, FullHttpRequest request, String charactorId) {
+		if (charactorId == null || charactorId.trim().isEmpty()) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "缺少name参数");
+			return;
+		}
+		if (request.content() == null || request.content().readableBytes() <= 0) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "请求体为空");
+			return;
+		}
+		if (request.content().readableBytes() > (MAX_AVATAR_UPLOAD_BYTES + 2L * 1024L * 1024L)) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, "请求体过大");
+			return;
+		}
+		
+		HttpPostRequestDecoder decoder = null;
+		try {
+			decoder = new HttpPostRequestDecoder(new DefaultHttpDataFactory(false), request);
+			List<InterfaceHttpData> datas = decoder.getBodyHttpDatas();
+			FileUpload upload = null;
+			for (InterfaceHttpData d : datas) {
+				if (d == null) continue;
+				if (d.getHttpDataType() == InterfaceHttpData.HttpDataType.FileUpload) {
+					FileUpload fu = (FileUpload) d;
+					if (fu.isCompleted() && fu.length() > 0) {
+						upload = fu;
+						break;
+					}
+				}
+			}
+			if (upload == null) {
+				LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "未找到上传文件");
+				return;
+			}
+			if (upload.length() > MAX_AVATAR_UPLOAD_BYTES) {
+				LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, "头像文件超过最大限制: 1MB");
+				return;
+			}
+			byte[] bytes = upload.get();
+			if (bytes == null || bytes.length == 0) {
+				LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "文件内容为空");
+				return;
+			}
+			
+			String savedName = this.completionService.saveAvatar(charactorId.trim(), bytes, upload.getFilename(), upload.getContentType());
+			Map<String, Object> data = new HashMap<>();
+			data.put("name", savedName);
+			data.put("url", "/api/chat/completion/avatar/get?name=" + java.net.URLEncoder.encode(charactorId.trim(), StandardCharsets.UTF_8));
+			Map<String, Object> resp = new HashMap<>();
+			resp.put("success", true);
+			resp.put("data", data);
+			LlamaServer.sendJsonResponse(ctx, resp);
+		} catch (Exception e) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, "上传失败: " + e.getMessage());
+		} finally {
+			if (decoder != null) {
+				try {
+					decoder.destroy();
+				} catch (Exception ignore) {
+				}
+			}
+		}
+	}
+	
+	private void handleAvatarGet(ChannelHandlerContext ctx, String charactorId) {
+		if (charactorId == null || charactorId.trim().isEmpty()) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, "缺少name参数");
+			return;
+		}
+		Path file = this.completionService.getAvatarFilePath(charactorId.trim());
+		if (file == null) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.NOT_FOUND, "头像不存在");
+			return;
+		}
+		if (!Files.exists(file) || Files.isDirectory(file)) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.NOT_FOUND, "头像不存在");
+			return;
+		}
+		try {
+			sendInlineFile(ctx, file, guessImageContentType(file));
+		} catch (Exception e) {
+			LlamaServer.sendJsonErrorResponse(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, "读取头像失败: " + e.getMessage());
+		}
+	}
+	
+	private static String guessImageContentType(Path file) {
+		if (file == null) return "application/octet-stream";
+		String n = file.getFileName() == null ? "" : file.getFileName().toString().toLowerCase();
+		if (n.endsWith(".png")) return "image/png";
+		if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+		if (n.endsWith(".gif")) return "image/gif";
+		if (n.endsWith(".webp")) return "image/webp";
+		return "application/octet-stream";
+	}
+	
+	private static void sendInlineFile(ChannelHandlerContext ctx, Path file, String contentType) throws Exception {
+		RandomAccessFile raf = new RandomAccessFile(file.toFile(), "r");
+		long fileLength = raf.length();
+		
+		HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+		response.headers().set(HttpHeaderNames.CONTENT_LENGTH, fileLength);
+		response.headers().set(HttpHeaderNames.CONTENT_TYPE, contentType == null ? "application/octet-stream" : contentType);
+		response.headers().set(HttpHeaderNames.CACHE_CONTROL, "no-cache");
+		response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+		response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "Content-Type");
+		response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, PUT, DELETE, OPTIONS");
+		
+		ctx.write(response);
+		ctx.write(new ChunkedFile(raf, 0, fileLength, 8192), ctx.newProgressivePromise());
+		ChannelFuture last = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+		last.addListener(new ChannelFutureListener() {
+			@Override
+			public void operationComplete(ChannelFuture future) {
+				try {
+					raf.close();
+				} catch (Exception ignore) {
+				}
+				ctx.close();
+			}
+		});
 	}
 
 	private void handleChatFileUpload(ChannelHandlerContext ctx, FullHttpRequest request) {

@@ -146,7 +146,7 @@ async function fetchHitsPage(query, base, limit, startPage, maxPages) {
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data || data.success !== true) {
-        throw new Error((data && data.error) ? data.error : '搜索失败');
+        throw new Error((data && data.error) ? data.error : '搜索失败：hf-mirror.com存在访问频率限制，如果搜索失败，请稍等片刻重试；huggingface.co国内地区无法访问，需要科学上网。');
     }
     const hits = data.data && data.data.hits ? data.data.hits : [];
     return Array.isArray(hits) ? hits : [];

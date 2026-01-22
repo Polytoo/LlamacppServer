@@ -816,6 +816,7 @@
                 const metadata = model.metadata || {};
                 const architecture = metadata.architecture || '未知';
                 const isLoading = !!model.isLoading;
+                const isFavourite = !!model.favourite;
 
                 let status = model.status;
                 let statusText = '已停止';
@@ -838,6 +839,9 @@
 
                 html += `
                     <div class="model-item">
+                        <button class="model-fav-btn ${isFavourite ? 'active' : ''}" onclick="toggleFavouriteModel(event, decodeURIComponent('${encodeURIComponent(model.id)}'))" title="${isFavourite ? '取消喜好' : '标记喜好'}">
+                            <i class="${isFavourite ? 'fas' : 'far'} fa-star"></i>
+                        </button>
                         <div class="model-icon-wrapper">
                             ${modelIcon ? `<img src="${modelIcon}" alt="${architecture}">` : `<i class="fas fa-brain"></i>`}
                         </div>
@@ -873,6 +877,7 @@
                 return;
             }
             const displayName = (model.alias && model.alias.trim()) ? model.alias : model.name;
+            const isFavourite = !!model.favourite;
             const metadata = model.metadata || {};
             const architecture = metadata.architecture || '未知';
             const info = document.getElementById('modelActionsInfo');
@@ -890,6 +895,7 @@
                 const canLoad = !model.isLoaded && !model.isLoading;
                 const canStop = model.isLoaded && model.status === 'running';
                 const actionList = [
+                    { label: isFavourite ? '取消喜好' : '标记喜好', className: 'btn-secondary', enabled: true, action: () => toggleFavouriteModel(null, model.id) },
                     { label: '加载模型', className: 'btn-primary', enabled: canLoad, action: () => loadModel(model.id, model.name) },
                     { label: '更新参数', className: 'btn-secondary', enabled: true, action: () => viewModelConfig(model.id) },
                     { label: '性能测试', className: 'btn-secondary', enabled: true, action: () => openModelBenchmarkDialog(decodeURIComponent(modelIdEsc), decodeURIComponent(displayNameEsc)) },

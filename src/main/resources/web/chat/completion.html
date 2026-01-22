@@ -257,6 +257,18 @@
       flex: 0 0 auto;
       user-select: none;
     }
+    
+    .avatar.clickable {
+      cursor: pointer;
+    }
+    
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 12px;
+      display: block;
+    }
 
     .bubble {
       width: 100%;
@@ -1333,7 +1345,8 @@
       // 值为1时，用/v1/chat/completion
       // 值为0时，用/v1/completions
       apiModel: 1,
-      pendingAttachment: null
+      pendingAttachment: null,
+      avatarNonce: 0
     };
 
     function uid() {
@@ -1855,7 +1868,14 @@
 
       const avatar = document.createElement('div');
       avatar.className = 'avatar';
-      avatar.textContent = msg.role === 'user' ? '你' : (msg.role === 'assistant' ? 'AI' : 'SYS');
+      avatar.dataset.role = msg.role;
+      if (msg.role === 'assistant') {
+        avatar.classList.add('clickable');
+        avatar.textContent = 'AI';
+        applyAssistantAvatar(avatar);
+      } else {
+        avatar.textContent = msg.role === 'user' ? '你' : 'SYS';
+      }
 
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
@@ -1937,6 +1957,96 @@
       state.messageEls.set(msg.id, { contentEl: content, reasoningEl: reasoningPre, attachmentsEl });
       els.chatList.appendChild(wrap);
       maybeScrollToBottom();
+    }
+
+    function buildAvatarUrl(charactorId) {
+      const id = (charactorId == null ? '' : String(charactorId)).trim();
+      if (!id) return '';
+      const q = 'name=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(String(state.avatarNonce || 0));
+      return '/api/chat/completion/avatar/get?' + q;
+    }
+
+    function applyAssistantAvatar(avatarEl) {
+      if (!avatarEl) return;
+      const charactorId = state.currentCompletionId;
+      if (!charactorId) return;
+      const url = buildAvatarUrl(charactorId);
+      if (!url) return;
+      
+      avatarEl.textContent = 'AI';
+      for (const n of Array.from(avatarEl.querySelectorAll('img'))) {
+        try { n.remove(); } catch (e) { }
+      }
+
+      const img = document.createElement('img');
+      img.alt = 'avatar';
+      img.decoding = 'async';
+      img.loading = 'eager';
+      img.style.display = 'none';
+      img.addEventListener('load', () => {
+        avatarEl.textContent = '';
+        img.style.display = 'block';
+        avatarEl.appendChild(img);
+      });
+      img.addEventListener('error', () => {
+        try { img.remove(); } catch (e) { }
+        avatarEl.textContent = 'AI';
+      });
+      avatarEl.appendChild(img);
+      img.src = url;
+    }
+    
+    let avatarUploadInput = null;
+    
+    function getAvatarUploadInput() {
+      if (avatarUploadInput) return avatarUploadInput;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.position = 'fixed';
+      input.style.left = '-9999px';
+      input.style.top = '-9999px';
+      input.style.width = '1px';
+      input.style.height = '1px';
+      input.addEventListener('change', async (e) => {
+        const file = e && e.target && e.target.files ? e.target.files[0] : null;
+        input.value = '';
+        if (!file) return;
+        try {
+          await uploadAvatarForCurrentRole(file);
+        } catch (err) {
+          alert('头像上传失败：' + (err && err.message ? err.message : String(err)));
+        }
+      });
+      document.body.appendChild(input);
+      avatarUploadInput = input;
+      return input;
+    }
+    
+    async function uploadAvatarForCurrentRole(file) {
+      if (!file) return;
+      const maxBytes = 1024 * 1024;
+      if (typeof file.size === 'number' && file.size > maxBytes) {
+        throw new Error('头像图片需小于1MB');
+      }
+      const allow = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+      const ext = getFileExt(file && file.name ? file.name : '');
+      const type = (file && file.type) ? String(file.type).toLowerCase() : '';
+      const typeOk = type === 'image/png' || type === 'image/jpeg' || type === 'image/gif' || type === 'image/webp';
+      const extOk = allow.includes(ext);
+      if (!typeOk && !extOk) throw new Error('仅支持图片格式: png/jpg/jpeg/gif/webp');
+      const id = state.currentCompletionId;
+      if (!id) {
+        throw new Error('缺少角色ID');
+      }
+      const fd = new FormData();
+      fd.append('file', file, file.name || 'avatar');
+      await fetchJson('/api/chat/completion/avatar/upload?name=' + encodeURIComponent(String(id)), {
+        method: 'POST',
+        body: fd
+      });
+      state.avatarNonce = Date.now();
+      rerenderAll();
     }
 
     function clearChatDom() {
@@ -2685,6 +2795,16 @@
         setAttachment(file);
       });
       els.attachClear.addEventListener('click', () => clearAttachment());
+      
+      els.chatList.addEventListener('click', (e) => {
+        const avatar = e && e.target ? e.target.closest('.avatar') : null;
+        if (!avatar) return;
+        const msgEl = avatar.closest('.msg');
+        if (!msgEl || !msgEl.classList.contains('assistant')) return;
+        if (!state.currentCompletionId) return;
+        const input = getAvatarUploadInput();
+        input.click();
+      });
 
       els.sendBtn.addEventListener('click', () => runCompletion());
       els.stopBtn.addEventListener('click', () => {

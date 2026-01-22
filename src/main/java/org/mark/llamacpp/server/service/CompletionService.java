@@ -23,6 +23,8 @@ public class CompletionService {
 	
 	private static final Gson gson = new Gson();
 	private static final long MAX_CHAT_UPLOAD_BYTES = 16L * 1024L * 1024L;
+	private static final long MAX_AVATAR_UPLOAD_BYTES = 1L * 1024L * 1024L;
+	private static final String[] AVATAR_EXTS = new String[] { "png", "jpg", "jpeg", "gif", "webp" };
 	
 	public CompletionService() {
 		
@@ -59,6 +61,18 @@ public class CompletionService {
 	private Path getChatDir() {
 		try {
 			Path dir = LlamaServer.getCachePath().resolve("chat");
+			if (!Files.exists(dir)) {
+				Files.createDirectories(dir);
+			}
+			return dir;
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	private Path getAvatarDir() {
+		try {
+			Path dir = LlamaServer.getCachePath().resolve("avatars");
 			if (!Files.exists(dir)) {
 				Files.createDirectories(dir);
 			}
@@ -159,6 +173,97 @@ public class CompletionService {
 		return p;
 	}
 	
+	private static String normalizeAvatarExt(String ext) {
+		if (ext == null) return null;
+		String e = ext.trim().toLowerCase();
+		if (e.isEmpty()) return null;
+		for (String allow : AVATAR_EXTS) {
+			if (allow.equals(e)) return e;
+		}
+		return null;
+	}
+	
+	private static String avatarExtFromContentType(String contentType) {
+		if (contentType == null) return null;
+		String ct = contentType.trim().toLowerCase();
+		if (ct.isEmpty()) return null;
+		if (ct.contains("png")) return "png";
+		if (ct.contains("jpeg") || ct.contains("jpg")) return "jpg";
+		if (ct.contains("gif")) return "gif";
+		if (ct.contains("webp")) return "webp";
+		return null;
+	}
+	
+	public synchronized String saveAvatar(String charactorId, byte[] bytes, String originalFileName, String contentType) {
+		Long id = parseId(charactorId);
+		if (id == null || id.longValue() <= 0) {
+			throw new IllegalArgumentException("无效的角色ID");
+		}
+		if (bytes == null || bytes.length == 0) {
+			throw new IllegalArgumentException("文件内容为空");
+		}
+		if (bytes.length > MAX_AVATAR_UPLOAD_BYTES) {
+			throw new IllegalArgumentException("头像文件超过最大限制: 1MB");
+		}
+		
+		String ext = normalizeAvatarExt(avatarExtFromContentType(contentType));
+		if (ext == null) {
+			ext = normalizeAvatarExt(extractSafeFileExtension(originalFileName));
+		}
+		if (ext == null) {
+			throw new IllegalArgumentException("仅支持图片格式: png/jpg/jpeg/gif/webp");
+		}
+		
+		Path dir = this.getAvatarDir();
+		for (String e : AVATAR_EXTS) {
+			try {
+				Files.deleteIfExists(dir.resolve(Long.toString(id.longValue()) + "." + e));
+			} catch (Exception ignore) {
+			}
+		}
+		
+		String fileName = Long.toString(id.longValue()) + "." + ext;
+		Path out = dir.resolve(fileName).normalize();
+		if (!out.startsWith(dir)) {
+			throw new IllegalArgumentException("非法文件名");
+		}
+		try {
+			Files.write(out, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+			return fileName;
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public Path getAvatarFilePath(String charactorId) {
+		Long id = parseId(charactorId);
+		if (id == null || id.longValue() <= 0) return null;
+		Path dir = this.getAvatarDir();
+		for (String e : AVATAR_EXTS) {
+			Path p = dir.resolve(Long.toString(id.longValue()) + "." + e).normalize();
+			if (!p.startsWith(dir)) continue;
+			try {
+				if (Files.exists(p) && !Files.isDirectory(p)) return p;
+			} catch (Exception ignore) {
+			}
+		}
+		return null;
+	}
+	
+	public boolean deleteAvatar(String charactorId) {
+		Long id = parseId(charactorId);
+		if (id == null || id.longValue() <= 0) return false;
+		Path dir = this.getAvatarDir();
+		boolean ok = false;
+		for (String e : AVATAR_EXTS) {
+			try {
+				ok = Files.deleteIfExists(dir.resolve(Long.toString(id.longValue()) + "." + e)) || ok;
+			} catch (Exception ignore) {
+			}
+		}
+		return ok;
+	}
+	
 	private static Long parseId(String name) {
 		if (name == null) return null;
 		String t = name.trim();
@@ -223,6 +328,7 @@ public class CompletionService {
 		if (id == null) return false;
 		try {
 			boolean ok = Files.deleteIfExists(this.fileOfId(id.longValue()));
+			this.deleteAvatar(Long.toString(id.longValue()));
 			Path legacyDir = this.getLegacyCompletionsDirIfExists();
 			if (legacyDir != null) {
 				try {
