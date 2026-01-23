@@ -246,7 +246,7 @@ jobs:
             local root_name="$2"
             local zip_name="$3"
             mv "$work_dir" "$root_name"
-            zip -r "dist/$zip_name" "$root_name"
+            zip -r -9 -X "dist/$zip_name" "$root_name"
           }
 
           cp -r build build-linux-no-llamacpp
