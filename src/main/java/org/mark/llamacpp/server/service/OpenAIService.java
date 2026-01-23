@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -23,6 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import io.netty.buffer.ByteBuf;
@@ -52,8 +55,7 @@ public class OpenAIService {
 	private static final Logger logger = LoggerFactory.getLogger(OpenAIService.class);
 	
 	private static final Gson gson = new Gson();
-	
-	
+
 	/**
 	 * 	存储当前通道正在处理的模型链接，用于在连接关闭时停止对应的模型进程
 	 */
@@ -210,7 +212,9 @@ public class OpenAIService {
 
 			// 解析JSON请求体
 			JsonObject requestJson = gson.fromJson(content, JsonObject.class);
-			
+			System.err.println(requestJson);
+
+			//System.exit(0);
 			// 获取模型名称
 			if (!requestJson.has("model")) {
 				this.sendOpenAIErrorResponseWithCleanup(ctx, 400, null, "Missing required parameter: model", "model");
@@ -477,6 +481,16 @@ public class OpenAIService {
 				responseBody = response.toString();
 			}
 		}
+
+		if (responseCode >= 200 && responseCode < 300) {
+			JsonObject parsed = tryParseObject(responseBody);
+			if (parsed != null) {
+				boolean changed = ensureToolCallIds(parsed, null);
+				if (changed) {
+					responseBody = gson.toJson(parsed);
+				}
+			}
+		}
 		
 		// 创建响应
 		FullHttpResponse response = new DefaultFullHttpResponse(
@@ -532,6 +546,7 @@ public class OpenAIService {
 		)) {
 			String line;
 			int chunkCount = 0;
+			Map<Integer, String> toolCallIds = new HashMap<>();
 			while ((line = br.readLine()) != null) {
 				// 检查客户端连接是否仍然活跃
 				if (!ctx.channel().isActive()) {
@@ -554,9 +569,18 @@ public class OpenAIService {
 						break;
 					}
 					
+					String outLine = line;
+					JsonObject parsed = tryParseObject(data);
+					if (parsed != null) {
+						boolean changed = ensureToolCallIds(parsed, toolCallIds);
+						if (changed) {
+							outLine = "data: " + gson.toJson(parsed);
+						}
+					}
+					
 					// 创建数据块
 					ByteBuf content = ctx.alloc().buffer();
-					content.writeBytes(line.getBytes(StandardCharsets.UTF_8));
+					content.writeBytes(outLine.getBytes(StandardCharsets.UTF_8));
 					content.writeBytes("\r\n".getBytes(StandardCharsets.UTF_8));
 					
 					// 创建HTTP内容块
@@ -622,8 +646,128 @@ public class OpenAIService {
 			}
 		});
 	}
-	
-	
+
+	private static JsonObject tryParseObject(String s) {
+		try {
+			if (s == null || s.trim().isEmpty()) {
+				return null;
+			}
+			JsonElement el = gson.fromJson(s, JsonElement.class);
+			return el != null && el.isJsonObject() ? el.getAsJsonObject() : null;
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+
+	private static boolean ensureToolCallIds(JsonObject obj, Map<Integer, String> indexToId) {
+		if (obj == null) {
+			return false;
+		}
+		boolean changed = false;
+		JsonElement direct = obj.get("tool_calls");
+		if (direct != null && direct.isJsonArray()) {
+			changed |= ensureToolCallIdsInArray(direct.getAsJsonArray(), indexToId);
+		}
+		JsonElement choicesEl = obj.get("choices");
+		if (choicesEl != null && choicesEl.isJsonArray()) {
+			JsonArray choices = choicesEl.getAsJsonArray();
+			for (int i = 0; i < choices.size(); i++) {
+				JsonElement cEl = choices.get(i);
+				if (!cEl.isJsonObject()) {
+					continue;
+				}
+				JsonObject c = cEl.getAsJsonObject();
+				JsonObject message = (c.has("message") && c.get("message").isJsonObject()) ? c.getAsJsonObject("message") : null;
+				if (message != null) {
+					JsonElement tcs = message.get("tool_calls");
+					if (tcs != null && tcs.isJsonArray()) {
+						changed |= ensureToolCallIdsInArray(tcs.getAsJsonArray(), indexToId);
+					}
+				}
+				JsonObject delta = (c.has("delta") && c.get("delta").isJsonObject()) ? c.getAsJsonObject("delta") : null;
+				if (delta != null) {
+					JsonElement tcs = delta.get("tool_calls");
+					if (tcs != null && tcs.isJsonArray()) {
+						changed |= ensureToolCallIdsInArray(tcs.getAsJsonArray(), indexToId);
+					}
+				}
+			}
+		}
+		return changed;
+	}
+
+	private static boolean ensureToolCallIdsInArray(JsonArray arr, Map<Integer, String> indexToId) {
+		if (arr == null) {
+			return false;
+		}
+		boolean changed = false;
+		for (int i = 0; i < arr.size(); i++) {
+			JsonElement el = arr.get(i);
+			if (el == null || !el.isJsonObject()) {
+				continue;
+			}
+			JsonObject tc = el.getAsJsonObject();
+			Integer idx = readToolCallIndex(tc, i);
+			String id = safeString(tc, "id");
+			if (id == null || id.isBlank()) {
+				String existing = (indexToId == null || idx == null) ? null : indexToId.get(idx);
+				if (existing == null || existing.isBlank()) {
+					existing = "call_" + UUID.randomUUID().toString().replace("-", "");
+					if (indexToId != null && idx != null) {
+						indexToId.put(idx, existing);
+					}
+				}
+				tc.addProperty("id", existing);
+				changed = true;
+			} else if (indexToId != null && idx != null) {
+				indexToId.putIfAbsent(idx, id);
+			}
+		}
+		return changed;
+	}
+
+	private static Integer readToolCallIndex(JsonObject tc, int fallback) {
+		if (tc == null) {
+			return fallback;
+		}
+		JsonElement idxEl = tc.get("index");
+		if (idxEl == null || idxEl.isJsonNull()) {
+			return fallback;
+		}
+		try {
+			if (idxEl.isJsonPrimitive() && idxEl.getAsJsonPrimitive().isNumber()) {
+				return idxEl.getAsInt();
+			}
+			if (idxEl.isJsonPrimitive() && idxEl.getAsJsonPrimitive().isString()) {
+				String s = idxEl.getAsString();
+				if (s != null && !s.isBlank()) {
+					return Integer.parseInt(s.trim());
+				}
+			}
+		} catch (Exception ignore) {
+		}
+		return fallback;
+	}
+
+
+
+
+	private static String safeString(JsonObject obj, String key) {
+		try {
+			if (obj == null || key == null) {
+				return null;
+			}
+			JsonElement el = obj.get(key);
+			if (el == null || el.isJsonNull()) {
+				return null;
+			}
+			return el.getAsString();
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
 	/**
 	 * 发送OpenAI格式的JSON响应
 	 */

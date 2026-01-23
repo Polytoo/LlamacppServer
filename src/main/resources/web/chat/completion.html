@@ -216,6 +216,30 @@
         rgba(2, 6, 23, 0.16);
     }
 
+    #chatList {
+      scrollbar-color: rgba(148, 163, 184, 0.35) rgba(2, 6, 23, 0.25);
+      scrollbar-width: thin;
+    }
+
+    #chatList::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    #chatList::-webkit-scrollbar-track {
+      background: rgba(2, 6, 23, 0.25);
+      border-radius: 999px;
+    }
+
+    #chatList::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(148, 163, 184, 0.45), rgba(59, 130, 246, 0.25));
+      border-radius: 999px;
+      border: 2px solid rgba(2, 6, 23, 0.35);
+    }
+
+    #chatList::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, rgba(148, 163, 184, 0.6), rgba(59, 130, 246, 0.35));
+    }
+
     .msg {
       display: flex;
       flex-direction: column;
@@ -236,6 +260,30 @@
       border-radius: 12px;
       background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.58));
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(148, 163, 184, 0.10);
+    }
+
+    .msg.user .msg-head {
+      border-color: rgba(59, 130, 246, 0.45);
+      background: linear-gradient(180deg, rgba(59, 130, 246, 0.24), rgba(15, 23, 42, 0.65));
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25), inset 0 1px 0 rgba(59, 130, 246, 0.22);
+    }
+
+    .msg.assistant .msg-head {
+      border-color: rgba(16, 163, 127, 0.42);
+      background: linear-gradient(180deg, rgba(16, 163, 127, 0.22), rgba(15, 23, 42, 0.65));
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25), inset 0 1px 0 rgba(16, 163, 127, 0.22);
+    }
+
+    .msg.system .msg-head {
+      border-color: rgba(148, 163, 184, 0.38);
+      background: linear-gradient(180deg, rgba(148, 163, 184, 0.18), rgba(15, 23, 42, 0.65));
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22), inset 0 1px 0 rgba(148, 163, 184, 0.18);
+    }
+
+    .msg.tool .msg-head {
+      border-color: rgba(217, 119, 6, 0.40);
+      background: linear-gradient(180deg, rgba(217, 119, 6, 0.16), rgba(15, 23, 42, 0.65));
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22), inset 0 1px 0 rgba(217, 119, 6, 0.16);
     }
 
     .msg-head .meta {
@@ -290,15 +338,40 @@
     }
 
     .msg.user .bubble {
-      background: linear-gradient(90deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.00) 70%);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.32), rgba(59, 130, 246, 0.08) 70%);
+      border: 1px solid rgba(59, 130, 246, 0.38);
     }
 
     .msg.assistant .bubble {
-      background: linear-gradient(90deg, rgba(16, 163, 127, 0.16), rgba(16, 163, 127, 0.00) 70%);
+      background: linear-gradient(135deg, rgba(16, 163, 127, 0.30), rgba(16, 163, 127, 0.08) 70%);
+      border: 1px solid rgba(16, 163, 127, 0.34);
     }
 
     .msg.system .bubble {
-      background: linear-gradient(90deg, rgba(148, 163, 184, 0.14), rgba(148, 163, 184, 0.00) 70%);
+      background: linear-gradient(135deg, rgba(148, 163, 184, 0.26), rgba(148, 163, 184, 0.06) 70%);
+      border: 1px solid rgba(148, 163, 184, 0.34);
+    }
+
+    .msg.tool .bubble {
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: linear-gradient(135deg, rgba(217, 119, 6, 0.20), rgba(217, 119, 6, 0.06) 70%);
+      border: 1px solid rgba(217, 119, 6, 0.28);
+    }
+
+    .tool-result {
+      margin: 0 0 10px 0;
+      border: 1px dashed rgba(217, 119, 6, 0.35);
+      border-radius: 10px;
+      padding: 6px 8px;
+      background: rgba(2, 6, 23, 0.18);
+    }
+
+    .tool-result>summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 12px;
+      user-select: none;
     }
 
     .meta {
@@ -1107,6 +1180,10 @@
               <input id="thinkingToggle" type="checkbox" checked />
               <label for="thinkingToggle" class="hint">开启思考</label>
             </div>
+            <div class="toggle">
+              <input id="webSearchToggle" type="checkbox" />
+              <label for="webSearchToggle" class="hint">联网搜索</label>
+            </div>
             <button id="toggleSettings" class="btn" type="button">设置</button>
             <button id="clearChat" class="btn" type="button">清空</button>
             <button id="kvCacheToggle" class="btn icon-btn ghost" type="button" title="KV缓存管理">💾</button>
@@ -1332,6 +1409,7 @@
       autoScroll: document.getElementById('autoScroll'),
       streamToggle: document.getElementById('streamToggle'),
       thinkingToggle: document.getElementById('thinkingToggle'),
+      webSearchToggle: document.getElementById('webSearchToggle'),
       saveHint: document.getElementById('saveHint'),
 
       kvCacheToggle: document.getElementById('kvCacheToggle'),
@@ -1357,8 +1435,10 @@
       saveTimer: null,
       lastSavedAt: 0,
       messages: [],
+      systemLogs: [],
       messageEls: new Map(),
       editingMessageId: null,
+      msgSeq: 0,
       // 用/v1/chat/completion还是/v1/completions
       // 值为1时，用/v1/chat/completion
       // 值为0时，用/v1/completions
@@ -1370,6 +1450,11 @@
     function uid() {
       if (window.crypto?.randomUUID) return crypto.randomUUID();
       return String(Date.now()) + '-' + String(Math.random()).slice(2);
+    }
+
+    function nextMessageOrder() {
+      state.msgSeq = (Number.isFinite(state.msgSeq) ? state.msgSeq : 0) + 1;
+      return state.msgSeq;
     }
 
     function escapeHtml(text) {
@@ -1781,7 +1866,7 @@
       for (const msgEl of els.chatList.querySelectorAll('.msg')) {
         const id = msgEl.dataset.id;
         if (!id) continue;
-        const msg = state.messages.find(m => m && m.id === id);
+        const msg = getMessageById(id);
         if (!msg) continue;
         const left = msgEl.querySelector('.meta-left');
         if (!left) continue;
@@ -1808,6 +1893,7 @@
       els.refreshModels.disabled = isBusy;
       els.streamToggle.disabled = isBusy;
       els.thinkingToggle.disabled = isBusy;
+      els.webSearchToggle.disabled = isBusy;
       els.promptInput.disabled = isBusy ? false : false;
     }
 
@@ -1828,11 +1914,25 @@
       return state.messages.findIndex(m => m && m.id === id);
     }
 
+    function findMessageEntryById(id) {
+      if (!id) return null;
+      const msgIndex = state.messages.findIndex(m => m && m.id === id);
+      if (msgIndex >= 0) return { list: state.messages, idx: msgIndex, msg: state.messages[msgIndex] };
+      const logIndex = state.systemLogs.findIndex(m => m && m.id === id);
+      if (logIndex >= 0) return { list: state.systemLogs, idx: logIndex, msg: state.systemLogs[logIndex] };
+      return null;
+    }
+
+    function getMessageById(id) {
+      const entry = findMessageEntryById(id);
+      return entry ? entry.msg : null;
+    }
+
     function openEditModal(messageId) {
       if (state.abortController) return;
-      const idx = findMessageIndexById(messageId);
-      if (idx < 0) return;
-      const msg = state.messages[idx];
+      const entry = findMessageEntryById(messageId);
+      if (!entry) return;
+      const msg = entry.msg;
       state.editingMessageId = msg.id;
       els.editTextarea.value = msg.content || '';
       els.editModal.classList.add('show');
@@ -1869,10 +1969,10 @@
 
     function deleteMessage(messageId) {
       if (state.abortController) return;
-      const idx = findMessageIndexById(messageId);
-      if (idx < 0) return;
+      const entry = findMessageEntryById(messageId);
+      if (!entry) return;
       if (!confirm('确认删除该气泡？此操作不可撤销。')) return;
-      state.messages.splice(idx, 1);
+      entry.list.splice(entry.idx, 1);
       rerenderAll();
       scheduleSave('删除气泡');
     }
@@ -1884,16 +1984,19 @@
       wrap.className = 'msg ' + msg.role;
       wrap.dataset.id = msg.id;
 
-      const avatar = document.createElement('div');
-      avatar.className = 'avatar';
-      avatar.dataset.role = msg.role;
-      if (msg.role === 'assistant') {
-        avatar.classList.add('clickable');
-        avatar.textContent = 'AI';
-        applyAssistantAvatar(avatar);
-      } else {
-        avatar.textContent = msg.role === 'user' ? '你' : 'SYS';
-      }
+      const avatar = msg.role === 'tool' ? null : (() => {
+        const el = document.createElement('div');
+        el.className = 'avatar';
+        el.dataset.role = msg.role;
+        if (msg.role === 'assistant') {
+          el.classList.add('clickable');
+          el.textContent = 'AI';
+          applyAssistantAvatar(el);
+        } else {
+          el.textContent = msg.role === 'user' ? '你' : 'SYS';
+        }
+        return el;
+      })();
 
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
@@ -1905,7 +2008,7 @@
       const taskName = getCurrentCompletionTitle();
       const userName = getUserSpeakerName();
       // 只显示名字
-      left.textContent = msg.role === 'user' ? userName : (msg.role === 'assistant' ? taskName : '系统');
+      left.textContent = msg.role === 'user' ? userName : (msg.role === 'assistant' ? taskName : (msg.role === 'tool' ? 'Tool' : '系统'));
 
       const right = document.createElement('div');
       right.className = 'meta-right';
@@ -1929,7 +2032,7 @@
         return b;
       }
 
-      if (msg.role !== 'system') {
+      if (msg.role === 'assistant' || msg.role === 'user') {
         addAction('重生成', 'ghost', () => regenerateMessage(msg.id));
       }
       addAction('编辑', 'ghost', () => openEditModal(msg.id));
@@ -1942,12 +2045,13 @@
 
       const head = document.createElement('div');
       head.className = 'msg-head';
-      head.appendChild(avatar);
+      if (avatar) head.appendChild(avatar);
       head.appendChild(meta);
 
       const content = document.createElement('div');
       content.className = 'content';
-      renderMessageContentNow(content, msg.content || '');
+      const displayText = (msg && typeof msg.uiContent === 'string') ? msg.uiContent : (msg.content || '');
+      renderMessageContentNow(content, displayText);
 
       let reasoningPre = null;
       const reasoningText = (typeof msg.reasoning === 'string' ? msg.reasoning : '');
@@ -1963,7 +2067,19 @@
         bubble.appendChild(details);
       }
 
-      bubble.appendChild(content);
+      if (msg.role === 'tool') {
+        const details = document.createElement('details');
+        details.className = 'tool-result';
+        const summary = document.createElement('summary');
+        const toolName = (msg && msg.tool_name != null) ? String(msg.tool_name) : 'Tool';
+        const statusText = msg && msg.is_error ? '失败' : '结果';
+        summary.textContent = toolName + '：' + statusText;
+        details.appendChild(summary);
+        details.appendChild(content);
+        bubble.appendChild(details);
+      } else {
+        bubble.appendChild(content);
+      }
       const attachmentsEl = document.createElement('div');
       attachmentsEl.className = 'attachments';
       bubble.appendChild(attachmentsEl);
@@ -2275,13 +2391,32 @@
 
     function rerenderAll() {
       clearChatDom();
-      for (const m of state.messages) renderMessage(m);
+      for (const m of getRenderableMessages()) {
+        if (m && m.hidden) continue;
+        renderMessage(m);
+      }
       maybeScrollToBottom();
     }
 
-    function addMessage(role, content) {
-      const msg = { id: uid(), role, content: content || '', ts: Date.now() };
+    function addMessage(role, content, extra) {
+      const msg = { id: uid(), role, content: content || '', ts: Date.now(), order: nextMessageOrder() };
+      if (extra && typeof extra === 'object') Object.assign(msg, extra);
       state.messages.push(msg);
+      renderMessage(msg);
+      return msg;
+    }
+
+    function addHiddenMessage(role, content, extra) {
+      const msg = { id: uid(), role, content: content || '', ts: Date.now(), hidden: true, order: nextMessageOrder() };
+      if (extra && typeof extra === 'object') Object.assign(msg, extra);
+      state.messages.push(msg);
+      return msg;
+    }
+
+    function addSystemLog(content, extra) {
+      const msg = { id: uid(), role: 'system', content: content || '', ts: Date.now(), isSystemLog: true, order: nextMessageOrder() };
+      if (extra && typeof extra === 'object') Object.assign(msg, extra);
+      state.systemLogs.push(msg);
       renderMessage(msg);
       return msg;
     }
@@ -2289,14 +2424,39 @@
     function updateMessage(id, content) {
       const entry = state.messageEls.get(id);
       const el = entry && entry.contentEl ? entry.contentEl : entry;
-      if (el) requestRenderMessageContent(el, content || '');
-      const m = state.messages.find(x => x.id === id);
+      const m = getMessageById(id);
       if (m) m.content = content || '';
+      const displayText = (m && typeof m.uiContent === 'string') ? m.uiContent : (content || '');
+      if (el) requestRenderMessageContent(el, displayText);
       maybeScrollToBottom();
     }
 
+    function setMessageUiContent(id, uiText) {
+      const entry = state.messageEls.get(id);
+      const el = entry && entry.contentEl ? entry.contentEl : entry;
+      const m = getMessageById(id);
+      if (m) m.uiContent = (uiText == null ? '' : String(uiText));
+      if (el) requestRenderMessageContent(el, (uiText == null ? '' : String(uiText)));
+      maybeScrollToBottom();
+    }
+
+    function setMessageUiAndContent(id, uiText, contentText) {
+      const m = getMessageById(id);
+      if (m) {
+        m.content = contentText || '';
+        m.uiContent = (uiText == null ? '' : String(uiText));
+      }
+      setMessageUiContent(id, uiText);
+    }
+
+    function setMessageToolCalls(id, toolCalls) {
+      const m = getMessageById(id);
+      if (!m) return;
+      m.tool_calls = (Array.isArray(toolCalls) ? toolCalls : []);
+    }
+
     function updateAttachments(id) {
-      const m = state.messages.find(x => x.id === id);
+      const m = getMessageById(id);
       if (!m) return;
       const entry = state.messageEls.get(id);
       let attachmentsEl = entry && entry.attachmentsEl ? entry.attachmentsEl : null;
@@ -2335,7 +2495,7 @@
           state.messageEls.set(id, { contentEl: entry && entry.contentEl ? entry.contentEl : bubble.querySelector('.content'), reasoningEl: newPre, attachmentsEl: entry && entry.attachmentsEl ? entry.attachmentsEl : bubble.querySelector('.attachments') });
         }
       }
-      const m = state.messages.find(x => x.id === id);
+      const m = getMessageById(id);
       if (m) m.reasoning = reasoningText;
       maybeScrollToBottom();
     }
@@ -2358,6 +2518,7 @@
       const assistantSuffix = getAssistantMessageSuffix();
       const history = Array.isArray(messages) ? messages : state.messages;
       for (const m of (Array.isArray(history) ? history : [])) {
+        if (m && m.noContext) continue;
         if (m.role === 'system') {
           lines.push('System: ' + (m.content || ''));
         } else if (m.role === 'user') {
@@ -2379,8 +2540,9 @@
 
 
     // 给/v1/chat/completions端点构造请求内容
-    function buildContent(messages) {
+    function buildContent(messages, options) {
       const history = Array.isArray(messages) ? messages : state.messages;
+      const includeNoContext = !!(options && options.includeNoContext);
       const out = [];
       const sys = (els.systemPrompt.value || '').trim();
       const rolePrompt = (els.rolePrompt.value || '').trim();
@@ -2397,8 +2559,9 @@
       const assistantSuffix = getAssistantMessageSuffix();
       // 遍历全部的历史消息，拼接为messages
       for (const m of (Array.isArray(history) ? history : [])) {
+        if (m && m.noContext && !includeNoContext) continue;
         const role = m?.role;
-        if (role !== 'system' && role !== 'user' && role !== 'assistant') continue;
+        if (role !== 'system' && role !== 'user' && role !== 'assistant' && role !== 'tool') continue;
         const raw = (m?.content == null ? '' : String(m.content));
         if (role === 'system') {
           out.push({ role: 'system', content: raw });
@@ -2420,13 +2583,19 @@
           if (userSuffix != null && userSuffix.length != 0)
             out.push({ role: 'user', content: userSuffix });
         } else if (role === 'assistant') {
-          if(raw && raw.trim().length > 0) {
+          const toolCalls = (Array.isArray(m?.tool_calls) ? m.tool_calls : null);
+          if (toolCalls && toolCalls.length) {
+            out.push({ role: 'assistant', content: raw, tool_calls: toolCalls });
+          } else if (raw && raw.trim().length > 0) {
             if(assistantPrefix != null && assistantPrefix.length != 0)
               out.push({ role: 'assistant', content: assistantPrefix });
             out.push({ role: 'assistant', content: raw });
             if(assistantSuffix != null && assistantSuffix.length != 0)
               out.push({ role: 'assistant', content: assistantSuffix });
           }
+        } else if (role === 'tool') {
+          const toolCallId = (m?.tool_call_id == null ? '' : String(m.tool_call_id));
+          out.push({ role: 'tool', content: raw, tool_call_id: toolCallId });
         }
       }
       return out;
@@ -2453,6 +2622,7 @@
       let buffer = '';
       let text = '';
       let reasoning = '';
+      let toolCallsAgg = [];
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -2465,11 +2635,15 @@
           if (data === '[DONE]') {
             updateMessage(assistantMsgId, text);
             if (reasoning) updateReasoning(assistantMsgId, reasoning);
-            return;
+            return { content: text, reasoning, tool_calls: toolCallsAgg };
           }
           try {
             const json = JSON.parse(data);
             const parts = extractDeltaParts(json);
+            const tcs = getToolCallsFromResponse(json);
+            if (Array.isArray(tcs) && tcs.length) {
+              toolCallsAgg = mergeToolCallsDelta(toolCallsAgg, tcs);
+            }
             if (parts.reasoning) {
               reasoning += parts.reasoning;
               updateReasoning(assistantMsgId, reasoning);
@@ -2483,6 +2657,7 @@
       }
       updateMessage(assistantMsgId, text);
       if (reasoning) updateReasoning(assistantMsgId, reasoning);
+      return { content: text, reasoning, tool_calls: toolCallsAgg };
     }
 
     function currentParams() {
@@ -2507,6 +2682,134 @@
       };
     }
 
+    function getWebSearchMcpTools(preparedQuery) {
+      const q = (preparedQuery == null ? '' : String(preparedQuery)).trim();
+      const prepared = q ? (q + '\n') : '';
+      return [{
+        type: 'function',
+        function: {
+          name: 'builtin_web_search',
+          description: 'Web search tool for finding current information, news, and real-time data from the internet.\n\nThis tool has been configured with search parameters based on the conversation context:\n- Prepared queries: "' + prepared + '"\n\nYou can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.',
+          parameters: {
+            $schema: 'http://json-schema.org/draft-07/schema#',
+            type: 'object',
+            properties: {
+              additionalContext: {
+                description: 'Optional additional context, keywords, or specific focus to enhance the search',
+                type: 'string'
+              }
+            },
+            required: ['additionalContext'],
+            additionalProperties: false
+          }
+        }
+      }];
+    }
+
+    function getPreparedQueryFromMessages(messages) {
+      const history = Array.isArray(messages) ? messages : state.messages;
+      for (let i = history.length - 1; i >= 0; i--) {
+        const m = history[i];
+        if (!m || m.role !== 'user') continue;
+        const raw = (m.content == null ? '' : String(m.content)).trim();
+        if (raw) return raw;
+      }
+      return '';
+    }
+
+    function isToolCallResultText(text) {
+      const s = (text == null ? '' : String(text)).trim();
+      if (!s) return false;
+      if (s.startsWith('联网搜索（智谱）')) return true;
+      if (s.startsWith('联网搜索失败')) return true;
+      if (s.startsWith('联网搜索参数缺失')) return true;
+      if (s.startsWith('检测到 tool_calls')) return true;
+      return false;
+    }
+
+    function getToolCallsFromResponse(json) {
+      if (!json) return [];
+      const direct = json?.tool_calls;
+      if (Array.isArray(direct) && direct.length) return direct;
+      const c0 = json?.choices?.[0];
+      const msg = c0?.message;
+      if (Array.isArray(msg?.tool_calls) && msg.tool_calls.length) return msg.tool_calls;
+      const delta = c0?.delta;
+      if (Array.isArray(delta?.tool_calls) && delta.tool_calls.length) return delta.tool_calls;
+      return [];
+    }
+
+    function mergeToolCallsDelta(target, deltaToolCalls) {
+      const out = Array.isArray(target) ? target : [];
+      if (!Array.isArray(deltaToolCalls) || !deltaToolCalls.length) return out;
+      for (let i = 0; i < deltaToolCalls.length; i++) {
+        const d = deltaToolCalls[i];
+        if (!d) continue;
+        const idx = (Number.isFinite(d.index) ? d.index : i);
+        if (!out[idx]) out[idx] = { id: '', type: d.type || 'function', function: { name: '', arguments: '' } };
+        const cur = out[idx];
+        if (typeof d.id === 'string' && d.id) cur.id = d.id;
+        const fn = d.function || {};
+        if (typeof fn.name === 'string' && fn.name) {
+          cur.function = cur.function || {};
+          cur.function.name = fn.name;
+        }
+        if (typeof fn.arguments === 'string' && fn.arguments) {
+          cur.function = cur.function || {};
+          cur.function.arguments = (cur.function.arguments || '') + fn.arguments;
+        }
+      }
+      return out.filter(Boolean);
+    }
+
+    async function executeToolCalls(toolCalls, preparedQuery) {
+      const results = [];
+      let hasError = false;
+      for (const tc of (Array.isArray(toolCalls) ? toolCalls : [])) {
+        const toolCallId = (typeof tc?.id === 'string' && tc.id) ? tc.id : uid();
+        const fn = tc?.function || {};
+        const name = (typeof fn?.name === 'string' ? fn.name : (typeof tc?.name === 'string' ? tc.name : ''));
+        const args = (typeof fn?.arguments === 'string' ? fn.arguments : (typeof tc?.arguments === 'string' ? tc.arguments : ''));
+        try {
+          const resp = await fetchJson('/api/tools/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tool_name: name, arguments: args, preparedQuery })
+          });
+          if (resp && resp.success === false) {
+            hasError = true;
+            const errText = String(resp.error || '工具执行失败');
+            results.push({
+              tool_call_id: toolCallId,
+              tool_name: name,
+              is_error: true,
+              error: errText,
+              content: JSON.stringify({ success: false, tool_name: name, error: errText })
+            });
+            continue;
+          }
+          const out = resp?.data?.content;
+          const outText = (out == null ? '' : String(out));
+          let uiText = outText;
+          if (!String(uiText).trim()) {
+            try { uiText = JSON.stringify(resp); } catch (e) { uiText = outText; }
+          }
+          results.push({ tool_call_id: toolCallId, tool_name: name, is_error: false, content: outText, ui: uiText });
+        } catch (e) {
+          hasError = true;
+          const errText = String(e && e.message ? e.message : e);
+          results.push({
+            tool_call_id: toolCallId,
+            tool_name: name,
+            is_error: true,
+            error: errText,
+            content: JSON.stringify({ success: false, tool_name: name, error: errText })
+          });
+        }
+      }
+      return { results, hasError };
+    }
+
     async function generateIntoMessage(contextMessages, assistantMsgId) {
       const model = els.modelSelect.value || '';
       const params = currentParams();
@@ -2519,61 +2822,133 @@
         await maybeUploadPendingAttachment();
         const isChat = state.apiModel === 1;
         const useStream = !!els.streamToggle.checked;
-        const url = isChat ? '/v1/chat/completions' : '/v1/completions';
-        const stop = (params.stop != null
-          ? params.stop
-          : (isChat ? ["<|endoftext|>"] : ['\n' + getUserSpeakerName(), '\n***']));
-        const body = isChat
-          ? {
-            model,
-            messages: buildContent(contextMessages),
-            max_tokens: params.max_tokens,
-            temperature: params.temperature,
-            top_p: params.top_p,
-            min_p: params.min_p,
-            repeat_penalty: params.repeat_penalty,
-            enable_thinking: !!els.thinkingToggle.checked,
-            stream: useStream, 
-            stop
+        let allowTools = !!els.webSearchToggle.checked;
+        let currentAssistantId = assistantMsgId;
+        let toolRounds = 0;
+        let includeNoContextInRequest = false;
+        let stopAfterThisRequest = false;
+
+        while (true) {
+          const url = isChat ? '/v1/chat/completions' : '/v1/completions';
+          const stop = (params.stop != null
+            ? params.stop
+            : (isChat ? ["<|endoftext|>"] : ['\n' + getUserSpeakerName(), '\n***']));
+          const body = isChat
+            ? (() => {
+              const b = {
+                model,
+                messages: buildContent(state.messages, { includeNoContext: includeNoContextInRequest }),
+                max_tokens: params.max_tokens,
+                temperature: params.temperature,
+                top_p: params.top_p,
+                min_p: params.min_p,
+                repeat_penalty: params.repeat_penalty,
+                enable_thinking: !!els.thinkingToggle.checked,
+                stream: useStream,
+                stop
+              };
+              if (allowTools) {
+                b.tools = getWebSearchMcpTools(getPreparedQueryFromMessages(state.messages));
+                b.tool_choice = 'auto';
+                b.parse_tool_calls = true;
+              }
+              return b;
+            })()
+            : {
+              model,
+              prompt: buildPrompt(state.messages),
+              max_tokens: params.max_tokens,
+              temperature: params.temperature,
+              top_p: params.top_p,
+              min_p: params.min_p,
+              repeat_penalty: params.repeat_penalty,
+              enable_thinking: !!els.thinkingToggle.checked,
+              stream: useStream,
+              stop
+            };
+
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: state.abortController.signal
+          });
+
+          if (!res.ok) {
+            const t = await res.text();
+            let msg = t;
+            try {
+              const j = t ? JSON.parse(t) : null;
+              msg = j?.message || j?.error?.message || t;
+            } catch (e) { }
+            throw new Error(msg || ('HTTP ' + res.status));
           }
-          : {
-            model,
-            prompt: buildPrompt(contextMessages),
-            max_tokens: params.max_tokens,
-            temperature: params.temperature,
-            top_p: params.top_p,
-            min_p: params.min_p,
-            repeat_penalty: params.repeat_penalty,
-            enable_thinking: !!els.thinkingToggle.checked,
-            stream: useStream,
-            stop
-          };
 
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: state.abortController.signal
-        });
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          let toolCalls = [];
+          if (ct.includes('text/event-stream')) {
+            const r = await consumeSseStream(res, currentAssistantId);
+            toolCalls = r?.tool_calls || [];
+          } else {
+            const data = await res.json();
+            const parts = extractDeltaParts(data);
+            updateMessage(currentAssistantId, parts.content || '');
+            if (parts.reasoning) updateReasoning(currentAssistantId, parts.reasoning);
+            toolCalls = getToolCallsFromResponse(data);
+          }
 
-        if (!res.ok) {
-          const t = await res.text();
-          let msg = t;
-          try {
-            const j = t ? JSON.parse(t) : null;
-            msg = j?.message || j?.error?.message || t;
-          } catch (e) { }
-          throw new Error(msg || ('HTTP ' + res.status));
-        }
+          if (stopAfterThisRequest) {
+            break;
+          }
 
-        const ct = (res.headers.get('content-type') || '').toLowerCase();
-        if (ct.includes('text/event-stream')) {
-          await consumeSseStream(res, assistantMsgId);
-        } else {
-          const data = await res.json();
-          const parts = extractDeltaParts(data);
-          updateMessage(assistantMsgId, parts.content || '');
-          if (parts.reasoning) updateReasoning(assistantMsgId, parts.reasoning);
+          if (isChat && allowTools && Array.isArray(toolCalls) && toolCalls.length && toolRounds < 3) {
+            setStatus('调用工具中…');
+            setMessageToolCalls(currentAssistantId, toolCalls);
+            const curMsg = getMessageById(currentAssistantId);
+            const curText = (curMsg && curMsg.content != null) ? String(curMsg.content).trim() : '';
+            if (!curText) {
+              const toolNames = toolCalls
+                .map(tc => (tc && tc.function && typeof tc.function.name === 'string') ? tc.function.name : (tc && typeof tc.name === 'string' ? tc.name : ''))
+                .map(s => (s == null ? '' : String(s)).trim())
+                .filter(Boolean)
+                .join(', ');
+              setMessageUiAndContent(currentAssistantId, toolNames ? ('调用工具：' + toolNames) : '调用工具', '');
+            }
+            const preparedQuery = getPreparedQueryFromMessages(state.messages);
+            const r0 = await executeToolCalls(toolCalls, preparedQuery);
+            const toolResults = r0?.results || [];
+            const hasError = !!r0?.hasError;
+            for (const r of toolResults) {
+              addMessage('tool', (r && r.content != null ? String(r.content) : ''), {
+                tool_call_id: r && r.tool_call_id != null ? String(r.tool_call_id) : '',
+                tool_name: r && r.tool_name != null ? String(r.tool_name) : '',
+                is_error: !!(r && r.is_error),
+                uiContent: r && r.ui != null ? String(r.ui) : undefined,
+                noContext: hasError
+              });
+            }
+            if (hasError) {
+              const errTexts = toolResults.filter(x => x && x.is_error && x.error).map(x => String(x.error));
+              const errText = errTexts.length ? errTexts.join('\n') : '工具调用失败';
+              addSystemLog('工具调用失败：' + errText, { noContext: true });
+              setMessageUiAndContent(currentAssistantId, '工具调用失败', '');
+              const nextAssistant = addMessage('assistant', '', { noContext: true });
+              currentAssistantId = nextAssistant.id;
+              toolRounds++;
+              allowTools = false;
+              includeNoContextInRequest = true;
+              stopAfterThisRequest = true;
+              setStatus('工具调用失败，继续生成说明…');
+              continue;
+            }
+            const nextAssistant = addMessage('assistant', '');
+            currentAssistantId = nextAssistant.id;
+            toolRounds++;
+            setStatus('工具调用完成，继续生成…');
+            continue;
+          }
+
+          break;
         }
 
         scheduleSave('完成');
@@ -2583,7 +2958,7 @@
           scheduleSave('停止');
         } else {
           setStatus('生成失败：' + e.message);
-          addMessage('system', '生成失败：' + e.message);
+          addSystemLog('生成失败：' + e.message);
           scheduleSave('失败');
         }
       } finally {
@@ -2639,8 +3014,10 @@
         assistantPrefix: (els.assistantPrefix.value == null ? '' : String(els.assistantPrefix.value)),
         assistantSuffix: (els.assistantSuffix.value == null ? '' : String(els.assistantSuffix.value)),
         enableThinking: !!els.thinkingToggle.checked,
+        enableWebSearch: !!els.webSearchToggle.checked,
         params: currentParams(),
-        history: state.messages
+        history: state.messages,
+        systemLogs: state.systemLogs
       });
     }
 
@@ -2806,6 +3183,8 @@
           els.systemPrompt.value = '';
           els.rolePrompt.value = '';
           state.messages = [];
+          state.systemLogs = [];
+          state.msgSeq = 0;
           rerenderAll();
         }
       } catch (e) {
@@ -2836,7 +3215,7 @@
       const out = [];
       for (const m of history) {
         const role = m?.role;
-        if (role !== 'user' && role !== 'assistant' && role !== 'system') continue;
+        if (role !== 'user' && role !== 'assistant' && role !== 'system' && role !== 'tool') continue;
         const attachments = Array.isArray(m?.attachments)
           ? m.attachments
             .filter(a => a && typeof a.url === 'string' && a.url.trim() && (a.type === 'file' || a.type === 'image_url' || a.type === 'text_file' || a.type === 'file_url'))
@@ -2857,10 +3236,52 @@
           content: (m?.content == null ? '' : String(m.content)),
           attachments,
           reasoning: (typeof m?.reasoning === 'string' ? m.reasoning : ''),
-          ts: typeof m?.ts === 'number' ? m.ts : Date.now()
+          hidden: m?.hidden === true,
+          uiContent: (typeof m?.uiContent === 'string' ? m.uiContent : undefined),
+          tool_call_id: (typeof m?.tool_call_id === 'string' ? m.tool_call_id : undefined),
+          ts: typeof m?.ts === 'number' ? m.ts : Date.now(),
+          order: typeof m?.order === 'number' ? m.order : undefined,
+          isSystemLog: m?.isSystemLog === true
         });
       }
       return out;
+    }
+
+    function normalizeSystemLogs(history) {
+      return normalizeHistory(history).filter(m => m.role === 'system').map(m => {
+        m.isSystemLog = true;
+        return m;
+      });
+    }
+
+    function getRenderableMessages() {
+      const all = [];
+      for (const m of state.messages) {
+        if (m && m.hidden) continue;
+        all.push(m);
+      }
+      for (const m of state.systemLogs) {
+        if (m && m.hidden) continue;
+        all.push(m);
+      }
+      all.sort((a, b) => {
+        const ao = Number.isFinite(a?.order) ? a.order : (Number.isFinite(a?.ts) ? a.ts : 0);
+        const bo = Number.isFinite(b?.order) ? b.order : (Number.isFinite(b?.ts) ? b.ts : 0);
+        if (ao !== bo) return ao - bo;
+        const at = Number.isFinite(a?.ts) ? a.ts : 0;
+        const bt = Number.isFinite(b?.ts) ? b.ts : 0;
+        return at - bt;
+      });
+      return all;
+    }
+
+    function syncMessageSequence() {
+      let max = 0;
+      for (const m of state.messages.concat(state.systemLogs)) {
+        const v = Number.isFinite(m?.order) ? m.order : (Number.isFinite(m?.ts) ? m.ts : 0);
+        if (v > max) max = v;
+      }
+      state.msgSeq = max;
     }
 
     async function loadCompletion(id) {
@@ -2893,6 +3314,8 @@
       else if (typeof stopVal === 'string') els.stopSequences.value = stopVal;
       if (ext?.enableThinking != null) els.thinkingToggle.checked = !!ext.enableThinking;
       else els.thinkingToggle.checked = true;
+      if (ext?.enableWebSearch != null) els.webSearchToggle.checked = !!ext.enableWebSearch;
+      else els.webSearchToggle.checked = false;
 
       const loadedApiModel = (ext?.apiModel != null ? ext.apiModel : s.apiModel);
       if (loadedApiModel != null) {
@@ -2900,7 +3323,11 @@
       }
       els.apiModelSelect.value = String(state.apiModel);
 
-      state.messages = normalizeHistory(ext?.history);
+      const historyAll = normalizeHistory(ext?.history);
+      const legacySystemLogs = historyAll.filter(m => m.role === 'system');
+      state.messages = historyAll.filter(m => m.role !== 'system');
+      state.systemLogs = normalizeSystemLogs((Array.isArray(ext?.systemLogs) && ext.systemLogs.length) ? ext.systemLogs : legacySystemLogs);
+      syncMessageSequence();
       rerenderAll();
       if (els.avatarSettingPreview) applyAssistantAvatar(els.avatarSettingPreview);
       setSaveHint('');
@@ -3100,6 +3527,7 @@
       els.repeatPenalty.addEventListener('input', () => scheduleSave('参数'));
       els.stopSequences.addEventListener('input', () => scheduleSave('参数'));
       els.thinkingToggle.addEventListener('change', () => scheduleSave('思考开关'));
+      els.webSearchToggle.addEventListener('change', () => scheduleSave('联网搜索开关'));
 
       // KV缓存按钮事件
       els.kvCacheToggle.addEventListener('click', openKVCacheModal);

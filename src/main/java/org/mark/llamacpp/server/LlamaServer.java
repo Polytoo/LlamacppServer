@@ -236,51 +236,34 @@ public class LlamaServer {
      * 读取application.json配置文件
      */
 	private static void loadApplicationConfig() {
-		synchronized (APPLICATION_CONFIG_LOCK) {
-			try {
-				Path configPath = Paths.get("config/application.json");
-				
-				if (Files.exists(configPath)) {
-					String json = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
-					JsonObject root = GSON.fromJson(json, com.google.gson.JsonObject.class);
-	
-					if (root != null) {
-						// 读取服务器端口配置
-						if (root.has("server")) {
-							JsonObject server = root.getAsJsonObject("server");
-							if (server.has("webPort")) {
-								webPort = server.get("webPort").getAsInt();
-							}
-							if (server.has("anthropicPort")) {
-								anthropicPort = server.get("anthropicPort").getAsInt();
-							}
-						}
-	
-						// 读取下载目录配置
-						if (root.has("download")) {
-							JsonObject download = root.getAsJsonObject("download");
-							if (download.has("directory")) {
-								downloadDirectory = download.get("directory").getAsString();
-							}
-						}
-						
-						// 读取apikey配置
-						if (root.has("security")) {
-							JsonObject security = root.getAsJsonObject("security");
-							if (security.has("apiKeyEnabled")) {
-								apiKeyValidationEnabled = security.get("apiKeyEnabled").getAsBoolean();
-							}
-							if (security.has("apiKey")) {
-								apiKey = security.get("apiKey").getAsString();
-							}
-						}
-					}
-				} else {
-					logger.warn("配置文件不存在，使用默认配置");
-					LlamaServer.saveApplicationConfig();
-				}
-			} catch (Exception e) {
-				logger.warn("加载配置文件失败，使用默认配置: {}", e.getMessage());
+		JsonObject root = readApplicationConfig(true);
+		if (root == null) {
+			return;
+		}
+		if (root.has("server")) {
+			JsonObject server = root.getAsJsonObject("server");
+			if (server.has("webPort")) {
+				webPort = server.get("webPort").getAsInt();
+			}
+			if (server.has("anthropicPort")) {
+				anthropicPort = server.get("anthropicPort").getAsInt();
+			}
+		}
+
+		if (root.has("download")) {
+			JsonObject download = root.getAsJsonObject("download");
+			if (download.has("directory")) {
+				downloadDirectory = download.get("directory").getAsString();
+			}
+		}
+
+		if (root.has("security")) {
+			JsonObject security = root.getAsJsonObject("security");
+			if (security.has("apiKeyEnabled")) {
+				apiKeyValidationEnabled = security.get("apiKeyEnabled").getAsBoolean();
+			}
+			if (security.has("apiKey")) {
+				apiKey = security.get("apiKey").getAsString();
 			}
 		}
 	}
@@ -322,6 +305,31 @@ public class LlamaServer {
 			} catch (IOException e) {
 				logger.error("保存配置文件失败", e);
 				throw new RuntimeException("保存配置文件失败: " + e.getMessage(), e);
+			}
+		}
+	}
+
+	public static JsonObject readApplicationConfig() {
+		return readApplicationConfig(false);
+	}
+
+	private static JsonObject readApplicationConfig(boolean createIfMissing) {
+		synchronized (APPLICATION_CONFIG_LOCK) {
+			try {
+				Path configPath = Paths.get("config/application.json");
+				if (!Files.exists(configPath)) {
+					if (createIfMissing) {
+						logger.warn("配置文件不存在，使用默认配置");
+						LlamaServer.saveApplicationConfig();
+					}
+					return new JsonObject();
+				}
+				String json = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
+				JsonObject root = GSON.fromJson(json, com.google.gson.JsonObject.class);
+				return root == null ? new JsonObject() : root;
+			} catch (Exception e) {
+				logger.warn("读取配置文件失败: {}", e.getMessage());
+				return new JsonObject();
 			}
 		}
 	}

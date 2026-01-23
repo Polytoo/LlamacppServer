@@ -17,6 +17,7 @@ import org.mark.llamacpp.server.controller.ModelInfoController;
 import org.mark.llamacpp.server.controller.ModelPathController;
 import org.mark.llamacpp.server.controller.ParamController;
 import org.mark.llamacpp.server.controller.SystemController;
+import org.mark.llamacpp.server.controller.ToolController;
 import org.mark.llamacpp.server.exception.RequestMethodException;
 import org.mark.llamacpp.server.struct.ApiResponse;
 
@@ -50,6 +51,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 		pipeline.add(new ModelInfoController());
 		pipeline.add(new ModelPathController());
 		pipeline.add(new ParamController());
+		pipeline.add(new ToolController());
 		pipeline.add(new SystemController());
 	}
 	
