@@ -2,6 +2,8 @@ package org.mark.llamacpp.server.controller;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.mark.llamacpp.server.LlamaServer;
 import org.mark.llamacpp.server.exception.RequestMethodException;
@@ -32,6 +34,7 @@ public class ToolController implements BaseController {
 	private static final ToolExecutionService toolExecutionService = new ToolExecutionService();
 	/** MCP 客户端服务，用于管理 MCP 服务器和调用 MCP 工具 */
 	private static final McpClientService mcpClientService = McpClientService.getInstance();
+	private static final ExecutorService ioExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
 	/** 工具执行 API 路径 */
 	private static final String PATH_TOOL_EXECUTE = "/api/tools/execute";
@@ -106,20 +109,39 @@ public class ToolController implements BaseController {
 
 			// 5. 特殊处理内置工具：网页搜索
 			if ("builtin_web_search".equals(toolName)) {
-				String out = toolExecutionService.executeToText(toolName, toolArguments, preparedQuery);
-				LlamaServer.sendJsonResponse(ctx, ApiResponse.success(contentData(out == null ? "" : out)));
+				String tn = toolName;
+				String ta = toolArguments;
+				String pq = preparedQuery;
+				ioExecutor.execute(() -> {
+					try {
+						String out = toolExecutionService.executeToText(tn, ta, pq);
+						LlamaServer.sendJsonResponse(ctx, ApiResponse.success(contentData(out == null ? "" : out)));
+					} catch (Exception e) {
+						logger.info("执行工具失败", e);
+						LlamaServer.sendJsonResponse(ctx, ApiResponse.error("执行工具失败: " + e.getMessage()));
+					}
+				});
 				return;
 			}
 
 			// 6. 处理 MCP 工具调用
 			String url = extractMcpUrl(obj);
 
-			// 如果提供了 url，则调用特定服务器的工具；否则在全局注册表中查找
-			JsonObject mcpResp = (url == null)
-					? mcpClientService.callTool(toolName, toolArguments)
-					: mcpClientService.callToolByUrl(url, toolName, toolArguments);
-
-			sendMcpToolResponse(ctx, mcpResp);
+			String tn = toolName;
+			String ta = toolArguments;
+			String u = url;
+			ioExecutor.execute(() -> {
+				try {
+					JsonObject mcpResp = (u == null)
+							? mcpClientService.callTool(tn, ta)
+							: mcpClientService.callToolByUrl(u, tn, ta);
+					sendMcpToolResponse(ctx, mcpResp);
+				} catch (Exception e) {
+					logger.info("执行工具失败", e);
+					LlamaServer.sendJsonResponse(ctx, ApiResponse.error("执行工具失败: " + e.getMessage()));
+				}
+			});
+			return;
 		} catch (Exception e) {
 			logger.info("执行工具失败", e);
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("执行工具失败: " + e.getMessage()));
@@ -138,12 +160,19 @@ public class ToolController implements BaseController {
 		try {
 			String content = readRequestBodyOrSendError(ctx, request);
 			if (content == null) return;
-
-			// 通过配置 JSON 添加 MCP 服务
-			mcpClientService.addFromConfigJson(content);
-			Map<String, Object> data = new HashMap<>();
-			data.put("registry", mcpClientService.getSavedToolsRegistry());
-			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
+			String body = content;
+			ioExecutor.execute(() -> {
+				try {
+					mcpClientService.addFromConfigJson(body);
+					Map<String, Object> data = new HashMap<>();
+					data.put("registry", mcpClientService.getSavedToolsRegistry());
+					LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
+				} catch (Exception e) {
+					logger.info("添加MCP服务失败", e);
+					LlamaServer.sendJsonResponse(ctx, ApiResponse.error("添加MCP服务失败: " + e.getMessage()));
+				}
+			});
+			return;
 		} catch (Exception e) {
 			logger.info("添加MCP服务失败", e);
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("添加MCP服务失败: " + e.getMessage()));

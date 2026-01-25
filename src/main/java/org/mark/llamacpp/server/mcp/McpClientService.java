@@ -6,24 +6,22 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.mark.llamacpp.server.tools.JsonUtil;
 
@@ -62,8 +60,6 @@ public class McpClientService {
 
 	/** 注册表文件路径，存储已配置的 MCP 服务信息 */
 	private final Path registryPath;
-	/** 按 URL 存储的 SSE 会话管理器 */
-	private final Map<String, McpSseSession> sessionsByUrl = new ConcurrentHashMap<>();
 	/** 工具名称到服务器 URL 的映射索引 */
 	private final Map<String, String> toolToUrl = new ConcurrentHashMap<>();
 	/** 每个服务器对应的自定义请求头 */
@@ -100,18 +96,10 @@ public class McpClientService {
 			activeUrls.add(url);
 		}
 		
-		// 清理不再需要的请求头和会话
+		// 清理不再需要的请求头
 		headersByUrl.keySet().removeIf(u -> !activeUrls.contains(u));
-		for (String existingUrl : sessionsByUrl.keySet()) {
-			if (!activeUrls.contains(existingUrl)) {
-				McpSseSession old = sessionsByUrl.remove(existingUrl);
-				if (old != null) {
-					old.stop();
-				}
-			}
-		}
 
-		// 启动并索引激活的服务
+		// 索引激活的服务
 		for (Map.Entry<String, JsonObject> entry : serverConfigs.entrySet()) {
 			String url = entry.getKey();
 			JsonObject server = entry.getValue();
@@ -131,11 +119,6 @@ public class McpClientService {
 				headersByUrl.put(url, headers);
 			}
 			indexTools(url, server);
-			sessionsByUrl.computeIfAbsent(url, u -> {
-				McpSseSession s = new McpSseSession(u);
-				s.start();
-				return s;
-			});
 		}
 	}
 
@@ -191,7 +174,7 @@ public class McpClientService {
 	 * @param url 服务 URL
 	 * @return 工具列表的 JsonElement，如果不存在则返回 null
 	 */
-	public synchronized JsonElement getSavedTools(String url) throws IOException {
+	public JsonElement getSavedTools(String url) throws IOException {
 		if (url == null || url.isBlank()) {
 			return null;
 		}
@@ -207,7 +190,7 @@ public class McpClientService {
 	/**
 	 * 获取完整的工具注册表内容。
 	 */
-	public synchronized JsonObject getSavedToolsRegistry() throws IOException {
+	public JsonObject getSavedToolsRegistry() throws IOException {
 		return loadRegistry();
 	}
 
@@ -216,7 +199,7 @@ public class McpClientService {
 	 * 
 	 * @return 包含所有工具的 JsonArray
 	 */
-	public synchronized JsonArray getAllAvailableTools() throws IOException {
+	public JsonArray getAllAvailableTools() throws IOException {
 		JsonObject registry = loadRegistry();
 		JsonObject servers = registry.getAsJsonObject("servers");
 		if (servers == null) {
@@ -283,10 +266,6 @@ public class McpClientService {
 		saveRegistry(registry);
 		toolToUrl.entrySet().removeIf(e -> normalizedUrl.equals(e.getValue()));
 		headersByUrl.remove(normalizedUrl);
-		McpSseSession session = sessionsByUrl.remove(normalizedUrl);
-		if (session != null) {
-			session.stop();
-		}
 		return true;
 	}
 
@@ -297,7 +276,7 @@ public class McpClientService {
 	 * @param toolArguments JSON 格式的参数字符串
 	 * @return 调用结果 JsonObject
 	 */
-	public synchronized JsonObject callTool(String toolName, String toolArguments) throws Exception {
+	public JsonObject callTool(String toolName, String toolArguments) throws Exception {
 		if (toolName == null || toolName.isBlank()) {
 			throw new IllegalArgumentException("toolName不能为空");
 		}
@@ -320,7 +299,7 @@ public class McpClientService {
 	 * @param toolArguments JSON 格式的参数字符串
 	 * @return 调用结果 JsonObject
 	 */
-	public synchronized JsonObject callToolByUrl(String url, String toolName, String toolArguments) throws Exception {
+	public JsonObject callToolByUrl(String url, String toolName, String toolArguments) throws Exception {
 		if (url == null || url.isBlank()) {
 			throw new IllegalArgumentException("url不能为空");
 		}
@@ -334,14 +313,79 @@ public class McpClientService {
 		}
 
 		JsonObject argsObj = parseArgsObject(toolArguments);
-		String finalUrl = url.trim();
-		// 获取或创建会话
-		McpSseSession session = sessionsByUrl.computeIfAbsent(finalUrl, u -> {
-			McpSseSession s = new McpSseSession(u);
-			s.start();
-			return s;
-		});
-		return session.callTool(toolName.trim(), argsObj);
+		return callToolShortLived(url.trim(), toolName.trim(), argsObj, headersByUrl.get(url.trim()));
+	}
+	
+	private JsonObject callToolShortLived(String sseUrl, String toolName, JsonObject args, JsonObject headers) throws Exception {
+		HttpURLConnection connection = createSseConnection(sseUrl, headers);
+		connection.setReadTimeout(DEFAULT_CALL_TIMEOUT_SECONDS * 1000);
+
+		URI postUri = null;
+		String lastEvent = null;
+		int callId = ThreadLocalRandom.current().nextInt(10, Integer.MAX_VALUE);
+		boolean callSent = false;
+
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+			String line;
+			while (true) {
+				try {
+					line = reader.readLine();
+				} catch (SocketTimeoutException e) {
+					throw new IOException("等待 tools/call 响应超时: " + sseUrl, e);
+				}
+				if (line == null) {
+					break;
+				}
+				String event = readSseFieldValue(line, "event");
+				if (event != null) {
+					lastEvent = event;
+					continue;
+				}
+				String data = readSseFieldValue(line, "data");
+				if (data == null) {
+					continue;
+				}
+				if ("endpoint".equals(lastEvent) && postUri == null) {
+					postUri = resolveEndpoint(sseUrl, data);
+					performMcpHandshake(postUri, headers);
+
+					JsonObject call = new JsonObject();
+					call.addProperty("jsonrpc", JSONRPC_VERSION);
+					call.addProperty("id", callId);
+					call.addProperty("method", "tools/call");
+					JsonObject params = new JsonObject();
+					params.addProperty("name", toolName);
+					params.add("arguments", args == null ? new JsonObject() : args);
+					call.add("params", params);
+					sendPost(postUri, call, headers);
+					callSent = true;
+					continue;
+				}
+				if (!callSent) {
+					continue;
+				}
+				if (!data.startsWith("{")) {
+					continue;
+				}
+				JsonObject json = parseObject(data);
+				if (!json.has("id") || !json.get("id").isJsonPrimitive()) {
+					continue;
+				}
+				int id;
+				try {
+					id = json.get("id").getAsInt();
+				} catch (Exception ignore) {
+					continue;
+				}
+				if (id == callId) {
+					return json;
+				}
+			}
+		} finally {
+			connection.disconnect();
+		}
+
+		throw new IOException("未收到 tools/call 响应: " + sseUrl);
 	}
 
 	/**
@@ -414,6 +458,8 @@ public class McpClientService {
 		URL url = uri.toURL();
 		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setRequestMethod("GET");
+		connection.setConnectTimeout(DEFAULT_READY_TIMEOUT_SECONDS * 1000);
+		connection.setReadTimeout(DEFAULT_READY_TIMEOUT_SECONDS * 1000);
 
 		// 设置 SSE 标准请求头
 		connection.setRequestProperty(HEADER_ACCEPT, "text/event-stream");
@@ -604,7 +650,14 @@ public class McpClientService {
 		if (parent != null) {
 			Files.createDirectories(parent);
 		}
-		Files.writeString(registryPath, JsonUtil.toJson(registry), StandardCharsets.UTF_8);
+		String json = JsonUtil.toJson(registry);
+		Path tmp = registryPath.resolveSibling(registryPath.getFileName().toString() + ".tmp");
+		Files.writeString(tmp, json, StandardCharsets.UTF_8);
+		try {
+			Files.move(tmp, registryPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+		} catch (AtomicMoveNotSupportedException e) {
+			Files.move(tmp, registryPath, StandardCopyOption.REPLACE_EXISTING);
+		}
 	}
 
 	private void sendPost(URI uri, JsonObject json, JsonObject headers) throws IOException {
@@ -823,288 +876,6 @@ public class McpClientService {
 			}
 			toolToUrl.putIfAbsent(toolName.trim(), url);
 		}
-	}
-
-	/**
-	 * 管理单个 MCP 服务器 SSE 会话的内部类。
-	 * 负责保持 SSE 连接、处理握手、并支持异步工具调用请求。
-	 */
-	private final class McpSseSession {
-		private final String sseUrl;
-		private final AtomicBoolean running = new AtomicBoolean(false);
-		private final AtomicBoolean handshakeCompleted = new AtomicBoolean(false);
-		private final AtomicInteger requestId = new AtomicInteger(10);
-		/** 存储等待响应的请求 id 与对应的 CompletableFuture */
-		private final Map<Integer, CompletableFuture<JsonObject>> pendingById = new ConcurrentHashMap<>();
-		private String lastEvent;
-
-		private volatile URI postUri;
-		private volatile HttpURLConnection connection;
-		private volatile Thread readerThread;
-		/** 用于同步等待 endpoint 事件 */
-		private volatile CountDownLatch endpointLatch = new CountDownLatch(1);
-		/** 用于同步等待握手完成 */
-		private volatile CountDownLatch handshakeLatch = new CountDownLatch(1);
-
-		private McpSseSession(String sseUrl) {
-			this.sseUrl = Objects.requireNonNull(sseUrl);
-		}
-
-		/**
-		 * 启动 SSE 接收线程。
-		 */
-		private void start() {
-			if (!running.compareAndSet(false, true)) {
-				return;
-			}
-			Thread t = new Thread(this::runLoop, "mcp-sse-" + safeThreadName(sseUrl));
-			t.setDaemon(true);
-			readerThread = t;
-			t.start();
-		}
-
-		/**
-		 * 停止会话，断开连接并清理待处理请求。
-		 */
-		private void stop() {
-			running.set(false);
-			HttpURLConnection c = connection;
-			if (c != null) {
-				try {
-					c.disconnect();
-				} catch (Exception ignore) {
-				}
-			}
-			Thread t = readerThread;
-			if (t != null) {
-				try {
-					t.interrupt();
-				} catch (Exception ignore) {
-				}
-			}
-			failAllPending(new IOException("MCP SSE session stopped"));
-		}
-
-		/**
-		 * 执行工具调用。会等待会话就绪。
-		 */
-		private JsonObject callTool(String toolName, JsonObject args) throws Exception {
-			awaitReady(DEFAULT_READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-			URI uri = postUri;
-			if (uri == null) {
-				throw new IllegalStateException("MCP endpoint 未就绪: " + sseUrl);
-			}
-
-			int id = requestId.getAndIncrement();
-			CompletableFuture<JsonObject> future = new CompletableFuture<>();
-			pendingById.put(id, future);
-			try {
-				JsonObject call = new JsonObject();
-				call.addProperty("jsonrpc", JSONRPC_VERSION);
-				call.addProperty("id", id);
-				call.addProperty("method", "tools/call");
-
-				JsonObject params = new JsonObject();
-				params.addProperty("name", toolName);
-				params.add("arguments", args == null ? new JsonObject() : args);
-				call.add("params", params);
-
-				sendPost(uri, call, headersByUrl.get(sseUrl));
-				// 阻塞等待响应
-				return future.get(DEFAULT_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-			} catch (Exception e) {
-				pendingById.remove(id);
-				throw e;
-			}
-		}
-
-		/**
-		 * 等待 SSE 连接和握手完成。
-		 */
-		private void awaitReady(long timeout, TimeUnit unit) throws Exception {
-			boolean endpointOk = endpointLatch.await(timeout, unit);
-			if (!endpointOk) {
-				throw new IOException("等待 MCP endpoint 超时: " + sseUrl);
-			}
-			boolean handshakeOk = handshakeLatch.await(timeout, unit);
-			if (!handshakeOk) {
-				throw new IOException("等待 MCP handshake 超时: " + sseUrl);
-			}
-		}
-
-		/**
-		 * 运行主循环，处理连接、读取 SSE 数据和自动重连。
-		 */
-		private void runLoop() {
-			long backoffMs = 500;
-			while (running.get()) {
-				try {
-					resetSessionState();
-					connection = createSseConnection(sseUrl);
-					try (BufferedReader reader = new BufferedReader(
-							new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-						String line;
-						while (running.get() && (line = reader.readLine()) != null) {
-							handleSseLine(reader, line);
-						}
-					}
-				} catch (Exception e) {
-					failAllPending(e);
-				} finally {
-					HttpURLConnection c = connection;
-					if (c != null) {
-						try {
-							c.disconnect();
-						} catch (Exception ignore) {
-						}
-					}
-					connection = null;
-				}
-
-				if (!running.get()) {
-					return;
-				}
-
-				// 指数退避重连
-				try {
-					Thread.sleep(backoffMs);
-				} catch (InterruptedException ie) {
-					Thread.currentThread().interrupt();
-					return;
-				}
-				backoffMs = Math.min(10_000, backoffMs * 2);
-			}
-		}
-
-		private void resetSessionState() {
-			postUri = null;
-			handshakeCompleted.set(false);
-			endpointLatch = new CountDownLatch(1);
-			handshakeLatch = new CountDownLatch(1);
-			lastEvent = null;
-		}
-
-		/**
-		 * 处理 SSE 的每一行数据。
-		 */
-		private void handleSseLine(BufferedReader reader, String line) throws Exception {
-			String event = readSseFieldValue(line, "event");
-			if (event != null) {
-				lastEvent = event;
-				return;
-			}
-
-			String data = readSseFieldValue(line, "data");
-			if (data == null) {
-				return;
-			}
-
-			if ("endpoint".equals(lastEvent)) {
-				postUri = resolveEndpoint(sseUrl, data);
-				endpointLatch.countDown();
-				performHandshakeOnce();
-				return;
-			}
-
-			if (!data.startsWith("{")) {
-				return;
-			}
-			JsonObject json = parseObject(data);
-			// 匹配响应 ID 并通知等待中的 CompletableFuture
-			if (json.has("id") && json.get("id").isJsonPrimitive()) {
-				try {
-					int id = json.get("id").getAsInt();
-					CompletableFuture<JsonObject> pending = pendingById.remove(id);
-					if (pending != null) {
-						pending.complete(json);
-					}
-				} catch (Exception ignore) {
-				}
-			}
-		}
-
-		/**
-		 * 执行一次 MCP 握手流程。
-		 */
-		private void performHandshakeOnce() throws IOException {
-			if (!handshakeCompleted.compareAndSet(false, true)) {
-				return;
-			}
-			URI uri = postUri;
-			if (uri == null) {
-				handshakeLatch.countDown();
-				return;
-			}
-
-			CompletableFuture<JsonObject> initFuture = new CompletableFuture<>();
-			pendingById.put(1, initFuture);
-			try {
-				JsonObject initMsg = new JsonObject();
-				initMsg.addProperty("jsonrpc", JSONRPC_VERSION);
-				initMsg.addProperty("id", 1);
-				initMsg.addProperty("method", "initialize");
-				JsonObject initParams = new JsonObject();
-				initParams.addProperty("protocolVersion", MCP_PROTOCOL_VERSION);
-				JsonObject clientInfo = new JsonObject();
-				clientInfo.addProperty("name", "JavaMcpClient");
-				clientInfo.addProperty("version", "1.0.0");
-				initParams.add("clientInfo", clientInfo);
-				JsonObject capabilities = new JsonObject();
-				capabilities.add("roots", new JsonObject());
-				initParams.add("capabilities", capabilities);
-				initMsg.add("params", initParams);
-				sendPost(uri, initMsg, headersByUrl.get(sseUrl));
-
-				try {
-					// 等待初始化响应
-					initFuture.get(10, TimeUnit.SECONDS);
-				} catch (Exception ignore) {
-				} finally {
-					pendingById.remove(1);
-				}
-
-				// 发送初始化完成通知
-				JsonObject initializedMsg = new JsonObject();
-				initializedMsg.addProperty("jsonrpc", JSONRPC_VERSION);
-				initializedMsg.addProperty("method", "notifications/initialized");
-				sendPost(uri, initializedMsg, headersByUrl.get(sseUrl));
-			} finally {
-				handshakeLatch.countDown();
-			}
-		}
-
-		/**
-		 * 连接异常时失败所有等待中的请求。
-		 */
-		private void failAllPending(Exception e) {
-			for (Map.Entry<Integer, CompletableFuture<JsonObject>> entry : pendingById.entrySet()) {
-				CompletableFuture<JsonObject> f = entry.getValue();
-				if (f != null && !f.isDone()) {
-					f.completeExceptionally(e);
-				}
-			}
-			pendingById.clear();
-		}
-	}
-
-	/**
-	 * 生成安全的线程名称。
-	 */
-	private static String safeThreadName(String s) {
-		if (s == null || s.isBlank()) {
-			return "unknown";
-		}
-		StringBuilder sb = new StringBuilder();
-		for (int i = 0; i < s.length(); i++) {
-			char ch = s.charAt(i);
-			if (Character.isLetterOrDigit(ch)) {
-				sb.append(ch);
-				continue;
-			}
-			sb.append('_');
-		}
-		String out = sb.toString();
-		return out.length() > 80 ? out.substring(0, 80) : out;
 	}
 
 	/**
