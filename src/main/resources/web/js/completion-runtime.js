@@ -166,7 +166,10 @@ function shouldShowTimingsForMessage(m) {
   return true;
 }
 
-function syncMessageTimingsUi(messageId) {
+let timingsUiRaf = 0;
+const pendingTimingsUiIds = new Set();
+
+function syncMessageTimingsUiNow(messageId) {
   const id = String(messageId || '');
   if (!id) return;
   const m = getMessageById(id);
@@ -180,6 +183,20 @@ function syncMessageTimingsUi(messageId) {
   const show = !!text && shouldShowTimingsForMessage(m);
   tokenEl.textContent = show ? text : '';
   tokenEl.style.display = show ? '' : 'none';
+}
+
+function syncMessageTimingsUi(messageId) {
+  const id = String(messageId || '');
+  if (!id) return;
+  pendingTimingsUiIds.add(id);
+  if (timingsUiRaf) return;
+  timingsUiRaf = requestAnimationFrame(() => {
+    timingsUiRaf = 0;
+    for (const mid of pendingTimingsUiIds) {
+      syncMessageTimingsUiNow(mid);
+    }
+    pendingTimingsUiIds.clear();
+  });
 }
 
 function setMessageTimings(messageId, timings) {
@@ -333,11 +350,12 @@ function currentParams() {
 function getWebSearchMcpTools(preparedQuery) {
   const q = (preparedQuery == null ? '' : String(preparedQuery)).trim();
   const prepared = q ? (q + '\n') : '';
+  const test = 'key word';
   return [{
     type: 'function',
     function: {
       name: 'builtin_web_search',
-      description: 'Web search tool for finding current information, news, and real-time data from the internet.\n\nThis tool has been configured with search parameters based on the conversation context:\n- Prepared queries: "' + prepared + '"\n\nYou can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.',
+      description: 'Web search tool for finding current information, news, and real-time data from the internet.\n\nThis tool has been configured with search parameters based on the conversation context:\n- Prepared queries: "' + test + '"\n\nYou can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.',
       parameters: {
         $schema: 'http://json-schema.org/draft-07/schema#',
         type: 'object',
@@ -462,6 +480,34 @@ function mergeToolCallsDelta(target, deltaToolCalls) {
   return out.filter(Boolean);
 }
 
+const TOOL_OUTPUT_CONTEXT_LIMIT = 20000;
+const TOOL_OUTPUT_UI_LIMIT = 20000;
+
+function buildTruncationNote(totalChars) {
+  const n = Number.isFinite(totalChars) ? totalChars : Number(totalChars || 0);
+  return '\n…(内容过长已截断，总长度 ' + (Number.isFinite(n) ? n : 0) + ' 字符)';
+}
+
+function truncateWithNote(text, limit, totalChars) {
+  const s = (text == null ? '' : String(text));
+  const lim = Number(limit || 0);
+  if (!lim || lim <= 0) return '';
+  if (s.length <= lim) return s;
+  const note = buildTruncationNote(totalChars != null ? totalChars : s.length);
+  const room = Math.max(0, lim - note.length);
+  return s.slice(0, room) + note;
+}
+
+function normalizeToolOutputForMessage(toolText, uiText) {
+  const raw = (toolText == null ? '' : String(toolText));
+  const total = raw.length;
+  const content = (total > TOOL_OUTPUT_CONTEXT_LIMIT) ? truncateWithNote(raw, TOOL_OUTPUT_CONTEXT_LIMIT, total) : raw;
+  const uiRaw = (uiText == null ? '' : String(uiText));
+  const uiTotal = uiRaw.length;
+  const uiContent = (uiTotal > TOOL_OUTPUT_UI_LIMIT) ? truncateWithNote(uiRaw, TOOL_OUTPUT_UI_LIMIT, uiTotal) : uiRaw;
+  return { content, uiContent, totalChars: total, uiTotalChars: uiTotal };
+}
+
 async function executeToolCalls(toolCalls, preparedQuery) {
   const results = [];
   let hasError = false;
@@ -519,13 +565,13 @@ async function generateIntoMessage(contextMessages, assistantMsgId) {
   setStatus('生成中…');
   setBusyGenerating(true);
   setSaveHint('');
+  let currentAssistantId = assistantMsgId;
 
   try {
     await maybeUploadPendingAttachment();
     const isChat = state.apiModel === 1;
     const useStream = !!els.streamToggle.checked;
     let allowTools = true;
-    let currentAssistantId = assistantMsgId;
     let toolRounds = 0;
     let includeNoContextInRequest = false;
     let stopAfterThisRequest = false;
@@ -596,6 +642,7 @@ async function generateIntoMessage(contextMessages, assistantMsgId) {
           msg = j?.message || j?.error?.message || t;
           setStatus(msg);
         } catch (e) { }
+        const errLine = 'HTTP ' + res.status + ' · ' + (msg || '');
         throw new Error(msg || ('HTTP ' + res.status));
       }
 
@@ -651,15 +698,20 @@ async function generateIntoMessage(contextMessages, assistantMsgId) {
         const toolResults = r0?.results || [];
         const hasError = !!r0?.hasError;
         for (const r of toolResults) {
-          addMessage('tool', (r && r.content != null ? String(r.content) : ''), {
+          const normalized = normalizeToolOutputForMessage(
+            (r && r.content != null ? String(r.content) : ''),
+            (r && r.ui != null ? String(r.ui) : (r && r.content != null ? String(r.content) : ''))
+          );
+          addMessage('tool', normalized.content, {
             tool_call_id: r && r.tool_call_id != null ? String(r.tool_call_id) : '',
             tool_name: r && r.tool_name != null ? String(r.tool_name) : '',
             tool_arguments: r && r.tool_arguments != null ? String(r.tool_arguments) : '',
             is_error: !!(r && r.is_error),
-            uiContent: r && r.ui != null ? String(r.ui) : undefined,
+            uiContent: normalized.uiContent,
             noContext: hasError
           });
         }
+        scheduleSave('工具');
         if (hasError) {
           const errTexts = toolResults.filter(x => x && x.is_error && x.error).map(x => String(x.error));
           const errText = errTexts.length ? errTexts.join('\n') : '工具调用失败';
@@ -700,11 +752,11 @@ async function generateIntoMessage(contextMessages, assistantMsgId) {
     }
     if (e.name === 'AbortError') {
       setStatus('已停止');
-      scheduleSave('停止');
+      await flushSave('停止');
     } else {
       setStatus('生成失败：' + e.message);
       addSystemLog('生成失败：' + e.message);
-      scheduleSave('失败');
+      await flushSave('失败');
     }
   } finally {
     setBusyGenerating(false);
@@ -725,6 +777,20 @@ async function regenerateMessage(messageId) {
   }
 
   if (msg.role === 'assistant') {
+    const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
+    if (hasToolCalls) {
+      state.messages = state.messages.slice(0, idx);
+      rerenderAll();
+      if (!!els.streamToggle.checked) {
+        await generateIntoMessage(state.messages, null);
+      } else {
+        const assistantMsg = addMessage('assistant', '');
+        await generateIntoMessage(state.messages, assistantMsg.id);
+      }
+      scheduleSave('重生成');
+      return;
+    }
+
     state.messages = state.messages.slice(0, idx + 1);
     rerenderAll();
     updateMessage(msg.id, '');
@@ -746,11 +812,42 @@ async function regenerateMessage(messageId) {
   }
 }
 
-// 这个功能不再使用
 function scheduleSave(reason) {
   if (!state.currentCompletionId) return;
   if (state.saveTimer) clearTimeout(state.saveTimer);
-  state.saveTimer = setTimeout(() => saveCompletion(reason).catch(() => { }), 450);
+  const id = String(state.currentCompletionId);
+  try {
+    const payload = buildCompletionPayload();
+    writeCompletionBackup(id, { id, updatedAt: payload.updatedAt, reason: (reason == null ? '' : String(reason)), payload });
+  } catch (e) {
+  }
+  state.saveTimer = setTimeout(() => saveCompletionSafely(reason), 450);
+}
+
+async function saveCompletionSafely(reason) {
+  if (!state.currentCompletionId) return;
+  try {
+    await saveCompletion(reason);
+  } catch (e) {
+    const errText = String(e && e.message ? e.message : e);
+    setSaveHint('保存失败：' + errText);
+    if (state.lastSaveErrorText !== errText) {
+      state.lastSaveErrorText = errText;
+      addSystemLog('保存失败：' + errText, { noContext: true });
+    }
+  }
+}
+
+async function flushSave(reason) {
+  if (!state.currentCompletionId) return;
+  if (state.saveTimer) clearTimeout(state.saveTimer);
+  const id = String(state.currentCompletionId);
+  try {
+    const payload = buildCompletionPayload();
+    writeCompletionBackup(id, { id, updatedAt: payload.updatedAt, reason: (reason == null ? '' : String(reason)), payload });
+  } catch (e) {
+  }
+  await saveCompletionSafely(reason);
 }
 
 function buildParamsJson() {
@@ -780,9 +877,8 @@ function buildTimingsJson() {
   return JSON.stringify(Array.isArray(state.timingsLog) ? state.timingsLog : []);
 }
 
-async function saveCompletion(reason) {
-  if (!state.currentCompletionId) return;
-  const payload = {
+function buildCompletionPayload() {
+  return {
     id: Number(state.currentCompletionId),
     title: els.titleInput.value || '',
     prompt: lzCompressIfNeeded(els.rolePrompt.value || ''),
@@ -793,6 +889,11 @@ async function saveCompletion(reason) {
     createdAt: Number(state.currentCreatedAt || 0),
     updatedAt: Date.now()
   };
+}
+
+async function saveCompletion(reason) {
+  if (!state.currentCompletionId) return;
+  const payload = buildCompletionPayload();
   setSaveHint('保存中…');
   await fetchJson('/api/chat/completion/save?name=' + encodeURIComponent(state.currentCompletionId), {
     method: 'POST',
@@ -801,6 +902,7 @@ async function saveCompletion(reason) {
   });
   state.lastSavedAt = Date.now();
   setSaveHint((reason ? ('已保存（' + reason + '）') : '已保存') + ' · ' + new Date(state.lastSavedAt).toLocaleTimeString());
+  clearCompletionBackup(state.currentCompletionId);
   await loadCompletions(false);
 }
 
@@ -1074,15 +1176,14 @@ function syncMessageSequence() {
   state.msgSeq = max;
 }
 
-async function loadCompletion(id) {
-  const data = await fetchJson('/api/chat/completion/get?name=' + encodeURIComponent(id), { method: 'GET' });
-  const s = data?.data || {};
-  els.titleInput.value = s.title || '';
-  els.systemPrompt.value = lzDecompressIfNeeded(s.systemPrompt || '');
-  els.rolePrompt.value = lzDecompressIfNeeded(s.prompt || '');
-  state.currentCreatedAt = Number(s.createdAt || 0);
+function applyCompletionData(s) {
+  const data = (s && typeof s === 'object') ? s : {};
+  els.titleInput.value = data.title || '';
+  els.systemPrompt.value = lzDecompressIfNeeded(data.systemPrompt || '');
+  els.rolePrompt.value = lzDecompressIfNeeded(data.prompt || '');
+  state.currentCreatedAt = Number(data.createdAt || 0);
   {
-    const timingsText = lzDecompressIfNeeded(s.timingsJson || '');
+    const timingsText = lzDecompressIfNeeded(data.timingsJson || '');
     let parsed = null;
     try { parsed = timingsText ? JSON.parse(timingsText) : null; } catch (e) { parsed = null; }
     if (Array.isArray(parsed)) state.timingsLog = parsed;
@@ -1090,7 +1191,7 @@ async function loadCompletion(id) {
   }
 
   let ext = {};
-  const paramsJsonText = lzDecompressIfNeeded(s.paramsJson || '');
+  const paramsJsonText = lzDecompressIfNeeded(data.paramsJson || '');
   try { ext = paramsJsonText ? JSON.parse(paramsJsonText) : {}; } catch (e) { ext = {}; }
   if (ext?.model) els.modelSelect.value = ext.model;
   els.userName.value = (ext?.userName == null ? '' : String(ext.userName));
@@ -1125,7 +1226,7 @@ async function loadCompletion(id) {
     updateMcpToolsStatus();
   }
 
-  const loadedApiModel = (ext?.apiModel != null ? ext.apiModel : s.apiModel);
+  const loadedApiModel = (ext?.apiModel != null ? ext.apiModel : data.apiModel);
   if (loadedApiModel != null) {
     state.apiModel = Number(loadedApiModel) === 0 ? 0 : 1;
   }
@@ -1181,6 +1282,30 @@ async function loadCompletion(id) {
   setSaveHint('');
 }
 
+async function maybeRestoreCompletionFromBackup(completionId, serverUpdatedAt) {
+  const id = (completionId == null ? '' : String(completionId)).trim();
+  if (!id) return;
+  const backup = readCompletionBackup(id);
+  const payload = backup && backup.payload && typeof backup.payload === 'object' ? backup.payload : null;
+  if (!payload) return;
+  const localUpdatedAt = Number(backup.updatedAt || payload.updatedAt || 0);
+  const serverMs = Number(serverUpdatedAt || 0);
+  if (Number.isFinite(localUpdatedAt) && localUpdatedAt > serverMs) {
+    applyCompletionData(payload);
+    setStatus('已从本地恢复未保存的记录');
+    await flushSave('恢复');
+  } else if (Number.isFinite(serverMs) && serverMs >= localUpdatedAt) {
+    clearCompletionBackup(id);
+  }
+}
+
+async function loadCompletion(id) {
+  const data = await fetchJson('/api/chat/completion/get?name=' + encodeURIComponent(id), { method: 'GET' });
+  const s = data?.data || {};
+  applyCompletionData(s);
+  await maybeRestoreCompletionFromBackup(id, Number(s.updatedAt || 0));
+}
+
 async function runCompletion() {
   const userText = (els.promptInput.value || '').trim();
   if (!userText) {
@@ -1197,7 +1322,7 @@ async function runCompletion() {
   if (state.pendingAttachment && state.pendingAttachment.file) {
     state.pendingAttachment.messageId = userMsg.id;
   }
-  scheduleSave('发送');
+  await flushSave('发送');
   if (!!els.streamToggle.checked) {
     await generateIntoMessage(state.messages, null);
   } else {

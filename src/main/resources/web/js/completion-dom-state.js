@@ -71,6 +71,11 @@ const els = {
   saveKV: document.getElementById('saveKV'),
   loadKV: document.getElementById('loadKV'),
 
+  mcpToolsToggle: document.getElementById('mcpToolsToggle'),
+  mcpToolsModal: document.getElementById('mcpToolsModal'),
+  mcpToolsClose: document.getElementById('mcpToolsClose'),
+  mcpToolsDone: document.getElementById('mcpToolsDone'),
+
   editModal: document.getElementById('editModal'),
   editTextarea: document.getElementById('editTextarea'),
   editClose: document.getElementById('editClose'),

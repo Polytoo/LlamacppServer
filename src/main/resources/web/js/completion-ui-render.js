@@ -86,9 +86,18 @@ function setCompletionsLoading(isLoading) {
   els.drawerHint.textContent = isLoading ? '加载中…' : '';
 }
 
+let scrollRaf = 0;
+
 function maybeScrollToBottom() {
   if (!els.autoScroll.checked) return;
-  els.chatList.scrollTop = els.chatList.scrollHeight;
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0;
+    const list = els.chatList;
+    if (!list) return;
+    const max = Math.max(0, list.scrollHeight - list.clientHeight);
+    list.scrollTop = max;
+  });
 }
 
 function findMessageIndexById(id) {
@@ -174,6 +183,17 @@ function closeKVCacheModal() {
   els.kvCacheModal.setAttribute('aria-hidden', 'true');
 }
 
+function openMcpToolsModal() {
+  els.mcpToolsModal.classList.add('show');
+  els.mcpToolsModal.setAttribute('aria-hidden', 'false');
+  if (typeof refreshMcpTools === 'function') refreshMcpTools();
+}
+
+function closeMcpToolsModal() {
+  els.mcpToolsModal.classList.remove('show');
+  els.mcpToolsModal.setAttribute('aria-hidden', 'true');
+}
+
 function saveEditModal() {
   const id = state.editingMessageId;
   if (!id) return;
@@ -198,7 +218,7 @@ function renderMessage(msg) {
   wrap.className = 'msg ' + msg.role;
   wrap.dataset.id = msg.id;
 
-  const avatar = msg.role === 'tool' ? null : (() => {
+  const avatar = (msg.role === 'tool' || msg.role === 'system') ? null : (() => {
     const el = document.createElement('div');
     el.className = 'avatar';
     el.dataset.role = msg.role;
@@ -289,17 +309,24 @@ function renderMessage(msg) {
     summary.textContent = toolName + '：' + statusText;
     details.appendChild(summary);
     const argsText = (msg && msg.tool_arguments != null) ? String(msg.tool_arguments) : '';
-    if (String(argsText).trim()) {
-      const label = document.createElement('div');
-      label.className = 'tool-args-label';
-      label.textContent = '参数';
-      const pre = document.createElement('pre');
-      pre.className = 'tool-args';
-      pre.textContent = argsText;
-      details.appendChild(label);
-      details.appendChild(pre);
-    }
-    details.appendChild(content);
+    const reqLabel = document.createElement('div');
+    reqLabel.className = 'tool-io-label';
+    reqLabel.textContent = '请求';
+    const reqPre = document.createElement('pre');
+    reqPre.className = 'tool-io-box tool-io-request';
+    reqPre.textContent = String(argsText).trim() ? argsText : '(空)';
+
+    const respLabel = document.createElement('div');
+    respLabel.className = 'tool-io-label';
+    respLabel.textContent = '响应';
+    const respBox = document.createElement('div');
+    respBox.className = 'tool-io-box tool-io-response';
+    respBox.appendChild(content);
+
+    details.appendChild(reqLabel);
+    details.appendChild(reqPre);
+    details.appendChild(respLabel);
+    details.appendChild(respBox);
     bubble.appendChild(details);
   } else {
     bubble.appendChild(content);
@@ -704,12 +731,28 @@ function updateAttachments(id) {
   maybeScrollToBottom();
 }
 
+let reasoningRaf = 0;
+const pendingReasoningRenders = new Map();
+
+function requestRenderReasoning(pre, text) {
+  if (!pre) return;
+  pendingReasoningRenders.set(pre, text);
+  if (reasoningRaf) return;
+  reasoningRaf = requestAnimationFrame(() => {
+    reasoningRaf = 0;
+    for (const [node, value] of pendingReasoningRenders.entries()) {
+      node.textContent = value;
+    }
+    pendingReasoningRenders.clear();
+  });
+}
+
 function updateReasoning(id, reasoning) {
   const entry = upsertMessageDomEntry(id);
   const pre = entry && entry.reasoningEl ? entry.reasoningEl : null;
   const reasoningText = (reasoning == null ? '' : String(reasoning));
   if (pre) {
-    pre.textContent = reasoningText;
+    requestRenderReasoning(pre, reasoningText);
   } else if (reasoningText.trim()) {
     const wrap = els.chatList.querySelector('.msg.assistant[data-id="' + id + '"]');
     const bubble = wrap ? wrap.querySelector('.bubble') : null;

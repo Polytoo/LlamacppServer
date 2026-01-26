@@ -1,4 +1,36 @@
 function bindEvents() {
+  function isDesktopCompletionHtml() {
+    const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+    const hrefs = links.map(l => (l.getAttribute('href') || '').toLowerCase());
+    const hasDesktop = hrefs.some(h => h.includes('completion.css'));
+    const hasMobile = hrefs.some(h => h.includes('completion-mobile.css'));
+    return hasDesktop && !hasMobile;
+  }
+
+  function getFilesFromClipboardEvent(e) {
+    const out = [];
+    const dt = e && e.clipboardData ? e.clipboardData : null;
+    if (!dt) return out;
+
+    const files = dt.files;
+    if (files && files.length) {
+      for (const f of Array.from(files)) {
+        if (f) out.push(f);
+      }
+    }
+
+    const items = dt.items;
+    if (items && items.length) {
+      for (const it of Array.from(items)) {
+        if (!it || it.kind !== 'file') continue;
+        const f = it.getAsFile ? it.getAsFile() : null;
+        if (f) out.push(f);
+      }
+    }
+
+    return out;
+  }
+
   els.sessionsToggle.addEventListener('click', () => {
     if (els.modelRow && els.modelRow.classList.contains('visible')) {
       els.modelRow.classList.remove('visible');
@@ -71,6 +103,16 @@ function bindEvents() {
   });
   els.attachClear.addEventListener('click', () => clearAttachment());
 
+  if (els.promptInput && isDesktopCompletionHtml()) {
+    els.promptInput.addEventListener('paste', (e) => {
+      const files = getFilesFromClipboardEvent(e);
+      const f = files && files.length ? files[0] : null;
+      if (!f) return;
+      setAttachment(f);
+      if (typeof setStatus === 'function') setStatus('已从剪贴板添加附件：' + (f.name || 'file'));
+    });
+  }
+
   els.chatList.addEventListener('click', (e) => {
     const avatar = e && e.target ? e.target.closest('.avatar.clickable') : null;
     if (!avatar) return;
@@ -96,7 +138,6 @@ function bindEvents() {
     setSettingsOpen(open);
     if (open) {
       if (els.avatarSettingPreview) applyAssistantAvatar(els.avatarSettingPreview);
-      refreshMcpTools();
     }
   });
   els.closeSettings.addEventListener('click', () => {
@@ -169,6 +210,13 @@ function bindEvents() {
   els.saveKV.addEventListener('click', () => kvCacheAction('save'));
   els.loadKV.addEventListener('click', () => kvCacheAction('load'));
 
+  els.mcpToolsToggle.addEventListener('click', openMcpToolsModal);
+  els.mcpToolsClose.addEventListener('click', closeMcpToolsModal);
+  els.mcpToolsDone.addEventListener('click', closeMcpToolsModal);
+  els.mcpToolsModal.addEventListener('click', (e) => {
+    if (e.target === els.mcpToolsModal) closeMcpToolsModal();
+  });
+
   els.editModal.addEventListener('click', (e) => {
     if (e.target === els.editModal) closeEditModal();
   });
@@ -184,6 +232,10 @@ function bindEvents() {
       }
       if (els.kvCacheModal.classList.contains('show')) {
         closeKVCacheModal();
+        return;
+      }
+      if (els.mcpToolsModal.classList.contains('show')) {
+        closeMcpToolsModal();
         return;
       }
       if (els.settingsPanel.classList.contains('open')) {

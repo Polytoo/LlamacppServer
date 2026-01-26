@@ -86,19 +86,36 @@ function sanitizeMarkdownHtml(html) {
 }
 
 function markdownToSafeHtml(text) {
-  const input = escapeHtml(text);
-  if (!window.marked || typeof window.marked.parse !== 'function') return input;
+  const input = (text == null ? '' : String(text));
+  if (!window.marked || typeof window.marked.parse !== 'function') return escapeHtml(input);
   let raw = '';
   try {
     raw = window.marked.parse(input, { gfm: true, breaks: true, mangle: false, headerIds: false });
   } catch (e) {
-    return input;
+    return escapeHtml(input);
   }
   return sanitizeMarkdownHtml(raw);
 }
 
 let markdownRaf = 0;
+let lastMarkdownFlushAt = 0;
 const pendingMarkdownRenders = new Map();
+const pendingHljsTimers = new WeakMap();
+
+function scheduleHighlight(el, text) {
+  if (!el) return;
+  if (!window.hljs || typeof window.hljs.highlightElement !== 'function') return;
+  const t = (text == null ? '' : String(text));
+  if (!(t.includes('```') || t.includes('`'))) return;
+  const prev = pendingHljsTimers.get(el);
+  if (prev) clearTimeout(prev);
+  const timer = setTimeout(() => {
+    pendingHljsTimers.delete(el);
+    const blocks = el.querySelectorAll('pre code');
+    for (const b of blocks) window.hljs.highlightElement(b);
+  }, 350);
+  pendingHljsTimers.set(el, timer);
+}
 
 function renderMessageContentNow(el, text) {
   if (!el) return;
@@ -110,22 +127,27 @@ function renderMessageContentNow(el, text) {
   }
   el.classList.remove('plain');
   el.innerHTML = markdownToSafeHtml(t);
-  if (window.hljs && typeof window.hljs.highlightElement === 'function' && (t.includes('```') || t.includes('`'))) {
-    const blocks = el.querySelectorAll('pre code');
-    for (const b of blocks) window.hljs.highlightElement(b);
+  scheduleHighlight(el, t);
+}
+
+function flushMarkdown(ts) {
+  markdownRaf = 0;
+  const now = typeof ts === 'number' ? ts : (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+  if (now - lastMarkdownFlushAt < 50) {
+    markdownRaf = requestAnimationFrame(flushMarkdown);
+    return;
   }
+  lastMarkdownFlushAt = now;
+  for (const [node, value] of pendingMarkdownRenders.entries()) {
+    renderMessageContentNow(node, value);
+  }
+  pendingMarkdownRenders.clear();
 }
 
 function requestRenderMessageContent(el, text) {
   if (!el) return;
   pendingMarkdownRenders.set(el, text);
   if (markdownRaf) return;
-  markdownRaf = requestAnimationFrame(() => {
-    markdownRaf = 0;
-    for (const [node, value] of pendingMarkdownRenders.entries()) {
-      renderMessageContentNow(node, value);
-    }
-    pendingMarkdownRenders.clear();
-  });
+  markdownRaf = requestAnimationFrame(flushMarkdown);
 }
 

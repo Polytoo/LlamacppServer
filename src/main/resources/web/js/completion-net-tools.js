@@ -32,6 +32,60 @@ function normalizeToolName(name) {
   return (name == null ? '' : String(name)).trim();
 }
 
+const BUILTIN_TOOL_SERVER_URL = 'builtin://local';
+const BUILTIN_TOOL_SERVER_NAME = '内置工具';
+
+const BUILTIN_TOOLS = [
+  {
+    name: 'get_current_time',
+    description: "get current time in a specific timezones",
+    inputSchema: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        timezone: {
+          description: "IANA timezone name (e.g., 'America/New_York', 'Europe/London')",
+          type: 'string'
+        }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'convert_time',
+    description: "convert time between timezones",
+    inputSchema: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        source_timezone: {
+          description: "Source IANA timezone name (e.g., 'America/New_York', 'Europe/London'). Use 'Asia/Shanghai' as local timezone if no source timezone provided by the user.",
+          type: 'string'
+        },
+        time: {
+          description: 'Time to convert in 24-hour format (HH:MM)',
+          type: 'string'
+        },
+        target_timezone: {
+          description: "Target IANA timezone name (e.g., 'Asia/Tokyo', 'America/San_Francisco')",
+          type: 'string'
+        }
+      },
+      required: ['time', 'target_timezone'],
+      additionalProperties: false
+    }
+  }
+];
+
+function injectBuiltinToolsData(data) {
+  const obj = (data && typeof data === 'object') ? data : {};
+  const servers0 = obj?.servers;
+  const servers = (servers0 && typeof servers0 === 'object') ? servers0 : {};
+  const outServers = { ...servers };
+  outServers[BUILTIN_TOOL_SERVER_URL] = { name: BUILTIN_TOOL_SERVER_NAME, tools: BUILTIN_TOOLS };
+  return { ...obj, servers: outServers };
+}
+
 function isMcpToolEnabled(toolName) {
   const tn = normalizeToolName(toolName);
   if (!tn) return false;
@@ -64,17 +118,35 @@ function updateMcpToolsStatus() {
 }
 
 function renderMcpTools(data) {
-  state.mcpToolsData = (data && typeof data === 'object') ? data : null;
+  const normalized = injectBuiltinToolsData(data);
+  state.mcpToolsData = normalized;
   const wrap = els.mcpToolsList;
   if (!wrap) return;
   wrap.textContent = '';
-  const servers = data?.servers;
+  const servers = normalized?.servers;
   const entries = (servers && typeof servers === 'object') ? Object.entries(servers) : [];
   if (!entries.length) {
     wrap.textContent = '暂无 MCP 工具';
     updateMcpToolsStatus();
     return;
   }
+
+  entries.sort((a, b) => {
+    const au = a?.[0] == null ? '' : String(a[0]);
+    const bu = b?.[0] == null ? '' : String(b[0]);
+    const aIsBuiltin = au === BUILTIN_TOOL_SERVER_URL;
+    const bIsBuiltin = bu === BUILTIN_TOOL_SERVER_URL;
+    if (aIsBuiltin && !bIsBuiltin) return -1;
+    if (!aIsBuiltin && bIsBuiltin) return 1;
+
+    const as = (a?.[1] && typeof a[1] === 'object') ? a[1] : {};
+    const bs = (b?.[1] && typeof b[1] === 'object') ? b[1] : {};
+    const an = (typeof as.name === 'string' ? as.name : '').trim();
+    const bn = (typeof bs.name === 'string' ? bs.name : '').trim();
+    const nameCmp = an.localeCompare(bn, 'zh-CN', { sensitivity: 'base' });
+    if (nameCmp !== 0) return nameCmp;
+    return au.localeCompare(bu, 'zh-CN', { sensitivity: 'base' });
+  });
 
   for (const [url, server] of entries) {
     const serverObj = (server && typeof server === 'object') ? server : {};
@@ -377,6 +449,50 @@ function formatTime(ts) {
     return new Date(ts).toLocaleString();
   } catch (e) {
     return String(ts);
+  }
+}
+
+const COMPLETION_LOCAL_BACKUP_PREFIX = 'completion_backup:';
+
+function getCompletionBackupKey(completionId) {
+  const id = (completionId == null ? '' : String(completionId)).trim();
+  if (!id) return '';
+  return COMPLETION_LOCAL_BACKUP_PREFIX + id;
+}
+
+function writeCompletionBackup(completionId, snapshot) {
+  const key = getCompletionBackupKey(completionId);
+  if (!key) return false;
+  try {
+    const raw = JSON.stringify(snapshot || {});
+    const packed = lzCompressIfNeeded(raw);
+    window.localStorage.setItem(key, packed);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function readCompletionBackup(completionId) {
+  const key = getCompletionBackupKey(completionId);
+  if (!key) return null;
+  try {
+    const packed = window.localStorage.getItem(key);
+    if (!packed) return null;
+    const raw = lzDecompressIfNeeded(packed);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearCompletionBackup(completionId) {
+  const key = getCompletionBackupKey(completionId);
+  if (!key) return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch (e) {
   }
 }
 
