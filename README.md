@@ -18,7 +18,8 @@
 - **分卷模型支持**：自动识别和处理分卷模型文件（如 `*-00001-of-*.gguf`）
 - **多模态模型支持**：支持带视觉组件的模型（mmproj 文件）
 
-![屏幕截图_18-1-2026_172047_192 168 5 12](https://github.com/user-attachments/assets/a1c5ec4e-fe68-4e9f-83d7-8687c6c198a3)
+![屏幕截图_26-1-2026_16367_10 8 0 10](https://github.com/user-attachments/assets/66d62ff2-7136-4164-823f-3b52f2dea327)
+
 
 
 ### 🌐 模型下载
@@ -29,7 +30,7 @@
 - **任务管理**：支持任务的暂停、恢复、删除和状态持久化
 - 
 ![屏幕截图_18-1-2026_173859_192 168 5 12](https://github.com/user-attachments/assets/06d3688d-9e33-443a-8993-7ef539b7f8fb)
-
+![屏幕截图_18-1-2026_17395_192 168 5 12](https://github.com/user-attachments/assets/d8efe2a3-6439-4a11-9252-5ade3a48387b)
 
 ### 🖥️ Web 管理界面
 
@@ -39,9 +40,10 @@
 - **下载管理**：管理下载任务，查看进度和状态
 - **控制台日志**：实时查看系统日志，支持自动刷新
 - **系统设置**：配置模型目录和 llama.cpp 可执行文件路径
-![屏幕截图_22-1-2026_194414_192 168 5 12](https://github.com/user-attachments/assets/642bf960-13ea-4ce5-aff9-a9be7a25f263)
 
-![屏幕截图_18-1-2026_17395_192 168 5 12](https://github.com/user-attachments/assets/d8efe2a3-6439-4a11-9252-5ade3a48387b)
+![屏幕截图_26-1-2026_16342_127 0 0 1](https://github.com/user-attachments/assets/47af570e-8623-4f53-a1d6-c7f2cec072fb)
+![屏幕截图_26-1-2026_163419_127 0 0 1](https://github.com/user-attachments/assets/1c33e4bc-84db-45e6-ac89-133bd83bc6b9)
+
 ![屏幕截图_18-1-2026_173926_192 168 5 12](https://github.com/user-attachments/assets/25cfffe2-7637-4f51-8a50-26c90bf250ae)
 
 
@@ -78,6 +80,13 @@
 - **多版本支持**：支持配置多个 llama.cpp 版本路径，加载时选择
 - **多目录支持**：支持配置多个模型目录，自动合并检索
 - **配置持久化**：所有配置自动保存到本地文件
+
+### 📱 移动端适配
+
+<img src="https://github.com/user-attachments/assets/f848a936-1e8e-4bfb-8a47-59a2b32b856a" width="20%">
+<img src="https://github.com/user-attachments/assets/82fe0c28-53f0-4fa9-812f-1ecb7c9cf3c0" width="20%">
+<img src="https://github.com/user-attachments/assets/b40fdcf3-595e-47db-b2a4-7b204a84902a" width="20%">
+<img src="https://github.com/user-attachments/assets/8baef036-2eb8-407e-875b-04d63c6a5ab4" width="20%">
 
 ### 🔧 其它功能
 
