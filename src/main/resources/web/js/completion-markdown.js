@@ -114,6 +114,231 @@ function isSafeUrl(value) {
   }
 }
 
+function mergeIsolatedBracesIntoCodeBlocks(root, doc) {
+  if (!root || !doc) return;
+
+  function isIgnorableTextNode(n) {
+    return n && n.nodeType === Node.TEXT_NODE && !String(n.textContent || '').trim();
+  }
+
+  function prevNonEmptySibling(n) {
+    let p = n ? n.previousSibling : null;
+    while (p && isIgnorableTextNode(p)) p = p.previousSibling;
+    return p;
+  }
+
+  function nextNonEmptySibling(n) {
+    let p = n ? n.nextSibling : null;
+    while (p && isIgnorableTextNode(p)) p = p.nextSibling;
+    return p;
+  }
+
+  function readIsolatedBraceText(n) {
+    if (!n) return '';
+    if (n.nodeType === Node.TEXT_NODE) return String(n.textContent || '').trim();
+    if (n.nodeType === Node.ELEMENT_NODE) return String(n.textContent || '').trim();
+    return '';
+  }
+
+  function removeNode(n) {
+    try {
+      if (n && n.parentNode) n.parentNode.removeChild(n);
+    } catch (e) { }
+  }
+
+  function findAdjacentIsolatedBraceNode(fromNode, braceChar, dir) {
+    let cur = fromNode;
+    while (cur && cur !== root) {
+      const sib = dir === 'next' ? nextNonEmptySibling(cur) : prevNonEmptySibling(cur);
+      if (sib) {
+        const t = readIsolatedBraceText(sib);
+        if (t === braceChar) return sib;
+        return null;
+      }
+      cur = cur.parentNode;
+    }
+    return null;
+  }
+
+  const pres = Array.from(root.querySelectorAll('pre'));
+  for (const pre of pres) {
+    const code = pre.querySelector('code') || null;
+    if (!code) continue;
+
+    const rawText = String(code.textContent || '');
+
+    const prev = findAdjacentIsolatedBraceNode(pre, '{', 'prev');
+    const prevText = readIsolatedBraceText(prev);
+    if (prevText === '{') {
+      code.textContent = '{\n' + rawText;
+      removeNode(prev);
+    }
+
+    const rawText2 = String(code.textContent || '');
+
+    const next = findAdjacentIsolatedBraceNode(pre, '}', 'next');
+    const nextText = readIsolatedBraceText(next);
+    if (nextText === '}') {
+      const joiner = rawText2.endsWith('\n') ? '' : '\n';
+      code.textContent = rawText2 + joiner + '}';
+      removeNode(next);
+    }
+  }
+}
+
+function mergeAdjacentParagraphLinesIntoCodeBlocks(root, doc) {
+  if (!root || !doc) return;
+
+  function isIgnorableTextNode(n) {
+    return n && n.nodeType === Node.TEXT_NODE && !String(n.textContent || '').trim();
+  }
+
+  function prevNonEmptySibling(n) {
+    let p = n ? n.previousSibling : null;
+    while (p && isIgnorableTextNode(p)) p = p.previousSibling;
+    return p;
+  }
+
+  function nextNonEmptySibling(n) {
+    let p = n ? n.nextSibling : null;
+    while (p && isIgnorableTextNode(p)) p = p.nextSibling;
+    return p;
+  }
+
+  function paragraphLines(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return null;
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag !== 'p') return null;
+    const out = [];
+    let cur = '';
+    for (const child of Array.from(el.childNodes || [])) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        cur += String(child.textContent || '');
+        continue;
+      }
+      if (child.nodeType === Node.ELEMENT_NODE && (child.tagName || '').toLowerCase() === 'br') {
+        out.push(cur);
+        cur = '';
+        continue;
+      }
+      return null;
+    }
+    out.push(cur);
+    return out.map(s => String(s || '').replace(/\r/g, ''));
+  }
+
+  function setParagraphLines(el, lines) {
+    if (!el) return;
+    while (el.firstChild) el.removeChild(el.firstChild);
+    const ls = Array.isArray(lines) ? lines : [];
+    for (let i = 0; i < ls.length; i++) {
+      if (i > 0) el.appendChild(doc.createElement('br'));
+      el.appendChild(doc.createTextNode(String(ls[i] == null ? '' : ls[i])));
+    }
+  }
+
+  function trimLine(s) {
+    return String(s == null ? '' : s).trim();
+  }
+
+  function isLikelyCodeLine(s) {
+    const t = trimLine(s);
+    if (!t) return false;
+    if (/^[@#]/.test(t)) return true;
+    if (/[;=]/.test(t)) return true;
+    if (/\w+\s*\(.*\)/.test(t)) return true;
+    if (/\b(class|interface|enum|record)\b/.test(t)) return true;
+    if (/\b(public|private|protected|static|final|abstract|void|int|long|double|float|boolean|char|byte|short|String)\b/.test(t)) return true;
+    return false;
+  }
+
+  function isStandaloneClosingTokenLine(s) {
+    const t = trimLine(s);
+    if (!t) return false;
+    return /^[\]\)\}]+;?$/.test(t);
+  }
+
+  function moveTrailingCodeLinesIntoPre(pre, code, p) {
+    const lines = paragraphLines(p);
+    if (!lines) return false;
+    let i = lines.length - 1;
+    while (i >= 0 && !trimLine(lines[i])) i--;
+    if (i < 0) return false;
+
+    const moved = [];
+    for (; i >= 0; i--) {
+      const t = trimLine(lines[i]);
+      if (!t) {
+        if (moved.length) moved.unshift('');
+        continue;
+      }
+      if (!isLikelyCodeLine(t)) break;
+      moved.unshift(lines[i]);
+    }
+    if (!moved.length) return false;
+
+    const remain = lines.slice(0, i + 1);
+    while (remain.length && !trimLine(remain[remain.length - 1])) remain.pop();
+    if (remain.length) {
+      setParagraphLines(p, remain);
+    } else {
+      if (p.parentNode) p.parentNode.removeChild(p);
+    }
+    const raw = String(code.textContent || '');
+    code.textContent = moved.join('\n') + '\n' + raw;
+    return true;
+  }
+
+  function moveLeadingClosingLinesIntoPre(pre, code, p) {
+    const lines = paragraphLines(p);
+    if (!lines) return false;
+    let i = 0;
+    while (i < lines.length && !trimLine(lines[i])) i++;
+    if (i >= lines.length) return false;
+
+    const moved = [];
+    for (; i < lines.length; i++) {
+      const t = trimLine(lines[i]);
+      if (!t) {
+        if (moved.length) moved.push('');
+        continue;
+      }
+      if (!isStandaloneClosingTokenLine(t)) break;
+      moved.push(lines[i]);
+    }
+    if (!moved.length) return false;
+
+    const remain = lines.slice(i);
+    while (remain.length && !trimLine(remain[0])) remain.shift();
+    if (remain.length) {
+      setParagraphLines(p, remain);
+    } else {
+      if (p.parentNode) p.parentNode.removeChild(p);
+    }
+    const raw = String(code.textContent || '');
+    const suffix = moved.join('\n');
+    const joiner = raw.endsWith('\n') ? '' : '\n';
+    code.textContent = raw + joiner + suffix;
+    return true;
+  }
+
+  const pres = Array.from(root.querySelectorAll('pre'));
+  for (const pre of pres) {
+    const code = pre.querySelector('code') || null;
+    if (!code) continue;
+
+    const prev = prevNonEmptySibling(pre);
+    if (prev && prev.nodeType === Node.ELEMENT_NODE && (prev.tagName || '').toLowerCase() === 'p') {
+      moveTrailingCodeLinesIntoPre(pre, code, prev);
+    }
+
+    const next = nextNonEmptySibling(pre);
+    if (next && next.nodeType === Node.ELEMENT_NODE && (next.tagName || '').toLowerCase() === 'p') {
+      moveLeadingClosingLinesIntoPre(pre, code, next);
+    }
+  }
+}
+
 function sanitizeMarkdownHtml(html) {
   const allowedTags = new Set([
     'div',
@@ -140,6 +365,9 @@ function sanitizeMarkdownHtml(html) {
   const doc = new DOMParser().parseFromString('<div>' + String(html || '') + '</div>', 'text/html');
   const root = doc.body && doc.body.firstChild ? doc.body.firstChild : null;
   if (!root) return '';
+
+  mergeIsolatedBracesIntoCodeBlocks(root, doc);
+  mergeAdjacentParagraphLinesIntoCodeBlocks(root, doc);
 
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
   const nodes = [];

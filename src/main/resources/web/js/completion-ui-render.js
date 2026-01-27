@@ -229,9 +229,11 @@ function openEditModal(messageId) {
   if (!entry) return;
   const msg = entry.msg;
   state.editingMessageId = msg.id;
+  state.lastEditModalFocus = document.activeElement;
   els.editTextarea.value = msg.content || '';
   els.editModal.classList.add('show');
   els.editModal.setAttribute('aria-hidden', 'false');
+  els.editModal.removeAttribute('inert');
   setTimeout(() => {
     try { els.editTextarea.focus(); } catch (e) { }
   }, 0);
@@ -239,8 +241,25 @@ function openEditModal(messageId) {
 
 function closeEditModal() {
   state.editingMessageId = null;
+  const modal = els.editModal;
+  const active = document.activeElement;
+  const lastFocus = state.lastEditModalFocus;
+  const focusBack = (lastFocus && lastFocus !== modal && typeof lastFocus.focus === 'function' && lastFocus.isConnected && !(modal && modal.contains(lastFocus)))
+    ? lastFocus
+    : null;
+  if (modal && active && modal.contains(active)) {
+    if (focusBack) {
+      try { focusBack.focus({ preventScroll: true }); } catch (e) { }
+    } else if (els.promptInput && typeof els.promptInput.focus === 'function') {
+      try { els.promptInput.focus({ preventScroll: true }); } catch (e) { }
+    } else if (active && typeof active.blur === 'function') {
+      try { active.blur(); } catch (e) { }
+    }
+  }
+  state.lastEditModalFocus = null;
   els.editModal.classList.remove('show');
   els.editModal.setAttribute('aria-hidden', 'true');
+  els.editModal.setAttribute('inert', '');
 }
 
 function openKVCacheModal() {

@@ -176,6 +176,53 @@ function setActiveTopic(topicIdToLoad, options) {
   if (!opt.skipSave) scheduleSave('切换话题');
 }
 
+function deleteTopic(topicIdToDelete) {
+  if (state.abortController) return;
+  if (!state.currentCompletionId) return;
+  const id = topicIdToDelete == null ? '' : String(topicIdToDelete);
+  if (!id) return;
+
+  const topics = Array.isArray(state.topics) ? state.topics : [];
+  const t = topics.find(x => x && String(x.id) === id) || null;
+  const title = normalizeTopicTitle(t?.title);
+  if (!confirm('确定删除话题“' + title + '”吗？该话题的聊天记录也会被删除。')) return;
+
+  const wasActive = id === String(state.activeTopicId || '');
+  state.topics = topics.filter(x => x && String(x.id) !== id);
+  if (state.topicData && typeof state.topicData === 'object') {
+    try { delete state.topicData[id]; } catch (e) {}
+  }
+
+  if (!Array.isArray(state.topics) || state.topics.length === 0) {
+    const topic0 = topicId();
+    state.topics = [{
+      id: topic0,
+      title: '默认话题',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }];
+    state.activeTopicId = topic0;
+    state.topicData = {};
+    state.messages = [];
+    state.systemLogs = [];
+    state.timingsLog = [];
+    state.topicData[topic0] = { history: [], systemLogs: [], timingsLog: [] };
+    syncMessageSequence();
+    rerenderAll();
+    renderTopics();
+    scheduleSave('删除话题');
+    return;
+  }
+
+  if (wasActive) {
+    const pick = String(state.topics[0].id);
+    setActiveTopic(pick, { skipPersist: true, skipSave: true, fallbackTimings: true });
+  } else {
+    renderTopics();
+  }
+  scheduleSave('删除话题');
+}
+
 function renderTopics() {
   if (!els.topicList) return;
   const topics = Array.isArray(state.topics) ? state.topics : [];
@@ -190,17 +237,31 @@ function renderTopics() {
   for (const t of topics) {
     if (!t) continue;
     const id = t.id == null ? '' : String(t.id);
+    const isActive = id && id === String(state.activeTopicId || '');
     const item = document.createElement('div');
-    item.className = 'topic-item' + (id && id === String(state.activeTopicId || '') ? ' active' : '');
+    item.className = 'topic-item' + (isActive ? ' active' : '');
     item.dataset.id = id;
     const name = document.createElement('div');
     name.className = 'name';
     name.textContent = normalizeTopicTitle(t.title);
+    const actions = document.createElement('div');
+    actions.className = 'topic-actions';
     const meta = document.createElement('div');
     meta.className = 'hint';
-    meta.textContent = id && id === String(state.activeTopicId || '') ? '当前' : '';
+    meta.textContent = isActive ? '当前' : '';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'topic-delete';
+    del.textContent = '×';
+    del.setAttribute('aria-label', '删除话题');
+    del.addEventListener('click', (e) => {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      deleteTopic(id);
+    });
+    actions.appendChild(meta);
+    actions.appendChild(del);
     item.appendChild(name);
-    item.appendChild(meta);
+    item.appendChild(actions);
     item.addEventListener('click', () => {
       if (state.abortController) return;
       if (!id || id === String(state.activeTopicId || '')) return;
