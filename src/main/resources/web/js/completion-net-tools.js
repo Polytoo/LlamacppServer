@@ -311,6 +311,11 @@ function renderMessageAttachments(attachmentsEl, msg) {
 
   for (const a of atts) {
     if (!a || !a.url) continue;
+    const urlObj = new URL(a.url);
+    // 获取路径部分（包含查询参数和哈希）
+    const path = urlObj.pathname + urlObj.search + urlObj.hash;
+    a.url = path;
+
     const item = document.createElement('div');
     item.className = 'attachment-item';
 
