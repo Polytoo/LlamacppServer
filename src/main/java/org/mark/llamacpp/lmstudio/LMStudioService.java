@@ -1,4 +1,4 @@
-package org.mark.llamacpp.lmstudio.service;
+package org.mark.llamacpp.lmstudio;
 
 import java.io.BufferedReader;
 import java.io.IOException;

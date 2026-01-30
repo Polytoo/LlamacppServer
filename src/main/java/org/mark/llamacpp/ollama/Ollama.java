@@ -28,6 +28,10 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.stream.ChunkedWriteHandler;
 
+
+/**
+ * 	Ollama的兼容层。
+ */
 public class Ollama {
 	/**
 	 * 	
@@ -38,12 +42,25 @@ public class Ollama {
 	private Thread worker;
 	
 	/**
+	 * 	
+	 */
+	private static final Ollama INSTANCE = new Ollama();
+	
+	/**
+	 * 	
+	 * @return
+	 */
+	public static Ollama getInstance() {
+		return INSTANCE;
+	}
+	
+	/**
 	 * 	默认端口
 	 */
-	private int port = 11435;
+	private int port = 11434;
 	
 	
-	public Ollama() {
+	private Ollama() {
 		
 	}
 	
@@ -120,13 +137,6 @@ public class Ollama {
 		FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status);
 		response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
 		response.headers().set(HttpHeaderNames.CONTENT_LENGTH, content.length);
-		//response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "Content-Type");
-		//response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-		//response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "*");
-		//
-		//response.headers().set(HttpHeaderNames.ETAG, ParamTool.buildEtag(content));
-		//response.headers().set("X-Powered-By", "Express");
-		//response.headers().set(HttpHeaderNames.CONNECTION, "alive");
 		response.headers().set(HttpHeaderNames.DATE, ParamTool.getDate());
 		response.content().writeBytes(content);
 		
@@ -139,7 +149,7 @@ public class Ollama {
 	}
 	
 	/**
-	 * 	
+	 * 	发送JSON消息，但是响应头中带chunked。
 	 * @param ctx
 	 * @param status
 	 * @param data

@@ -118,10 +118,10 @@ public class LlamaServer {
 		});
 		t2.start();
 		// 启动测试用的lmstudo兼容服务。
-		LMStudio lmStudio = new LMStudio();
+		LMStudio lmStudio = LMStudio.getInstance();
 		lmStudio.start();
 		
-		Ollama ollama = new Ollama();
+		Ollama ollama = Ollama.getInstance();
 		ollama.start();
 
 		// 尝试创建系统托盘
