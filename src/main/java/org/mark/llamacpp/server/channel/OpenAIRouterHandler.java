@@ -76,21 +76,21 @@ public class OpenAIRouterHandler extends SimpleChannelInboundHandler<FullHttpReq
 			
 			// OpenAI API 端点
 			// 获取模型列表
-			if (uri.startsWith("/v1/models")) {
+			if (uri.startsWith("/v1/models") || uri.startsWith("/models")) {
 				this.openAIServerHandler.handleOpenAIModelsRequest(ctx, request);
 				return;
 			}
 			// 聊天补全
-			if (uri.startsWith("/v1/chat/completions") || uri.startsWith("/v1/chat/completion")) {
+			if (uri.startsWith("/v1/chat/completions") || uri.startsWith("/v1/chat/completion") || uri.startsWith("/chat/completion")) {
 				this.openAIServerHandler.handleOpenAIChatCompletionsRequest(ctx, request);
 				return;
 			}
 			// 文本补全
-			if (uri.startsWith("/v1/completions")) {
+			if (uri.startsWith("/v1/completions") || uri.startsWith("/completions")) {
 				this.openAIServerHandler.handleOpenAICompletionsRequest(ctx, request);
 				return;
 			}
-			if (uri.startsWith("/v1/embeddings")) {
+			if (uri.startsWith("/v1/embeddings") || uri.startsWith("/embeddings")) {
 				this.openAIServerHandler.handleOpenAIEmbeddingsRequest(ctx, request);
 				return;
 			}
