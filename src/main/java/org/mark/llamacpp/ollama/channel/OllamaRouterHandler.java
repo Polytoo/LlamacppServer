@@ -133,7 +133,7 @@ public class OllamaRouterHandler extends SimpleChannelInboundHandler<FullHttpReq
 			return true;
 		}
 		// 这些端点不能使用
-		// /api/copy /api/delete /api/pull /api/push
+		// /api/copy /api/delete /api/pull /api/push /api/generate
 		this.sendOllamaNotFound(ctx);
 		return true;
 	}
