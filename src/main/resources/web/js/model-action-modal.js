@@ -367,6 +367,162 @@ function extractLaunchConfigFromGetResponse(res, modelId) {
     return {};
 }
 
+function parseBooleanLike(v, fallback = false) {
+    if (v === null || v === undefined) return fallback;
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v !== 0;
+    const s = String(v).trim().toLowerCase();
+    if (!s) return fallback;
+    if (s === 'true' || s === '1' || s === 'yes' || s === 'y' || s === 'on') return true;
+    if (s === 'false' || s === '0' || s === 'no' || s === 'n' || s === 'off') return false;
+    return fallback;
+}
+
+function getModelCapabilitiesEls(modal) {
+    return {
+        group: findById(modal, 'modelCapabilitiesGroup'),
+        thinking: findById(modal, 'capabilityThinking'),
+        tools: findById(modal, 'capabilityTools'),
+        rerank: findById(modal, 'capabilityRerank'),
+        embedding: findById(modal, 'capabilityEmbedding')
+    };
+}
+
+function normalizeModelCapabilities(input) {
+    const base = input && typeof input === 'object' && input.capabilities && typeof input.capabilities === 'object'
+        ? input.capabilities
+        : input;
+    return {
+        thinking: parseBooleanLike(base && base.thinking, false),
+        tools: parseBooleanLike(base && base.tools, false),
+        rerank: parseBooleanLike(base && base.rerank, false),
+        embedding: parseBooleanLike(base && base.embedding, false)
+    };
+}
+
+function readModelCapabilitiesFromUi(modal) {
+    const els = getModelCapabilitiesEls(modal);
+    if (!els.thinking || !els.tools || !els.rerank || !els.embedding) {
+        return { thinking: false, tools: false, rerank: false, embedding: false };
+    }
+    return {
+        thinking: !!els.thinking.checked,
+        tools: !!els.tools.checked,
+        rerank: !!els.rerank.checked,
+        embedding: !!els.embedding.checked
+    };
+}
+
+function enforceModelCapabilitiesRules(modal, changedKey) {
+    const els = getModelCapabilitiesEls(modal);
+    if (!els.thinking || !els.tools || !els.rerank || !els.embedding) return;
+
+    if (els.rerank.checked && els.embedding.checked) {
+        if (changedKey === 'rerank') {
+            els.embedding.checked = false;
+        } else {
+            els.rerank.checked = false;
+        }
+    }
+
+    if (changedKey === 'rerank' && els.rerank.checked) els.embedding.checked = false;
+    if (changedKey === 'embedding' && els.embedding.checked) els.rerank.checked = false;
+
+    if ((changedKey === 'thinking' || changedKey === 'tools') && (els.thinking.checked || els.tools.checked)) {
+        els.rerank.checked = false;
+        els.embedding.checked = false;
+    }
+
+    const isNonChat = !!(els.rerank.checked || els.embedding.checked);
+    if (isNonChat) {
+        els.thinking.checked = false;
+        els.tools.checked = false;
+        els.thinking.disabled = true;
+        els.tools.disabled = true;
+    } else {
+        els.thinking.disabled = false;
+        els.tools.disabled = false;
+    }
+}
+
+function applyModelCapabilitiesToUi(modal, caps) {
+    const els = getModelCapabilitiesEls(modal);
+    if (!els.thinking || !els.tools || !els.rerank || !els.embedding) return;
+    const c = normalizeModelCapabilities(caps);
+    els.thinking.checked = !!c.thinking;
+    els.tools.checked = !!c.tools;
+    els.rerank.checked = !!c.rerank;
+    els.embedding.checked = !!c.embedding;
+    enforceModelCapabilitiesRules(modal, '');
+}
+
+function saveModelCapabilitiesNow(modelId, caps) {
+    const payload = Object.assign({ modelId: modelId }, normalizeModelCapabilities(caps));
+    fetch('/api/models/capabilities/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(r => r.json()).then(res => {
+        if (!(res && res.success)) {
+            showToast('错误', (res && res.error) ? res.error : '保存模型能力失败', 'error');
+        }
+    }).catch(() => {
+        showToast('错误', '保存模型能力失败', 'error');
+    });
+}
+
+function scheduleSaveModelCapabilities(modelId, modal) {
+    const mid = modelId === null || modelId === undefined ? '' : String(modelId).trim();
+    if (!mid) return;
+    const caps = readModelCapabilitiesFromUi(modal);
+    if (!window.__capabilitiesSaveTimers) window.__capabilitiesSaveTimers = {};
+    if (window.__capabilitiesSaveTimers[mid]) {
+        clearTimeout(window.__capabilitiesSaveTimers[mid]);
+    }
+    window.__capabilitiesSaveTimers[mid] = setTimeout(() => {
+        window.__capabilitiesSaveTimers[mid] = null;
+        saveModelCapabilitiesNow(mid, caps);
+    }, 350);
+}
+
+function ensureModelCapabilitiesWired(modal) {
+    const els = getModelCapabilitiesEls(modal);
+    if (!els.group || !els.thinking || !els.tools || !els.rerank || !els.embedding) return;
+    if (els.group.getAttribute('data-wired') === '1') return;
+    els.group.setAttribute('data-wired', '1');
+
+    const onChange = (key) => () => {
+        if (window.__capabilitiesApplying) return;
+        enforceModelCapabilitiesRules(modal, key);
+        const modelId = getFieldString(modal, ['modelId']);
+        scheduleSaveModelCapabilities(modelId, modal);
+    };
+
+    els.thinking.addEventListener('change', onChange('thinking'));
+    els.tools.addEventListener('change', onChange('tools'));
+    els.rerank.addEventListener('change', onChange('rerank'));
+    els.embedding.addEventListener('change', onChange('embedding'));
+}
+
+function loadModelCapabilities(modelId, modal) {
+    const mid = modelId === null || modelId === undefined ? '' : String(modelId).trim();
+    const els = getModelCapabilitiesEls(modal);
+    if (!mid || !els.group) return;
+    window.__capabilitiesApplying = true;
+    fetch(`/api/models/capabilities/get?modelId=${encodeURIComponent(mid)}`)
+        .then(r => r.json())
+        .then(res => {
+            const data = res && res.data ? res.data : null;
+            applyModelCapabilitiesToUi(modal, data || {});
+        })
+        .catch(() => {
+            applyModelCapabilitiesToUi(modal, {});
+        })
+        .finally(() => {
+            window.__capabilitiesApplying = false;
+        });
+}
+
 function setModelActionMode(mode) {
     const resolved = mode === 'config' ? 'config' : (mode === 'benchmark' ? 'benchmark' : 'load');
     window.__modelActionMode = resolved;
@@ -419,6 +575,8 @@ function loadModel(modelId, modelName, mode = 'load') {
     setFieldValue(modal, ['modelName'], modelName || modelId);
     const hint = findById(modal, 'ctxSizeVramHint');
     if (hint) hint.textContent = '';
+    ensureModelCapabilitiesWired(modal);
+    loadModelCapabilities(modelId, modal);
     window.__loadModelSelectedDevices = ['All'];
     window.__loadModelSelectionFromConfig = true;
     const deviceChecklistEl = findById(modal, 'deviceChecklist');

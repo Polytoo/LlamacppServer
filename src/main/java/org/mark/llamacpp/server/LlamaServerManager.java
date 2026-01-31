@@ -20,6 +20,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +33,7 @@ import java.util.stream.Stream;
 import org.mark.llamacpp.gguf.GGUFBundle;
 import org.mark.llamacpp.gguf.GGUFMetaData;
 import org.mark.llamacpp.gguf.GGUFModel;
+import org.mark.llamacpp.gguf.GGUFMetaDataReader;
 import org.mark.llamacpp.server.struct.ApiResponse;
 import org.mark.llamacpp.server.struct.ModelPathConfig;
 import org.mark.llamacpp.server.struct.ModelPathDataStruct;
@@ -58,6 +60,11 @@ public class LlamaServerManager {
 	 * 	
 	 */
 	private static final Gson gson = new Gson();
+	
+	/**
+	 * 	这是锁。
+	 */
+	private static final ConcurrentHashMap<String, Object> CAPABILITIES_FILE_LOCKS = new ConcurrentHashMap<>();
 	
 	/**
 	 * 	
@@ -256,14 +263,303 @@ public class LlamaServerManager {
                         m.setFavourite(fav);
                     }
                 }
+				this.ensureCapabilitiesFilesExistForCurrentList();
             }
             // 如果集合不是空的，就直接返回。
             else {
+				this.ensureCapabilitiesFilesExistForCurrentList();
                 return this.list;
             }
         }
         return this.list;
     }
+    
+    /**
+     * 	锁定文件。
+     * @param modelId
+     * @return
+     */
+	private Object lockForCapabilitiesFile(String modelId) {
+		if (modelId == null) {
+			return this;
+		}
+		return CAPABILITIES_FILE_LOCKS.computeIfAbsent(modelId, k -> new Object());
+	}
+	
+	/**
+	 * 	获取文件路径
+	 * @param modelId
+	 * @return
+	 * @throws Exception
+	 */
+	private Path resolveCapabilitiesFilePath(String modelId) throws Exception {
+		String currentDir = System.getProperty("user.dir");
+		Path configDir = Paths.get(currentDir, "config" + File.separator + "capabilities");
+		if (!Files.exists(configDir)) {
+			Files.createDirectories(configDir);
+		}
+		String baseName = modelId == null ? "" : modelId.trim();
+		baseName = baseName.replace('\\', '_').replace('/', '_');
+		if (baseName.isEmpty()) {
+			throw new IllegalArgumentException("modelId不能为空");
+		}
+		String fileName = baseName.endsWith(".json") ? baseName : (baseName + ".json");
+		return configDir.resolve(fileName);
+	}
+
+	private static String safeLower(String s) {
+		return s == null ? "" : s.trim().toLowerCase();
+	}
+
+	private static boolean containsAny(String haystackLower, String... needlesLower) {
+		if (haystackLower == null || haystackLower.isEmpty() || needlesLower == null || needlesLower.length == 0) {
+			return false;
+		}
+		for (String n : needlesLower) {
+			if (n == null || n.isEmpty()) continue;
+			if (haystackLower.contains(n)) return true;
+		}
+		return false;
+	}
+
+	private Map<String, Object> resolveModelType(File primaryFile, GGUFMetaData primaryMeta, GGUFModel model) {
+		String fileName = primaryFile == null ? "" : primaryFile.getName();
+		String architecture = primaryMeta == null ? "" : primaryMeta.getArchitecture();
+		String baseName = primaryMeta == null ? "" : primaryMeta.getBaseName();
+		String name = primaryMeta == null ? "" : primaryMeta.getName();
+		String modelName = model == null ? "" : model.getName();
+
+		String combined = String.join(" ",
+				safeLower(fileName),
+				safeLower(architecture),
+				safeLower(baseName),
+				safeLower(name),
+				safeLower(modelName));
+
+		boolean rerank = containsAny(combined,
+				"rerank", "re-rank", "reranker", "ranker", "cross-encoder", "crossencoder", "cross_encoder");
+
+		boolean embedding = false;
+		if (!rerank) {
+			embedding = containsAny(combined,
+					"embedding", "embeddings", "text-embedding", "text_embedding", "embed", "e5", "gte", "jina", "nomic", "mxbai", "arctic-embed", "bge");
+		}
+		String archLower = safeLower(architecture);
+		if (!rerank && !embedding) {
+			if (containsAny(archLower, "bert", "roberta", "xlm-roberta", "xlm_roberta")) {
+				embedding = true;
+			}
+		}
+
+		String chatTemplate = "";
+		try {
+			if (primaryFile != null && primaryFile.exists() && primaryFile.isFile()) {
+				Map<String, Object> full = GGUFMetaDataReader.read(primaryFile);
+				Object tpl = full == null ? null : full.get("tokenizer.chat_template");
+				if (tpl != null) chatTemplate = String.valueOf(tpl);
+			}
+		} catch (Exception ignore) {
+		}
+
+		String tplLower = safeLower(chatTemplate);
+		boolean tools = containsAny(tplLower, "tool_call", "tool_calls", "tools", "mcp", "function");
+		if (!tools && tplLower.contains("tool")) {
+			tools = true;
+		}
+		boolean thinking = containsAny(tplLower, "enable_thinking", "thinking");
+		if (rerank || embedding) {
+			tools = false;
+			thinking = false;
+		}
+
+		Map<String, Object> out = new HashMap<>();
+		out.put("rerank", rerank);
+		out.put("embedding", embedding);
+		out.put("tools", tools);
+		out.put("thinking", thinking);
+		return out;
+	}
+	
+	/**
+	 * 	确保模型的能力信息文件存在。
+	 * @param model
+	 * @param primaryFile
+	 * @param primaryMeta
+	 */
+	private void ensureCapabilitiesFileExists(GGUFModel model, File primaryFile, GGUFMetaData primaryMeta) {
+		if (model == null) return;
+		String modelId = model.getModelId();
+		if (modelId == null || modelId.trim().isEmpty()) return;
+		try {
+			Path filePath = this.resolveCapabilitiesFilePath(modelId);
+			synchronized (this.lockForCapabilitiesFile(modelId)) {
+				if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
+					return;
+				}
+				Map<String, Object> caps = this.resolveModelType(primaryFile, primaryMeta, model);
+				Map<String, Object> payload = new HashMap<>();
+				payload.put("modelId", modelId);
+				payload.put("updatedAt", System.currentTimeMillis());
+				payload.put("autoGenerated", true);
+				if (caps != null) payload.putAll(caps);
+				String json = gson.toJson(payload);
+				Files.write(filePath, json.getBytes(StandardCharsets.UTF_8));
+			}
+		} catch (Exception ignore) {
+			ignore.printStackTrace();
+		}
+	}
+
+	private void ensureCapabilitiesFilesExistForCurrentList() {
+		for (GGUFModel m : this.list) {
+			this.ensureCapabilitiesFileExistsForModel(m);
+		}
+	}
+	
+	private void ensureCapabilitiesFileExistsForModel(GGUFModel model) {
+		if (model == null) return;
+		GGUFMetaData primary = model.getPrimaryModel();
+		if (primary == null) return;
+		String fp = primary.getFilePath();
+		if (fp == null || fp.trim().isEmpty()) return;
+		File primaryFile = new File(fp);
+		if (!primaryFile.exists() || !primaryFile.isFile()) return;
+		this.ensureCapabilitiesFileExists(model, primaryFile, primary);
+	}
+	
+	private void ensureCapabilitiesFileExistsForModelId(String modelId) {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) return;
+		GGUFModel model = this.findModelById(id);
+		this.ensureCapabilitiesFileExistsForModel(model);
+	}
+	
+	private JsonObject readCapabilitiesFileIfExists(String modelId) {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) {
+			return null;
+		}
+		try {
+			Path filePath = this.resolveCapabilitiesFilePath(id);
+			synchronized (this.lockForCapabilitiesFile(id)) {
+				if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
+					try {
+						String json = new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8);
+						return gson.fromJson(json, JsonObject.class);
+					} catch (Exception ignore) {
+						return null;
+					}
+				}
+			}
+			return null;
+		} catch (Exception ignore) {
+			return null;
+		}
+	}
+	
+	private static JsonObject buildDefaultCapabilities(String modelId) {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) {
+			return null;
+		}
+		JsonObject fallback = new JsonObject();
+		fallback.addProperty("modelId", id);
+		fallback.addProperty("tools", false);
+		fallback.addProperty("thinking", false);
+		fallback.addProperty("rerank", false);
+		fallback.addProperty("embedding", false);
+		return fallback;
+	}
+	
+	public JsonObject getModelCapabilities(String modelId) {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) {
+			return null;
+		}
+		
+		JsonObject out = this.readCapabilitiesFileIfExists(id);
+		if (out != null) {
+			return out;
+		}
+		
+		this.ensureCapabilitiesFileExistsForModelId(id);
+		
+		out = this.readCapabilitiesFileIfExists(id);
+		if (out != null) {
+			return out;
+		}
+		
+		return buildDefaultCapabilities(id);
+	}
+
+	public JsonObject getModelCapabilitiesSummary(String modelId) throws Exception {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) {
+			throw new IllegalArgumentException("缺少必需的modelId参数");
+		}
+		JsonObject caps = this.getModelCapabilities(id);
+		if (caps == null) {
+			throw new IllegalStateException("获取模型能力配置失败");
+		}
+		Path filePath = this.resolveCapabilitiesFilePath(id);
+		JsonObject out = new JsonObject();
+		out.addProperty("modelId", id);
+		out.addProperty("tools", ParamTool.parseJsonBoolean(caps, "tools", false));
+		out.addProperty("thinking", ParamTool.parseJsonBoolean(caps, "thinking", false));
+		out.addProperty("rerank", ParamTool.parseJsonBoolean(caps, "rerank", false));
+		out.addProperty("embedding", ParamTool.parseJsonBoolean(caps, "embedding", false));
+		out.addProperty("file", filePath.toString());
+		return out;
+	}
+
+	public JsonObject setModelCapabilities(String modelId, JsonObject capabilities) throws Exception {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) {
+			throw new IllegalArgumentException("缺少必需的modelId参数");
+		}
+		JsonObject capsObj = capabilities == null ? new JsonObject() : capabilities;
+		boolean tools = ParamTool.parseJsonBoolean(capsObj, "tools", false);
+		boolean thinking = ParamTool.parseJsonBoolean(capsObj, "thinking", false);
+		boolean rerank = ParamTool.parseJsonBoolean(capsObj, "rerank", false);
+		boolean embedding = ParamTool.parseJsonBoolean(capsObj, "embedding", false);
+
+		if (embedding && rerank) {
+			rerank = false;
+		}
+		boolean nonChat = rerank || embedding;
+		if (nonChat) {
+			tools = false;
+			thinking = false;
+		} else if (tools || thinking) {
+			rerank = false;
+			embedding = false;
+		}
+
+		JsonObject saved = new JsonObject();
+		saved.addProperty("modelId", id);
+		saved.addProperty("tools", tools);
+		saved.addProperty("thinking", thinking);
+		saved.addProperty("rerank", rerank);
+		saved.addProperty("embedding", embedding);
+		saved.addProperty("updatedAt", System.currentTimeMillis());
+
+		Path filePath = this.resolveCapabilitiesFilePath(id);
+		synchronized (this.lockForCapabilitiesFile(id)) {
+			Files.write(filePath, saved.toString().getBytes(StandardCharsets.UTF_8));
+		}
+
+		JsonObject out = new JsonObject();
+		out.addProperty("modelId", id);
+		out.addProperty("saved", true);
+		JsonObject outCaps = new JsonObject();
+		outCaps.addProperty("tools", tools);
+		outCaps.addProperty("thinking", thinking);
+		outCaps.addProperty("rerank", rerank);
+		outCaps.addProperty("embedding", embedding);
+		out.add("capabilities", outCaps);
+		out.addProperty("file", filePath.toString());
+		return out;
+	}
 
     /**
      * 	处理这个路径的文件夹，找到可用的GGUF文件。
@@ -325,9 +621,11 @@ public class LlamaServerManager {
 			
 			// 处理主模型文件
 			File primaryFile = bundle.getPrimaryFile();
+			GGUFMetaData primaryMeta = null;
 			if(primaryFile != null && primaryFile.exists()) {
 				GGUFMetaData md = GGUFMetaData.readFile(primaryFile);
 				if (md != null) {
+					primaryMeta = md;
 					model.setPrimaryModel(md);
 					// 将主模型元数据也添加到列表中，保持兼容性
 					model.addMetaData(md);
@@ -369,6 +667,10 @@ public class LlamaServerManager {
 						break;
 					}
 				}
+			}
+			
+			if (primaryFile != null && primaryFile.exists() && primaryFile.isFile()) {
+				this.ensureCapabilitiesFileExists(model, primaryFile, primaryMeta != null ? primaryMeta : model.getPrimaryModel());
 			}
 			
 			return model;
@@ -970,6 +1272,85 @@ public class LlamaServerManager {
 	}
 	
 	//##########################################################################################
+
+	private static final class HttpResult {
+		private final int statusCode;
+		private final String body;
+
+		private HttpResult(int statusCode, String body) {
+			this.statusCode = statusCode;
+			this.body = body == null ? "" : body;
+		}
+	}
+
+	private int requireLoadedModelPort(String modelId) {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) {
+			throw new IllegalArgumentException("缺少必需的modelId参数");
+		}
+		if (!this.getLoadedProcesses().containsKey(id)) {
+			throw new IllegalArgumentException("模型未加载: " + id);
+		}
+		Integer port = this.getModelPort(id);
+		if (port == null) {
+			throw new IllegalStateException("未找到模型端口: " + id);
+		}
+		return port.intValue();
+	}
+
+	private static String readAll(BufferedReader br) throws IOException {
+		if (br == null) {
+			return "";
+		}
+		StringBuilder sb = new StringBuilder();
+		String line;
+		while ((line = br.readLine()) != null) {
+			sb.append(line);
+		}
+		return sb.toString();
+	}
+
+	private HttpResult callLocalModelEndpoint(int port, String method, String endpoint, JsonObject body, int connectTimeoutMs, int readTimeoutMs) throws Exception {
+		String urlStr = String.format("http://localhost:%d%s", port, endpoint);
+		URL url = URI.create(urlStr).toURL();
+		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+		try {
+			connection.setRequestMethod(method);
+			connection.setConnectTimeout(connectTimeoutMs);
+			connection.setReadTimeout(readTimeoutMs);
+			if (body != null) {
+				connection.setDoOutput(true);
+				connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+				byte[] input = body.toString().getBytes(StandardCharsets.UTF_8);
+				try (OutputStream os = connection.getOutputStream()) {
+					os.write(input, 0, input.length);
+				}
+			}
+			int code = connection.getResponseCode();
+			boolean ok = code >= 200 && code < 300;
+			try (BufferedReader br = new BufferedReader(new InputStreamReader(ok ? connection.getInputStream() : connection.getErrorStream(), StandardCharsets.UTF_8))) {
+				return new HttpResult(code, readAll(br));
+			} catch (Exception e) {
+				return new HttpResult(code, "");
+			}
+		} finally {
+			try {
+				connection.disconnect();
+			} catch (Exception ignore) {
+			}
+		}
+	}
+
+	private Object tryParseJson(String body) {
+		if (body == null || body.isBlank()) {
+			return "";
+		}
+		try {
+			return gson.fromJson(body, Object.class);
+		} catch (Exception e) {
+			return body;
+		}
+	}
 	
 	
 	/**
@@ -979,57 +1360,21 @@ public class LlamaServerManager {
 	 */
 	public ApiResponse handleModelSlotsGet(String modelId) {
 		try {
-			if (!this.getLoadedProcesses().containsKey(modelId)) {
-				return ApiResponse.error("模型未加载: " + modelId);
-			}
-			Integer port = this.getModelPort(modelId);
-			if (port == null) {
-				return ApiResponse.error("未找到模型端口: " + modelId);
-			}
-			String targetUrl = String.format("http://localhost:%d/slots", port);
-			URL url = URI.create(targetUrl).toURL();
-			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("GET");
-			connection.setConnectTimeout(30000);
-			connection.setReadTimeout(30000);
-			int responseCode = connection.getResponseCode();
-			String responseBody;
-			if (responseCode >= 200 && responseCode < 300) {
-				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-					StringBuilder sb = new StringBuilder();
-					String line;
-					while ((line = br.readLine()) != null) {
-						sb.append(line);
-					}
-					responseBody = sb.toString();
-				}
-				Object parsed = gson.fromJson(responseBody, Object.class);
+			int port = this.requireLoadedModelPort(modelId);
+			HttpResult r = this.callLocalModelEndpoint(port, "GET", "/slots", null, 30000, 30000);
+			if (r.statusCode >= 200 && r.statusCode < 300) {
+				Object parsed = this.tryParseJson(r.body);
 				Map<String, Object> data = new HashMap<>();
 				data.put("modelId", modelId);
 				data.put("slots", parsed);
-				
-				connection.disconnect();
 				return ApiResponse.success(data);
-			} else {
-				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
-					StringBuilder sb = new StringBuilder();
-					String line;
-					while ((line = br.readLine()) != null) {
-						sb.append(line);
-					}
-					responseBody = sb.toString();
-				}
-				connection.disconnect();
-				return ApiResponse.error("获取slots失败: " + responseBody);
 			}
+			return ApiResponse.error("获取slots失败: " + r.body);
 		} catch (Exception e) {
 			logger.info("获取slots时发生错误", e);
 			return ApiResponse.error("获取slots失败: " + e.getMessage());
 		}
 	}
-	
-	
-	
 	
 	/**
 	 * 	
@@ -1039,64 +1384,20 @@ public class LlamaServerManager {
 	 * @return
 	 */
 	public ApiResponse handleModelSlotsSave(String modelId, int slot, String fileName) {
-		HttpURLConnection connection = null;
 		try {
-			// 两个判断
-			if (!this.getLoadedProcesses().containsKey(modelId)) {
-				return ApiResponse.error("模型未加载: " + modelId);
-			}
-			Integer port = this.getModelPort(modelId);
-			if (port == null) {
-				return ApiResponse.error("未找到模型端口: " + modelId);
-			}
-			
-			
+			int port = this.requireLoadedModelPort(modelId);
 			String endpoint = String.format("/slots/%d?action=save", slot);
-			String targetUrl = String.format("http://localhost:%d%s", port, endpoint);
-			URL url = URI.create(targetUrl).toURL();
-			connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("POST");
-			connection.setDoOutput(true);
-			connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-			connection.setConnectTimeout(36000 * 1000);
-			connection.setReadTimeout(36000 * 1000);
 			JsonObject body = new JsonObject();
 			body.addProperty("filename", fileName);
-			byte[] input = body.toString().getBytes(StandardCharsets.UTF_8);
-			try (OutputStream os = connection.getOutputStream()) {
-				os.write(input, 0, input.length);
-			}
-			int responseCode = connection.getResponseCode();
-			String responseBody;
-			if (responseCode >= 200 && responseCode < 300) {
-				try (BufferedReader br = new BufferedReader(
-						new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-					StringBuilder sb = new StringBuilder();
-					String line;
-					while ((line = br.readLine()) != null) {
-						sb.append(line);
-					}
-					responseBody = sb.toString();
-				}
-				Object parsed = gson.fromJson(responseBody, Object.class);
+			HttpResult r = this.callLocalModelEndpoint(port, "POST", endpoint, body, 36000 * 1000, 36000 * 1000);
+			if (r.statusCode >= 200 && r.statusCode < 300) {
+				Object parsed = this.tryParseJson(r.body);
 				Map<String, Object> data = new HashMap<>();
 				data.put("modelId", modelId);
 				data.put("result", parsed);
-				connection.disconnect();
 				return ApiResponse.success(data);
-			} else {
-				try (BufferedReader br = new BufferedReader(
-						new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
-					StringBuilder sb = new StringBuilder();
-					String line;
-					while ((line = br.readLine()) != null) {
-						sb.append(line);
-					}
-					responseBody = sb.toString();
-				}
-				connection.disconnect();
-				return ApiResponse.error("保存slot失败: " + responseBody);
 			}
+			return ApiResponse.error("保存slot失败: " + r.body);
 		} catch (Exception e) {
 			logger.info("保存slot缓存时发生错误", e);
 			return ApiResponse.error("保存slot失败: " + e.getMessage());
@@ -1112,58 +1413,19 @@ public class LlamaServerManager {
 	 */
 	public ApiResponse handleModelSlotsLoad(String modelId, int slot, String fileName) {
 		try {
-			if (!this.getLoadedProcesses().containsKey(modelId)) {
-				return ApiResponse.error("模型未加载: " + modelId);
-			}
-			Integer port = this.getModelPort(modelId);
-			if (port == null) {
-				return ApiResponse.error("未找到模型端口: " + modelId);
-			}
+			int port = this.requireLoadedModelPort(modelId);
 			String endpoint = String.format("/slots/%d?action=restore", slot);
-			String targetUrl = String.format("http://localhost:%d%s", port, endpoint);
-			URL url = URI.create(targetUrl).toURL();
-			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("POST");
-			connection.setDoOutput(true);
-			connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-			connection.setConnectTimeout(36000 * 1000);
-			connection.setReadTimeout(36000 * 1000);
 			JsonObject body = new JsonObject();
 			body.addProperty("filename", fileName);
-			byte[] input = body.toString().getBytes(StandardCharsets.UTF_8);
-			try (OutputStream os = connection.getOutputStream()) {
-				os.write(input, 0, input.length);
-			}
-			int responseCode = connection.getResponseCode();
-			String responseBody;
-			if (responseCode >= 200 && responseCode < 300) {
-				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-					StringBuilder sb = new StringBuilder();
-					String line;
-					while ((line = br.readLine()) != null) {
-						sb.append(line);
-					}
-					responseBody = sb.toString();
-				}
-				Object parsed = gson.fromJson(responseBody, Object.class);
+			HttpResult r = this.callLocalModelEndpoint(port, "POST", endpoint, body, 36000 * 1000, 36000 * 1000);
+			if (r.statusCode >= 200 && r.statusCode < 300) {
+				Object parsed = this.tryParseJson(r.body);
 				Map<String, Object> data = new HashMap<>();
 				data.put("modelId", modelId);
 				data.put("result", parsed);
-				
-				connection.disconnect();
 				return ApiResponse.success(data);
-			} else {
-				try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
-					StringBuilder sb = new StringBuilder();
-					String line;
-					while ((line = br.readLine()) != null) {
-						sb.append(line);
-					}
-					responseBody = sb.toString();
-				}
-				connection.disconnect();
-				return ApiResponse.error("加载slot失败: " + responseBody);
 			}
+			return ApiResponse.error("加载slot失败: " + r.body);
 		} catch (Exception e) {
 			logger.info("加载slot缓存时发生错误", e);
 			return ApiResponse.error("加载slot失败: " + e.getMessage());
@@ -1265,7 +1527,6 @@ public class LlamaServerManager {
 		String output = result.getError();
 		return output;
 	}
-	
 	
 	/**
 	 * 	停止所有模型进程并退出Java进程

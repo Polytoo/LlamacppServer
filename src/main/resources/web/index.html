@@ -380,6 +380,29 @@
                                 <select class="form-control" id="llamaBinPathSelect" name="llamaBinPathSelect"></select>
                             </div>
 
+                            <div class="form-group" id="modelCapabilitiesGroup">
+                                <label class="form-label">模型能力</label>
+                                <small class="form-text">手动标注模型能力/类型，处理无法准确识别的 GGUF 模型；更改将自动保存</small>
+                                <div style="border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.75rem;">
+                                    <div class="form-check" style="margin-bottom: 0.5rem;">
+                                        <input class="form-check-input" type="checkbox" id="capabilityThinking">
+                                        <label class="form-check-label" for="capabilityThinking">推理</label>
+                                    </div>
+                                    <div class="form-check" style="margin-bottom: 0.5rem;">
+                                        <input class="form-check-input" type="checkbox" id="capabilityTools">
+                                        <label class="form-check-label" for="capabilityTools">工具</label>
+                                    </div>
+                                    <div class="form-check" style="margin-bottom: 0.5rem;">
+                                        <input class="form-check-input" type="checkbox" id="capabilityRerank">
+                                        <label class="form-check-label" for="capabilityRerank">重排</label>
+                                    </div>
+                                    <div class="form-check" style="margin-bottom: 0;">
+                                        <input class="form-check-input" type="checkbox" id="capabilityEmbedding">
+                                        <label class="form-check-label" for="capabilityEmbedding">嵌入</label>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="form-group" id="enableVisionGroup" style="display:none;">
                                 <label class="form-label">启用视觉</label>
                                 <div class="form-check" style="margin-bottom: 0;">

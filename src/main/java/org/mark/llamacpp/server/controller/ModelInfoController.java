@@ -89,6 +89,17 @@ public class ModelInfoController implements BaseController {
 			this.handleModelDetailsRequest(ctx, request);
 			return true;
 		}
+		// 模型的能力设定
+		if(uri.startsWith("/api/models/capabilities/set")) {
+			this.handleModelCapabilitiesSetRequest(ctx, request);
+			return true;
+		}
+		// 模型的能力获取
+		if(uri.startsWith("/api/models/capabilities/get")) {
+			this.handleModelCapabilitiesGetRequest(ctx, request);
+			return true;
+		}
+		
 		//============================聊天模板相关============================
 		// 
 		if (uri.startsWith("/api/model/template/get")) {
@@ -138,6 +149,48 @@ public class ModelInfoController implements BaseController {
 		//============================其它============================
 		
 		return false;
+	}
+	
+	private void handleModelCapabilitiesSetRequest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		this.assertRequestMethod(request.method() != HttpMethod.POST, "只支持POST请求");
+		try {
+			String content = request.content().toString(CharsetUtil.UTF_8);
+			if (content == null || content.trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求体为空"));
+				return;
+			}
+			JsonObject json = JsonUtil.fromJson(content, JsonObject.class);
+			if (json == null) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("请求体解析失败"));
+				return;
+			}
+			String modelId = JsonUtil.getJsonString(json, "modelId", null);
+			if (modelId == null || modelId.trim().isEmpty()) {
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error("缺少必需的modelId参数"));
+				return;
+			}
+			JsonObject capsObj = (json.has("capabilities") && json.get("capabilities") != null && json.get("capabilities").isJsonObject())
+					? json.getAsJsonObject("capabilities")
+					: json;
+			JsonObject result = LlamaServerManager.getInstance().setModelCapabilities(modelId, capsObj);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(result));
+		} catch (Exception e) {
+			logger.info("保存模型能力配置时发生错误", e);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("保存模型能力配置失败: " + e.getMessage()));
+		}
+	}
+	
+	private void handleModelCapabilitiesGetRequest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
+		try {
+			Map<String, String> params = ParamTool.getQueryParam(request.uri());
+			String modelId = params.get("modelId");
+			JsonObject result = LlamaServerManager.getInstance().getModelCapabilitiesSummary(modelId);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(result));
+		} catch (Exception e) {
+			logger.info("获取模型能力配置时发生错误", e);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("获取模型能力配置失败: " + e.getMessage()));
+		}
 	}
 	
 	
