@@ -4,10 +4,18 @@
 
 > **注意**：尽管本项目作为 Java 应用具有跨平台的特性，但开发目标是专门用于 **AI MAX+ 395** 这台特殊的计算机平台。
 ---
-> **注意**：Anthropic API 并不完善。
----
 > **注意**：关于Linux的编译脚本，请注意JAVA_HOME的配置，默认使用该路径：/opt/jdk-24.0.2/。请修改为你所使用的路径再进行编译，并且修改时请务必注意：Windows 使用 CRLF（\r\n）作为换行符，而 Linux 使用 LF（\n）。
 ---
+
+## API兼容情况（llamacpp自身支持OpenAI Compatible和Anthropic API）
+| 类型 | 接口路径 | 说明 |
+|------|----------|------|
+| 兼容 Ollama 的 | `/api/tags`<br>`/api/show`<br>`/api/chat`<br>`/api/embed`<br>`/api/ps` | 支持 Ollama 兼容接口，可用于模型查看、聊天、嵌入向量等操作 |
+| 不兼容 Ollama 的 | `/api/copy`<br>`/api/delete`<br>`/api/pull`<br>`/api/push`<br>`/api/generate` | 不支持 Ollama 的相关操作，如模型复制、删除、拉取、推送和生成 |
+| 兼容 lmStudio 的 | `/api/v0/models`<br>`/api/v0/chat/completions` | 支持 lmStudio 的模型查询与对话功能 |
+| 不兼容 lmStudio 的 | `/api/v0/completions`<br>`/api/v0/embeddings` | 不支持 lmStudio 的完整生成和嵌入接口（还没做） |
+
+
 
 ## 主要功能
 
