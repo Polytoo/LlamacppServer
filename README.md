@@ -10,10 +10,9 @@
 ## API兼容情况（llamacpp自身支持OpenAI Compatible和Anthropic API）
 | 类型 | 接口路径 | 说明 |
 |------|----------|------|
-| 兼容 Ollama 的 | `/api/tags`<br>`/api/show`<br>`/api/chat`<br>`/api/embed`<br>`/api/ps` | 支持 Ollama 兼容接口，可用于模型查看、聊天、嵌入向量等操作 |
-| 不兼容 Ollama 的 | `/api/copy`<br>`/api/delete`<br>`/api/pull`<br>`/api/push`<br>`/api/generate` | 不支持 Ollama 的相关操作，如模型复制、删除、拉取、推送和生成 |
-| 兼容 lmStudio 的 | `/api/v0/models`<br>`/api/v0/chat/completions` | 支持 lmStudio 的模型查询与对话功能 |
-| 不兼容 lmStudio 的 | `/api/v0/completions`<br>`/api/v0/embeddings` | 不支持 lmStudio 的完整生成和嵌入接口（还没做） |
+| 兼容 Ollama | `/api/tags`<br>`/api/show`<br>`/api/chat`<br>`/api/embed`<br>`/api/ps` | 支持 Ollama 兼容接口，可用于模型查看、聊天、嵌入向量等操作 |
+| 不兼容 Ollama | `/api/copy`<br>`/api/delete`<br>`/api/pull`<br>`/api/push`<br>`/api/generate` | 不支持 Ollama 的相关操作，如模型复制、删除、拉取、推送和生成 |
+| 兼容 lmStudio | `/api/v0/models`<br>`/api/v0/chat/completions`<br>`/api/v0/completions`<br>`/api/v0/embeddings` | 支持 lmStudio 的模型查询、对话、嵌入和生成功能 |
 
 
 
