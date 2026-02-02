@@ -11,6 +11,23 @@
         speedByTaskId: {}
     };
 
+    function t(key, fallback) {
+        if (window.I18N && typeof window.I18N.t === 'function') {
+            return window.I18N.t(key, fallback);
+        }
+        return fallback == null ? key : fallback;
+    }
+
+    function tf(key, params, fallback) {
+        const template = t(key, fallback);
+        if (!params || template == null) return template;
+        let out = String(template);
+        for (const k of Object.keys(params)) {
+            out = out.split(`{${k}}`).join(String(params[k]));
+        }
+        return out;
+    }
+
     function closeModal(id) {
         if (typeof window.closeModal === 'function') {
             window.closeModal(id);
@@ -117,16 +134,28 @@
             if (!data || !data.type) return;
             switch (data.type) {
                 case 'notification':
-                    showToast(data.title || '通知', data.message || '', data.level || 'info');
+                    showToast(data.title || t('toast.info', '提示'), data.message || '', data.level || 'info');
                     break;
                 case 'download_update':
                     if (data.taskId) {
                         updateDownloadItem(data.taskId, data);
                         if (data.state) {
                             if (data.state === 'COMPLETED') {
-                                showToast('下载完成', `文件 ${data.fileName || data.taskId} 下载完成`, 'success');
+                                showToast(
+                                    t('download.toast.completed.title', '下载完成'),
+                                    tf('download.toast.completed.message', { name: data.fileName || data.taskId }, '下载任务 {name} 已完成'),
+                                    'success'
+                                );
                             } else if (data.state === 'FAILED') {
-                                showToast('下载失败', `文件 ${data.fileName || data.taskId} 下载失败: ${data.errorMessage || '未知错误'}`, 'error');
+                                showToast(
+                                    t('download.toast.failed.title', '下载失败'),
+                                    tf(
+                                        'download.toast.failed.message',
+                                        { name: data.fileName || data.taskId, error: data.errorMessage || t('common.unknown_error', '未知错误') },
+                                        '下载任务 {name} 失败: {error}'
+                                    ),
+                                    'error'
+                                );
                             }
                         }
                     }
@@ -136,7 +165,7 @@
                     break;
             }
         } catch (error) {
-            console.error('处理WebSocket消息失败:', error);
+            console.error(t('log.ws_message_handle_failed', '处理WebSocket消息失败:'), error);
         }
     }
 
@@ -153,7 +182,7 @@
                     renderDownloadsList();
                     updateStats();
                 } else {
-                    throw new Error((data && data.error) ? data.error : '获取下载列表失败');
+                    throw new Error((data && data.error) ? data.error : t('download.list_fetch_failed', '获取下载列表失败'));
                 }
             })
             .catch(error => {
@@ -161,9 +190,9 @@
                 downloadsList.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        <div class="empty-state-title">加载失败</div>
-                        <div class="empty-state-text">${error.message || '网络错误'}</div>
-                        <button class="btn btn-primary" onclick="DownloadManager.refreshDownloads()">重试</button>
+                        <div class="empty-state-title">${t('common.load_failed', '加载失败')}</div>
+                        <div class="empty-state-text">${error.message || t('common.network_error', '网络错误')}</div>
+                        <button class="btn btn-primary" onclick="DownloadManager.refreshDownloads()">${t('common.retry', '重试')}</button>
                     </div>
                 `;
             });
@@ -177,9 +206,9 @@
             downloadsList.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon"><i class="fas fa-download"></i></div>
-                    <div class="empty-state-title">没有下载任务</div>
-                    <div class="empty-state-text">点击"创建下载任务"按钮添加新的下载任务</div>
-                    <button class="btn btn-primary" onclick="DownloadManager.openCreateDownloadModal()">创建下载任务</button>
+                    <div class="empty-state-title">${t('download.empty.title', '没有下载任务')}</div>
+                    <div class="empty-state-text">${t('download.empty.desc', '点击“创建下载任务”按钮添加新的下载任务')}</div>
+                    <button class="btn btn-primary" onclick="DownloadManager.openCreateDownloadModal()">${t('page.download.create_task', '创建下载任务')}</button>
                 </div>
             `;
             return;
@@ -213,25 +242,28 @@
         let html = '';
         sortedDownloads.forEach(download => {
             const status = download && download.state ? download.state : 'IDLE';
-            let statusText = '正在开始……';
+            let statusText = t('download.status.starting', '正在开始……');
             let statusIcon = 'fa-question-circle';
             let statusClass = 'status-idle';
 
             switch (status) {
                 case 'DOWNLOADING':
-                    statusText = '下载中'; statusIcon = 'fa-spinner fa-spin'; statusClass = 'status-downloading';
+                    statusText = t('download.status.downloading', '下载中'); statusIcon = 'fa-spinner fa-spin'; statusClass = 'status-downloading';
                     break;
                 case 'IDLE':
-                    statusText = '等待中'; statusIcon = 'fa-clock'; statusClass = 'status-idle';
+                    statusText = t('download.status.pending', '等待中'); statusIcon = 'fa-clock'; statusClass = 'status-idle';
                     break;
                 case 'COMPLETED':
-                    statusText = '已完成'; statusIcon = 'fa-check-circle'; statusClass = 'status-completed';
+                    statusText = t('download.status.completed', '已完成'); statusIcon = 'fa-check-circle'; statusClass = 'status-completed';
                     break;
                 case 'FAILED':
-                    statusText = '失败'; statusIcon = 'fa-exclamation-circle'; statusClass = 'status-failed';
+                    statusText = t('download.status.failed', '失败'); statusIcon = 'fa-exclamation-circle'; statusClass = 'status-failed';
                     break;
                 case 'PAUSED':
-                    statusText = '已暂停'; statusIcon = 'fa-pause-circle'; statusClass = 'status-paused';
+                    statusText = t('download.status.paused', '已暂停'); statusIcon = 'fa-pause-circle'; statusClass = 'status-paused';
+                    break;
+                default:
+                    statusText = t('download.status.unknown', '未知');
                     break;
             }
 
@@ -240,25 +272,25 @@
             if (taskId) {
                 if (status === 'DOWNLOADING') {
                     actionButtons = `
-                        <button class="btn-icon" onclick="DownloadManager.pauseDownload('${taskId}')" title="暂停">
+                        <button class="btn-icon" onclick="DownloadManager.pauseDownload('${taskId}')" title="${escapeHtml(t('download.action.pause', '暂停'))}">
                             <i class="fas fa-pause"></i>
                         </button>
-                        <button class="btn-icon danger" onclick="DownloadManager.deleteDownload('${taskId}')" title="删除">
+                        <button class="btn-icon danger" onclick="DownloadManager.deleteDownload('${taskId}')" title="${escapeHtml(t('common.delete', '删除'))}">
                             <i class="fas fa-trash"></i>
                         </button>
                     `;
                 } else if (status === 'IDLE' || status === 'FAILED' || status === 'PAUSED') {
                     actionButtons = `
-                        <button class="btn-icon primary" onclick="DownloadManager.resumeDownload('${taskId}')" title="恢复">
+                        <button class="btn-icon primary" onclick="DownloadManager.resumeDownload('${taskId}')" title="${escapeHtml(t('download.action.resume', '恢复'))}">
                             <i class="fas fa-play"></i>
                         </button>
-                        <button class="btn-icon danger" onclick="DownloadManager.deleteDownload('${taskId}')" title="删除">
+                        <button class="btn-icon danger" onclick="DownloadManager.deleteDownload('${taskId}')" title="${escapeHtml(t('common.delete', '删除'))}">
                             <i class="fas fa-trash"></i>
                         </button>
                     `;
                 } else if (status === 'COMPLETED') {
                     actionButtons = `
-                        <button class="btn-icon danger" onclick="DownloadManager.deleteDownload('${taskId}')" title="删除">
+                        <button class="btn-icon danger" onclick="DownloadManager.deleteDownload('${taskId}')" title="${escapeHtml(t('common.delete', '删除'))}">
                             <i class="fas fa-trash"></i>
                         </button>
                     `;
@@ -272,7 +304,7 @@
             const speedInfo = taskId && state.speedByTaskId ? state.speedByTaskId[taskId] : null;
             const speedText = status === 'DOWNLOADING' ? formatSpeed(speedInfo && typeof speedInfo.speedBps === 'number' ? speedInfo.speedBps : 0) : '-';
 
-            const fileNameText = download && download.fileName ? String(download.fileName) : '未知文件';
+            const fileNameText = download && download.fileName ? String(download.fileName) : t('download.unknown_file', '未知文件');
             const targetPathText = download && download.targetPath ? String(download.targetPath) : '';
             const urlText = download && download.url ? String(download.url) : '';
             const fullPathText = joinPath(targetPathText, download && download.fileName ? String(download.fileName) : '');
@@ -437,7 +469,7 @@
                 return (data && data.path) ? data.path : '';
             })
             .catch(error => {
-                console.error('获取下载路径失败:', error);
+                console.error(t('log.download_path_get_failed', '获取下载路径失败:'), error);
                 return '';
             });
     }
@@ -462,11 +494,11 @@
         const fileName = fileNameEl ? String(fileNameEl.value || '').trim() : '';
 
         if (!url) {
-            showToast('错误', '请输入下载URL', 'error');
+            showToast(t('toast.error', '错误'), t('download.validation.url_required', '请输入下载URL'), 'error');
             return;
         }
         if (!path) {
-            showToast('错误', '请输入保存路径', 'error');
+            showToast(t('toast.error', '错误'), t('download.validation.path_required', '请输入保存路径'), 'error');
             return;
         }
 
@@ -481,15 +513,15 @@
         .then(response => response.json())
         .then(data => {
             if (data && data.success) {
-                showToast('成功', '下载任务创建成功', 'success');
+                showToast(t('toast.success', '成功'), t('download.toast.task_created', '任务已创建'), 'success');
                 closeModal('createDownloadModal');
                 refreshDownloads();
             } else {
-                showToast('错误', (data && data.error) ? data.error : '创建下载任务失败', 'error');
+                showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('download.toast.create_failed', '创建下载任务失败'), 'error');
             }
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
     }
 
@@ -501,11 +533,11 @@
         })
         .then(response => response.json())
         .then(data => {
-            if (data && data.success) showToast('成功', '下载任务已暂停', 'success');
-            else showToast('错误', (data && data.error) ? data.error : '暂停任务失败', 'error');
+            if (data && data.success) showToast(t('toast.success', '成功'), t('download.toast.paused', '已暂停'), 'success');
+            else showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('download.toast.pause_failed', '暂停失败'), 'error');
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
     }
 
@@ -517,16 +549,16 @@
         })
         .then(response => response.json())
         .then(data => {
-            if (data && data.success) showToast('成功', '下载任务已恢复', 'success');
-            else showToast('错误', (data && data.error) ? data.error : '恢复任务失败', 'error');
+            if (data && data.success) showToast(t('toast.success', '成功'), t('download.toast.resumed', '已恢复'), 'success');
+            else showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('download.toast.resume_failed', '恢复失败'), 'error');
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
     }
 
     function deleteDownload(taskId) {
-        if (!confirm('确定要删除这个下载任务吗？')) return;
+        if (!confirm(t('confirm.download.delete', '确定要删除这个下载任务吗？'))) return;
 
         fetch('/api/downloads/delete', {
             method: 'POST',
@@ -536,14 +568,14 @@
         .then(response => response.json())
         .then(data => {
             if (data && data.success) {
-                showToast('成功', '下载任务已删除', 'success');
+                showToast(t('toast.success', '成功'), t('download.toast.deleted', '已删除'), 'success');
                 refreshDownloads();
             } else {
-                showToast('错误', (data && data.error) ? data.error : '删除任务失败', 'error');
+                showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('download.toast.delete_failed', '删除失败'), 'error');
             }
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
     }
 
@@ -562,7 +594,7 @@
         const el = document.getElementById('defaultDownloadPath');
         const path = el ? String(el.value || '').trim() : '';
         if (!path) {
-            showToast('错误', '请输入下载路径', 'error');
+            showToast(t('toast.error', '错误'), t('download.validation.download_dir_required', '请输入下载路径'), 'error');
             return;
         }
 
@@ -574,14 +606,14 @@
         .then(response => response.json())
         .then(data => {
             if (data && data.path) {
-                showToast('成功', '下载路径设置成功', 'success');
+                showToast(t('toast.success', '成功'), t('toast.saved', '已保存'), 'success');
                 closeModal('settingsModal');
             } else {
-                showToast('错误', '设置下载路径失败', 'error');
+                showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('common.save_failed', '保存失败'), 'error');
             }
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
     }
 

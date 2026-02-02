@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Llama.cpp 模型管理系统</title>
+    <title data-i18n="app.title">app.title</title>
     <link rel="stylesheet" href="css/all.min.css">
     <link href="css/css2.css" rel="stylesheet">
     <link rel="stylesheet" href="css/index.css">
@@ -21,40 +21,40 @@
         
             <a href="#" class="nav-item active" id="nav-model-list" onclick="showModelList(); return false;">
                 <i class="fas fa-cubes"></i>
-                <span>模型列表</span>
+                <span data-i18n="nav.model_list">nav.model_list</span>
             </a>
             <a href="chat/completion.html" class="nav-item" target="_blank" id="nav-chat-completion">
                 <i class="fas fa-comments"></i>
-                <span>对话界面</span>
+                <span data-i18n="nav.chat">nav.chat</span>
             </a>
             <a href="#" class="nav-item" id="nav-download" onclick="showDownloadManager(); return false;">
                 <i class="fas fa-download"></i>
-                <span>下载管理</span>
+                <span data-i18n="nav.download">nav.download</span>
             </a>
             <a href="#" class="nav-item" id="nav-hf" onclick="showHuggingFace(); return false;">
                 <i class="fas fa-cloud"></i>
-                <span>HuggingFace 模型</span>
+                <span data-i18n="nav.hf">nav.hf</span>
             </a>
             <a href="#" class="nav-item" onclick="openConsoleModal(); return false;">
                 <i class="fas fa-terminal"></i>
-                <span>控制台日志</span>
+                <span data-i18n="nav.console">nav.console</span>
             </a>
             <a href="#" class="nav-item" id="nav-llamacpp" onclick="showLlamaCppSetting(); return false;">
                 <i class="fas fa-microchip"></i>
-                <span>Llama.cpp 路径</span>
+                <span data-i18n="nav.llamacpp">nav.llamacpp</span>
             </a>
             <a href="#" class="nav-item" id="nav-model-path" onclick="showModelPathSetting(); return false;">
                 <i class="fas fa-folder-open"></i>
-                <span>模型路径配置</span>
+                <span data-i18n="nav.model_path">nav.model_path</span>
             </a>
             <a href="#" class="nav-item" id="nav-settings" onclick="showSettingsPage(); return false;">
                 <i class="fas fa-cog"></i>
-                <span>设置</span>
+                <span data-i18n="nav.settings">nav.settings</span>
             </a>
             <div style="flex: 1"></div>
              <a href="#" class="nav-item danger" onclick="shutdownService(); return false;">
                 <i class="fas fa-power-off"></i>
-                <span>停止服务</span>
+                <span data-i18n="nav.shutdown">nav.shutdown</span>
             </a>
         </nav>
         <div class="sidebar-footer">
@@ -68,13 +68,13 @@
     <main class="main-area" id="main-model-list">
         <!-- Top Bar -->
         <div class="top-bar">
-            <h1 class="page-title">模型管理</h1>
+            <h1 class="page-title" data-i18n="page.model.title">page.model.title</h1>
             <div class="top-actions">
                 <div class="search-box">
                     <i class="fas fa-search search-icon"></i>
-                    <input type="text" id="modelSearchInput" class="search-input" placeholder="搜索模型...">
+                    <input type="text" id="modelSearchInput" class="search-input" placeholder="page.model.search_placeholder" data-i18n="page.model.search_placeholder" data-i18n-attr="placeholder">
                 </div>
-                <button class="btn btn-secondary" onclick="refreshModels()" title="刷新列表">
+                <button class="btn btn-secondary" onclick="refreshModels()" title="common.refresh" data-i18n="common.refresh" data-i18n-attr="title">
                     <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
@@ -90,7 +90,7 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="loadedModelsCount">0</h3>
-                        <p>已加载模型</p>
+                        <p data-i18n="page.model.stats.loaded">page.model.stats.loaded</p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -99,7 +99,7 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="totalModelsCount">0</h3>
-                        <p>模型总数</p>
+                        <p data-i18n="page.model.stats.total">page.model.stats.total</p>
                     </div>
                 </div>
             </div>
@@ -107,15 +107,15 @@
             <!-- Model List -->
             <div class="model-list-container">
                 <div class="model-list-header">
-                    <h2>所有模型</h2>
+                    <h2 data-i18n="page.model.section.all">page.model.section.all</h2>
                     <div style="margin-left: auto;">
                         <select id="modelSortSelect" class="form-control" style="padding: 4px 8px; width: auto; font-size: 0.875rem;" onchange="sortAndRenderModels()">
-                            <option value="name_asc">名称 (A-Z)</option>
-                            <option value="name_desc">名称 (Z-A)</option>
-                            <option value="size_asc">文件大小 (小到大)</option>
-                            <option value="size_desc">文件大小 (大到小)</option>
-                            <option value="params_asc">参数量 (小到大)</option>
-                            <option value="params_desc">参数量 (大到小)</option>
+                            <option value="name_asc" data-i18n="page.model.sort.name_asc">page.model.sort.name_asc</option>
+                            <option value="name_desc" data-i18n="page.model.sort.name_desc">page.model.sort.name_desc</option>
+                            <option value="size_asc" data-i18n="page.model.sort.size_asc">page.model.sort.size_asc</option>
+                            <option value="size_desc" data-i18n="page.model.sort.size_desc">page.model.sort.size_desc</option>
+                            <option value="params_asc" data-i18n="page.model.sort.params_asc">page.model.sort.params_asc</option>
+                            <option value="params_desc" data-i18n="page.model.sort.params_desc">page.model.sort.params_desc</option>
                         </select>
                     </div>
                 </div>
@@ -130,11 +130,11 @@
 
     <main class="main-area" id="main-download" style="display: none">
         <div class="top-bar">
-            <h1 class="page-title">下载管理</h1>
+            <h1 class="page-title" data-i18n="page.download.title">page.download.title</h1>
             <div class="top-actions">
                 <button class="btn btn-primary" onclick="DownloadManager.openCreateDownloadModal()" style="display: none">
                     <i class="fas fa-plus"></i>
-                    创建下载任务
+                    <span data-i18n="page.download.create_task">page.download.create_task</span>
                 </button>
             </div>
         </div>
@@ -147,7 +147,7 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="activeDownloadsCount">0</h3>
-                        <p>活跃下载</p>
+                        <p data-i18n="page.download.stats.active">page.download.stats.active</p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -156,7 +156,7 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="pendingDownloadsCount">0</h3>
-                        <p>等待队列</p>
+                        <p data-i18n="page.download.stats.pending">page.download.stats.pending</p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -165,7 +165,7 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="completedDownloadsCount">0</h3>
-                        <p>已完成</p>
+                        <p data-i18n="page.download.stats.completed">page.download.stats.completed</p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -174,16 +174,16 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="totalDownloadsCount">0</h3>
-                        <p>总任务数</p>
+                        <p data-i18n="page.download.stats.total">page.download.stats.total</p>
                     </div>
                 </div>
             </div>
 
             <div class="download-list-container">
                 <div class="download-list-header">
-                    <h2>下载任务</h2>
+                    <h2 data-i18n="page.download.section.tasks">page.download.section.tasks</h2>
                     <div style="margin-left: auto;">
-                        <button class="btn btn-secondary" onclick="DownloadManager.refreshDownloads()" title="刷新列表">
+                        <button class="btn btn-secondary" onclick="DownloadManager.refreshDownloads()" title="common.refresh" data-i18n="common.refresh" data-i18n-attr="title">
                             <i class="fas fa-sync-alt"></i>
                         </button>
                     </div>
@@ -201,9 +201,9 @@
     <main class="main-area" id="main-llamacpp-setting" style="display: none">
         <!-- Top Bar -->
         <div class="top-bar">
-            <h1 class="page-title">Llama.cpp 路径管理</h1>
+            <h1 class="page-title" data-i18n="page.llamacpp.title">page.llamacpp.title</h1>
             <div class="top-actions">
-                <button class="btn btn-secondary" onclick="loadLlamaCppList()" title="刷新列表">
+                <button class="btn btn-secondary" onclick="loadLlamaCppList()" title="common.refresh" data-i18n="common.refresh" data-i18n-attr="title">
                     <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
@@ -219,7 +219,7 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="llamacppCount">0</h3>
-                        <p>已配置路径</p>
+                        <p data-i18n="page.llamacpp.stats.configured">page.llamacpp.stats.configured</p>
                     </div>
                 </div>
             </div>
@@ -227,9 +227,9 @@
             <!-- Llama.cpp List -->
             <div class="model-list-container">
                 <div class="model-list-header">
-                    <h2>Llama.cpp 路径列表</h2>
+                    <h2 data-i18n="page.llamacpp.section.list">page.llamacpp.section.list</h2>
                     <button class="btn btn-primary" onclick="openAddLlamaCppModal()">
-                        <i class="fas fa-plus"></i> 添加路径
+                        <i class="fas fa-plus"></i> <span data-i18n="common.add_path">common.add_path</span>
                     </button>
                 </div>
                 <div id="llamacppList">
@@ -244,9 +244,9 @@
     <main class="main-area" id="main-model-path-setting" style="display: none">
         <!-- Top Bar -->
         <div class="top-bar">
-            <h1 class="page-title">模型路径配置</h1>
+            <h1 class="page-title" data-i18n="page.model_path.title">page.model_path.title</h1>
             <div class="top-actions">
-                <button class="btn btn-secondary" onclick="loadModelPathList()" title="刷新列表">
+                <button class="btn btn-secondary" onclick="loadModelPathList()" title="common.refresh" data-i18n="common.refresh" data-i18n-attr="title">
                     <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
@@ -262,7 +262,7 @@
                     </div>
                     <div class="stat-info">
                         <h3 id="modelPathCount">0</h3>
-                        <p>已配置路径</p>
+                        <p data-i18n="page.model_path.stats.configured">page.model_path.stats.configured</p>
                     </div>
                 </div>
             </div>
@@ -270,9 +270,9 @@
             <!-- Model Path List -->
             <div class="model-list-container">
                 <div class="model-list-header">
-                    <h2>模型路径列表</h2>
+                    <h2 data-i18n="page.model_path.section.list">page.model_path.section.list</h2>
                     <button class="btn btn-primary" onclick="openAddModelPathModal()">
-                        <i class="fas fa-plus"></i> 添加路径
+                        <i class="fas fa-plus"></i> <span data-i18n="common.add_path">common.add_path</span>
                     </button>
                 </div>
                 <div id="modelPathList">
@@ -286,23 +286,23 @@
 
     <main class="main-area" id="main-settings" style="display: none">
         <div class="top-bar">
-            <h1 class="page-title">设置</h1>
+            <h1 class="page-title" data-i18n="page.settings.title">page.settings.title</h1>
         </div>
 
         <div class="content-scrollable">
             <div class="settings-layout">
-                <div class="settings-menu" role="tablist" aria-label="设置选项">
+                <div class="settings-menu" role="tablist" aria-label="page.settings.menu.aria" data-i18n="page.settings.menu.aria" data-i18n-attr="aria-label">
                     <button class="settings-menu-item active" type="button" role="tab" aria-selected="true" data-tab="general" onclick="selectSettingsTab('general')">
                         <i class="fas fa-sliders-h"></i>
-                        <span>常规设置</span>
+                        <span data-i18n="page.settings.menu.general">page.settings.menu.general</span>
                     </button>
                     <button class="settings-menu-item" type="button" role="tab" aria-selected="false" data-tab="stress" onclick="selectSettingsTab('stress')">
                         <i class="fas fa-bolt"></i>
-                        <span>压力测试</span>
+                        <span data-i18n="page.settings.menu.stress">page.settings.menu.stress</span>
                     </button>
                     <button class="settings-menu-item" type="button" role="tab" aria-selected="false" data-tab="mcp" onclick="selectSettingsTab('mcp')">
                         <i class="fas fa-toolbox"></i>
-                        <span>MCP 管理</span>
+                        <span data-i18n="page.settings.menu.mcp">page.settings.menu.mcp</span>
                     </button>
                 </div>
 
@@ -310,12 +310,12 @@
                     <div class="settings-panel" data-tab-panel="general">
                         <div class="model-list-container">
                             <div class="model-list-header">
-                                <h2>常规设置</h2>
+                                <h2 data-i18n="page.settings.general.title">page.settings.general.title</h2>
                             </div>
                             <div class="settings-panel-body">
                                 <div class="form-group" style="margin: 0;">
-                                    <label class="form-label">兼容服务</label>
-                                    <small class="form-text">用于快速启停本机兼容服务（Ollama / LMStudio）。</small>
+                                    <label class="form-label" data-i18n="page.settings.general.compat.title">page.settings.general.compat.title</label>
+                                    <small class="form-text" data-i18n="page.settings.general.compat.desc">page.settings.general.compat.desc</small>
                                 </div>
                                 <div class="settings-toggle-list">
                                     <div class="settings-toggle-row">
@@ -325,12 +325,12 @@
                                         </div>
                                         <div class="settings-compat-actions">
                                             <div class="settings-port-field">
-                                                <span class="settings-port-label">端口</span>
+                                                <span class="settings-port-label" data-i18n="common.port">common.port</span>
                                                 <input class="form-control settings-port-input" type="number" min="1" max="65535" step="1" id="ollamaCompatPortInput" placeholder="11434">
                                             </div>
                                             <div class="form-check" style="margin: 0;">
                                                 <input class="form-check-input" type="checkbox" id="toggleOllamaCompat">
-                                                <label class="form-check-label" for="toggleOllamaCompat">启用</label>
+                                                <label class="form-check-label" for="toggleOllamaCompat" data-i18n="common.enable">common.enable</label>
                                             </div>
                                         </div>
                                     </div>
@@ -341,34 +341,34 @@
                                         </div>
                                         <div class="settings-compat-actions">
                                             <div class="settings-port-field">
-                                                <span class="settings-port-label">端口</span>
+                                                <span class="settings-port-label" data-i18n="common.port">common.port</span>
                                                 <input class="form-control settings-port-input" type="number" min="1" max="65535" step="1" id="lmstudioCompatPortInput" placeholder="1234">
                                             </div>
                                             <div class="form-check" style="margin: 0;">
                                                 <input class="form-check-input" type="checkbox" id="toggleLmstudioCompat">
-                                                <label class="form-check-label" for="toggleLmstudioCompat">启用</label>
+                                                <label class="form-check-label" for="toggleLmstudioCompat" data-i18n="common.enable">common.enable</label>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="settings-actions-row">
-                                    <button class="btn btn-primary" type="button" id="saveCompatPortsBtn">保存端口</button>
+                                    <button class="btn btn-primary" type="button" id="saveCompatPortsBtn" data-i18n="page.settings.general.compat.save_ports">page.settings.general.compat.save_ports</button>
                                 </div>
                             </div>
                         </div>
 
                         <div class="model-list-container" style="margin-top: 1rem;">
                             <div class="model-list-header">
-                                <h2>联网搜索</h2>
+                                <h2 data-i18n="page.settings.search.title">page.settings.search.title</h2>
                             </div>
                             <div class="settings-panel-body">
                                 <div class="form-group" style="margin: 0;">
-                                    <label class="form-label" for="zhipuSearchApiKeyInput">智谱 API Key</label>
-                                    <input type="password" class="form-control" id="zhipuSearchApiKeyInput" placeholder="填写后点击保存">
-                                    <small class="form-text">默认使用智谱的联网搜索工具，由于本软件默认只有Http，无法保证网络安全，请确保在内网等安全的环境下使用，保护好自己的Key（我还没有时间开发基于搜索引擎的联网搜索，就拿这个凑合吧）。</small>
+                                    <label class="form-label" for="zhipuSearchApiKeyInput" data-i18n="page.settings.search.zhipu_api_key">page.settings.search.zhipu_api_key</label>
+                                    <input type="password" class="form-control" id="zhipuSearchApiKeyInput" placeholder="page.settings.search.zhipu_api_key_placeholder" data-i18n="page.settings.search.zhipu_api_key_placeholder" data-i18n-attr="placeholder">
+                                    <small class="form-text" data-i18n="page.settings.search.zhipu_desc">page.settings.search.zhipu_desc</small>
                                 </div>
                                 <div class="settings-actions-row">
-                                    <button class="btn btn-primary" type="button" id="saveZhipuSearchApiKeyBtn">保存</button>
+                                    <button class="btn btn-primary" type="button" id="saveZhipuSearchApiKeyBtn" data-i18n="common.save">common.save</button>
                                 </div>
                             </div>
                         </div>
@@ -377,13 +377,13 @@
                     <div class="settings-panel" data-tab-panel="stress" style="display: none;">
                         <div class="model-list-container">
                             <div class="model-list-header">
-                                <h2>压力测试</h2>
+                                <h2 data-i18n="page.settings.stress.title">page.settings.stress.title</h2>
                                 <div style="margin-left: auto;">
-                                    <a class="btn btn-secondary" href="chat/concurrency.html" target="_blank" rel="noopener">新窗口打开</a>
+                                    <a class="btn btn-secondary" href="chat/concurrency.html" target="_blank" rel="noopener" data-i18n="common.open_new_window">common.open_new_window</a>
                                 </div>
                             </div>
                             <div class="settings-panel-body">
-                                <iframe class="settings-embed-frame" title="压力测试" data-src="chat/concurrency.html" loading="lazy"></iframe>
+                                <iframe class="settings-embed-frame" title="page.settings.stress.title" data-i18n="page.settings.stress.title" data-i18n-attr="title" data-src="chat/concurrency.html" loading="lazy"></iframe>
                             </div>
                         </div>
                     </div>
@@ -391,13 +391,13 @@
                     <div class="settings-panel" data-tab-panel="mcp" style="display: none;">
                         <div class="model-list-container">
                             <div class="model-list-header">
-                                <h2>MCP 管理</h2>
+                                <h2 data-i18n="page.settings.mcp.title">page.settings.mcp.title</h2>
                                 <div style="margin-left: auto;">
-                                    <a class="btn btn-secondary" href="tools/mcp-manager.html" target="_blank" rel="noopener">新窗口打开</a>
+                                    <a class="btn btn-secondary" href="tools/mcp-manager.html" target="_blank" rel="noopener" data-i18n="common.open_new_window">common.open_new_window</a>
                                 </div>
                             </div>
                             <div class="settings-panel-body">
-                                <iframe class="settings-embed-frame" title="MCP 管理" data-src="tools/mcp-manager.html" loading="lazy"></iframe>
+                                <iframe class="settings-embed-frame" title="page.settings.mcp.title" data-i18n="page.settings.mcp.title" data-i18n-attr="title" data-src="tools/mcp-manager.html" loading="lazy"></iframe>
                             </div>
                         </div>
                     </div>
@@ -408,14 +408,14 @@
 
     <main class="main-area" id="main-hf" style="display: none">
         <div class="top-bar">
-            <h1 class="page-title">HuggingFace 模型浏览</h1>
+            <h1 class="page-title" data-i18n="page.hf.title">page.hf.title</h1>
         </div>
 
         <div class="content-scrollable">
             <div class="hf-search-row">
                 <div class="search-box">
                     <i class="fas fa-search search-icon"></i>
-                    <input type="text" id="hfSearchInput" class="search-input" placeholder="搜索 GGUF 模型（例如：Qwen3 8B）">
+                    <input type="text" id="hfSearchInput" class="search-input" placeholder="page.hf.search_placeholder" data-i18n="page.hf.search_placeholder" data-i18n-attr="placeholder">
                 </div>
                 <select id="hfBaseSelect" class="form-control" style="padding: 4px 8px; width: auto; font-size: 0.875rem;">
                     <option value="mirror" selected>hf-mirror.com</option>
@@ -428,15 +428,15 @@
                 </select>
                 <button class="btn btn-primary" onclick="hfSearch()">
                     <i class="fas fa-search"></i>
-                    搜索
+                    <span data-i18n="common.search">common.search</span>
                 </button>
             </div>
             <div class="model-list-container">
                 <div id="hfHitsList">
-                    <div class="empty-state">输入关键字并点击搜索</div>
+                    <div class="empty-state" data-i18n="page.hf.empty_state">page.hf.empty_state</div>
                 </div>
                 <div class="hf-hits-footer" id="hfHitsFooter" style="display:none;">
-                    <button class="btn btn-secondary" id="hfLoadMoreBtn" onclick="hfLoadMore()">加载更多</button>
+                    <button class="btn btn-secondary" id="hfLoadMoreBtn" onclick="hfLoadMore()" data-i18n="common.load_more">common.load_more</button>
                 </div>
             </div>
         </div>
@@ -446,29 +446,29 @@
     <div class="modal" id="addLlamaCppModal">
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
-                <h3 class="modal-title">添加 Llama.cpp 路径</h3>
+                <h3 class="modal-title" data-i18n="modal.llamacpp_add.title">modal.llamacpp_add.title</h3>
                 <button class="modal-close" onclick="closeModal('addLlamaCppModal')">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">目录路径 <span style="color: red;">*</span></label>
+                    <label class="form-label"><span data-i18n="modal.llamacpp_add.path">modal.llamacpp_add.path</span> <span style="color: red;">*</span></label>
                     <input class="form-control" id="addLlamaCppPathInput" placeholder="/path/to/llama.cpp">
-                    <small class="form-text">输入已编译的 llama.cpp 根目录路径。</small>
+                    <small class="form-text" data-i18n="modal.llamacpp_add.path_desc">modal.llamacpp_add.path_desc</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">名称</label>
+                    <label class="form-label" data-i18n="common.name">common.name</label>
                     <input class="form-control" id="addLlamaCppNameInput" placeholder="llama.cpp">
-                    <small class="form-text">可选，留空则使用目录名作为名称。</small>
+                    <small class="form-text" data-i18n="modal.llamacpp_add.name_desc">modal.llamacpp_add.name_desc</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">描述</label>
-                    <textarea class="form-control" id="addLlamaCppDescInput" rows="3" placeholder="描述信息"></textarea>
-                    <small class="form-text">可选，添加关于此路径的描述。</small>
+                    <label class="form-label" data-i18n="common.description">common.description</label>
+                    <textarea class="form-control" id="addLlamaCppDescInput" rows="3" placeholder="common.description_placeholder" data-i18n="common.description_placeholder" data-i18n-attr="placeholder"></textarea>
+                    <small class="form-text" data-i18n="modal.llamacpp_add.desc_desc">modal.llamacpp_add.desc_desc</small>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('addLlamaCppModal')">取消</button>
-                <button class="btn btn-primary" onclick="addLlamaCpp()">保存</button>
+                <button class="btn btn-secondary" onclick="closeModal('addLlamaCppModal')" data-i18n="common.cancel">common.cancel</button>
+                <button class="btn btn-primary" onclick="addLlamaCpp()" data-i18n="common.save">common.save</button>
             </div>
         </div>
     </div>
@@ -478,7 +478,7 @@
     <div class="modal" id="loadModelModal">
         <div class="modal-content load-model-modal">
             <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-upload" id="modelActionModalIcon"></i> <span id="modelActionModalTitleText">加载模型</span></h3>
+                <h3 class="modal-title"><i class="fas fa-upload" id="modelActionModalIcon"></i> <span id="modelActionModalTitleText" data-i18n="modal.model_action.title.load">modal.model_action.title.load</span></h3>
                 <button class="modal-close" onclick="closeModal('loadModelModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -488,62 +488,62 @@
                         <!-- 左侧：模型ID、Llama.cpp 版本、设备选择 -->
                         <div id="basicParamsContainer">
                             <div class="form-group">
-                                <label class="form-label" for="modelId">模型ID</label>
+                                <label class="form-label" for="modelId" data-i18n="modal.model_action.model_id">modal.model_action.model_id</label>
                                 <input type="text" class="form-control" id="modelId" name="modelId" readonly style="background-color: #f3f4f6; display: none;">
                                 <input type="text" class="form-control" id="modelName" name="modelName" readonly style="background-color: #f3f4f6;">
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label" for="llamaBinPathSelect">Llama.cpp 版本</label>
+                                <label class="form-label" for="llamaBinPathSelect" data-i18n="modal.model_action.llamacpp_version">modal.model_action.llamacpp_version</label>
                                 <select class="form-control" id="llamaBinPathSelect" name="llamaBinPathSelect"></select>
                             </div>
 
                             <div class="form-group" id="modelCapabilitiesGroup">
-                                <label class="form-label">模型能力</label>
-                                <small class="form-text">手动标注模型能力/类型，处理无法准确识别的 GGUF 模型；更改将自动保存</small>
+                                <label class="form-label" data-i18n="modal.model_action.capabilities.title">modal.model_action.capabilities.title</label>
+                                <small class="form-text" data-i18n="modal.model_action.capabilities.desc">modal.model_action.capabilities.desc</small>
                                 <div style="border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.75rem;">
                                     <div class="form-check" style="margin-bottom: 0.5rem;">
                                         <input class="form-check-input" type="checkbox" id="capabilityThinking">
-                                        <label class="form-check-label" for="capabilityThinking">推理</label>
+                                        <label class="form-check-label" for="capabilityThinking" data-i18n="modal.model_action.capabilities.thinking">modal.model_action.capabilities.thinking</label>
                                     </div>
                                     <div class="form-check" style="margin-bottom: 0.5rem;">
                                         <input class="form-check-input" type="checkbox" id="capabilityTools">
-                                        <label class="form-check-label" for="capabilityTools">工具</label>
+                                        <label class="form-check-label" for="capabilityTools" data-i18n="modal.model_action.capabilities.tools">modal.model_action.capabilities.tools</label>
                                     </div>
                                     <div class="form-check" style="margin-bottom: 0.5rem;">
                                         <input class="form-check-input" type="checkbox" id="capabilityRerank">
-                                        <label class="form-check-label" for="capabilityRerank">重排（还请手动开启对应开关）</label>
+                                        <label class="form-check-label" for="capabilityRerank" data-i18n="modal.model_action.capabilities.rerank">modal.model_action.capabilities.rerank</label>
                                     </div>
                                     <div class="form-check" style="margin-bottom: 0;">
                                         <input class="form-check-input" type="checkbox" id="capabilityEmbedding">
-                                        <label class="form-check-label" for="capabilityEmbedding">嵌入（还请手动开启对应开关）</label>
+                                        <label class="form-check-label" for="capabilityEmbedding" data-i18n="modal.model_action.capabilities.embedding">modal.model_action.capabilities.embedding</label>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="form-group" id="enableVisionGroup" style="display:none;">
-                                <label class="form-label">启用视觉</label>
+                                <label class="form-label" data-i18n="modal.model_action.vision.title">modal.model_action.vision.title</label>
                                 <div class="form-check" style="margin-bottom: 0;">
                                     <input class="form-check-input" type="checkbox" id="enableVision" name="enableVision" checked>
-                                    <label class="form-check-label" for="enableVision">启用</label>
+                                    <label class="form-check-label" for="enableVision" data-i18n="common.enable">common.enable</label>
                                 </div>
-                                <small class="form-text">关闭后将不会使用 --mmproj 参数，即不启用多模态</small>
+                                <small class="form-text" data-i18n="modal.model_action.vision.desc">modal.model_action.vision.desc</small>
                             </div>
                             
                             <div class="form-group" id="mainGpuGroup">
-                                <label class="form-label" for="mainGpuSelect">主GPU (main-gpu)</label>
+                                <label class="form-label" for="mainGpuSelect" data-i18n="modal.model_action.main_gpu">modal.model_action.main_gpu</label>
                                 <select class="form-control" id="mainGpuSelect" name="mg">
-                                    <option value="-1">默认</option>
+                                    <option value="-1" data-i18n="common.default">common.default</option>
                                 </select>
-                                <small class="form-text">选择 llama.cpp 运行所使用的主要 GPU</small>
+                                <small class="form-text" data-i18n="modal.model_action.main_gpu_desc">modal.model_action.main_gpu_desc</small>
                                 <small class="form-text" id="ctxSizeVramHint" style="color: red; font-weight: 500; white-space: pre-wrap; display: block; margin-top: 8px;"></small>
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">可用计算设备</label>
-                                <small class="form-text">默认已勾选全部设备；取消勾选可排除设备</small>
+                                <label class="form-label" data-i18n="modal.model_action.devices.title">modal.model_action.devices.title</label>
+                                <small class="form-text" data-i18n="modal.model_action.devices.desc">modal.model_action.devices.desc</small>
                                 <div id="deviceChecklist" style="border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.75rem; max-height: 260px; overflow: auto;">
-                                    <div class="settings-empty">请先选择 Llama.cpp 版本</div>
+                                    <div class="settings-empty" data-i18n="modal.model_action.devices.empty">modal.model_action.devices.empty</div>
                                 </div>
                             </div>
                         </div>
@@ -563,10 +563,10 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('loadModelModal')">取消</button>
-                <button class="btn btn-secondary" id="estimateVramBtn" onclick="estimateVramAction()"><i class="fas fa-memory"></i> 估算显存</button>
-                <button class="btn btn-secondary" id="modelActionResetBtn" style="display:none;" onclick="resetModelBenchmarkForm()">重置</button>
-                <button class="btn btn-primary" id="modelActionSubmitBtn" onclick="submitModelAction()">加载模型</button>
+                <button class="btn btn-secondary" onclick="closeModal('loadModelModal')" data-i18n="common.cancel">common.cancel</button>
+                <button class="btn btn-secondary" id="estimateVramBtn" onclick="estimateVramAction()"><i class="fas fa-memory"></i> <span data-i18n="modal.model_action.estimate_vram">modal.model_action.estimate_vram</span></button>
+                <button class="btn btn-secondary" id="modelActionResetBtn" style="display:none;" onclick="resetModelBenchmarkForm()" data-i18n="common.reset">common.reset</button>
+                <button class="btn btn-primary" id="modelActionSubmitBtn" onclick="submitModelAction()" data-i18n="modal.model_action.submit.load">modal.model_action.submit.load</button>
             </div>
         </div>
     </div>
@@ -574,27 +574,27 @@
     <div class="modal" id="addModelPathModal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
-                <h3 class="modal-title">添加模型目录</h3>
+                <h3 class="modal-title" data-i18n="modal.model_path_add.title.add">modal.model_path_add.title.add</h3>
                 <button class="modal-close" onclick="closeModal('addModelPathModal')">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">名称</label>
-                    <input class="form-control" id="addModelPathNameInput" placeholder="例如：本地模型库">
+                    <label class="form-label" data-i18n="common.name">common.name</label>
+                    <input class="form-control" id="addModelPathNameInput" placeholder="modal.model_path_add.name_placeholder" data-i18n="modal.model_path_add.name_placeholder" data-i18n-attr="placeholder">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">目录路径</label>
+                    <label class="form-label" data-i18n="common.directory_path">common.directory_path</label>
                     <input class="form-control" id="addModelPathInput" placeholder="/path/to/models">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">描述</label>
-                    <input class="form-control" id="addModelPathDescInput" placeholder="可选：说明用途、存放的模型类型等">
-                    <small class="form-text">支持多个模型根目录，将合并检索其中所有 GGUF 模型。</small>
+                    <label class="form-label" data-i18n="common.description">common.description</label>
+                    <input class="form-control" id="addModelPathDescInput" placeholder="modal.model_path_add.desc_placeholder" data-i18n="modal.model_path_add.desc_placeholder" data-i18n-attr="placeholder">
+                    <small class="form-text" data-i18n="modal.model_path_add.desc">modal.model_path_add.desc</small>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('addModelPathModal')">取消</button>
-                <button class="btn btn-primary" onclick="addModelPath()">保存</button>
+                <button class="btn btn-secondary" onclick="closeModal('addModelPathModal')" data-i18n="common.cancel">common.cancel</button>
+                <button class="btn btn-primary" onclick="addModelPath()" data-i18n="common.save">common.save</button>
             </div>
         </div>
     </div>
@@ -603,17 +603,17 @@
     <div class="modal" id="consoleModal">
         <div class="modal-content" style="max-width: 1000px; height: 85vh;">
             <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-terminal"></i> 控制台输出</h3>
+                <h3 class="modal-title"><i class="fas fa-terminal"></i> <span data-i18n="modal.console.title">modal.console.title</span></h3>
                 <button class="modal-close" onclick="closeModal('consoleModal')">&times;</button>
             </div>
             <div class="modal-body" style="display: flex; flex-direction: column; padding: 0;">
                 <div style="display:flex; align-items:center; gap:12px; padding:12px; border-bottom:1px solid var(--border-color); background: #f8f9fa;">
-                    <button class="btn btn-secondary btn-sm" id="refreshConsoleBtn"><i class="fas fa-sync-alt"></i> 刷新</button>
+                    <button class="btn btn-secondary btn-sm" id="refreshConsoleBtn"><i class="fas fa-sync-alt"></i> <span data-i18n="common.refresh">common.refresh</span></button>
                     <label style="display:inline-flex; align-items:center; gap:6px; font-size: 14px;">
-                        <input type="checkbox" id="autoRefreshConsole"> 自动刷新
+                        <input type="checkbox" id="autoRefreshConsole"> <span data-i18n="modal.console.auto_refresh">modal.console.auto_refresh</span>
                     </label>
                     <label style="display:inline-flex; align-items:center; gap:6px; font-size: 14px;">
-                        间隔(ms)
+                        <span data-i18n="modal.console.interval_ms">modal.console.interval_ms</span>
                         <input class="form-control" type="number" id="intervalConsoleInput" value="2000" min="500" style="width:80px; padding: 4px 8px;">
                     </label>
                     <div id="consoleStatusText" style="font-size:12px; color:var(--text-secondary); margin-left:auto;"></div>
@@ -623,7 +623,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('consoleModal')">关闭</button>
+                <button class="btn btn-secondary" onclick="closeModal('consoleModal')" data-i18n="common.close">common.close</button>
             </div>
         </div>
     </div>
@@ -631,25 +631,25 @@
     <div class="modal" id="hfGgufModal">
         <div class="modal-content" style="max-width: 1100px; height: 85vh;background-color: #f9fafb;">
             <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-file"></i> GGUF 文件</h3>
+                <h3 class="modal-title"><i class="fas fa-file"></i> <span data-i18n="modal.hf_gguf.title">modal.hf_gguf.title</span></h3>
                 <button class="modal-close" onclick="closeModal('hfGgufModal')">&times;</button>
             </div>
             <div class="modal-body" style="display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
                 <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
                     <div class="mono" id="hfGgufModalRepo" style="color: var(--text-secondary); font-size: 0.875rem; font-weight: 700;">-</div>
                     <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="copyAllGgufLinks()" title="复制所有下载链接">
+                        <button class="btn btn-secondary btn-sm" onclick="copyAllGgufLinks()" title="modal.hf_gguf.copy_all_title" data-i18n="modal.hf_gguf.copy_all_title" data-i18n-attr="title">
                             <i class="fas fa-copy"></i>
-                            复制全部
+                            <span data-i18n="modal.hf_gguf.copy_all">modal.hf_gguf.copy_all</span>
                         </button>
                     </div>
                 </div>
                 <div id="hfGgufList" style="flex: 1; min-height: 0; overflow: auto;">
-                    <div class="empty-state">选择一个模型以列出 GGUF 文件</div>
+                    <div class="empty-state" data-i18n="modal.hf_gguf.empty">modal.hf_gguf.empty</div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('hfGgufModal')">关闭</button>
+                <button class="btn btn-secondary" onclick="closeModal('hfGgufModal')" data-i18n="common.close">common.close</button>
             </div>
         </div>
     </div>
@@ -657,33 +657,33 @@
     <div class="modal" id="createDownloadModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-download"></i> 创建下载任务</h3>
+                <h3 class="modal-title"><i class="fas fa-download"></i> <span data-i18n="modal.download_create.title">modal.download_create.title</span></h3>
                 <button class="modal-close" onclick="closeModal('createDownloadModal')">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="createDownloadForm">
                     <div class="form-group">
-                        <label class="form-label" for="downloadUrl">下载URL</label>
+                        <label class="form-label" for="downloadUrl" data-i18n="modal.download_create.url">modal.download_create.url</label>
                         <input type="url" class="form-control" id="downloadUrl" name="downloadUrl" placeholder="https://example.com/file.zip" required>
-                        <small class="form-text">输入要下载的文件的完整URL地址</small>
+                        <small class="form-text" data-i18n="modal.download_create.url_desc">modal.download_create.url_desc</small>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="downloadPath">保存路径</label>
+                        <label class="form-label" for="downloadPath" data-i18n="modal.download_create.path">modal.download_create.path</label>
                         <input type="text" class="form-control" id="downloadPath" name="downloadPath" placeholder="downloads" value="C:\Users\Mark\Downloads" required>
-                        <small class="form-text">文件保存的相对路径，默认为downloads目录</small>
+                        <small class="form-text" data-i18n="modal.download_create.path_desc">modal.download_create.path_desc</small>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="downloadFileName">文件名（可选）</label>
-                        <input type="text" class="form-control" id="downloadFileName" name="downloadFileName" placeholder="留空使用URL中的文件名">
-                        <small class="form-text">自定义保存的文件名，留空则使用URL中的原始文件名</small>
+                        <label class="form-label" for="downloadFileName" data-i18n="modal.download_create.filename_optional">modal.download_create.filename_optional</label>
+                        <input type="text" class="form-control" id="downloadFileName" name="downloadFileName" placeholder="modal.download_create.filename_placeholder" data-i18n="modal.download_create.filename_placeholder" data-i18n-attr="placeholder">
+                        <small class="form-text" data-i18n="modal.download_create.filename_desc">modal.download_create.filename_desc</small>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('createDownloadModal')">取消</button>
-                <button class="btn btn-primary" onclick="DownloadManager.submitCreateDownload()">创建任务</button>
+                <button class="btn btn-secondary" onclick="closeModal('createDownloadModal')" data-i18n="common.cancel">common.cancel</button>
+                <button class="btn btn-primary" onclick="DownloadManager.submitCreateDownload()" data-i18n="modal.download_create.submit">modal.download_create.submit</button>
             </div>
         </div>
     </div>
@@ -691,21 +691,21 @@
     <div class="modal" id="settingsModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-cog"></i> 系统设置</h3>
+                <h3 class="modal-title"><i class="fas fa-cog"></i> <span data-i18n="modal.system_settings.title">modal.system_settings.title</span></h3>
                 <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="settingsForm">
                     <div class="form-group">
-                        <label class="form-label" for="defaultDownloadPath">默认下载目录</label>
+                        <label class="form-label" for="defaultDownloadPath" data-i18n="modal.system_settings.default_download_dir">modal.system_settings.default_download_dir</label>
                         <input type="text" class="form-control" id="defaultDownloadPath" name="defaultDownloadPath" placeholder="download">
-                        <small class="form-text">设置默认的文件下载保存路径</small>
+                        <small class="form-text" data-i18n="modal.system_settings.default_download_dir_desc">modal.system_settings.default_download_dir_desc</small>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('settingsModal')">取消</button>
-                <button class="btn btn-primary" onclick="DownloadManager.saveSettings()">保存设置</button>
+                <button class="btn btn-secondary" onclick="closeModal('settingsModal')" data-i18n="common.cancel">common.cancel</button>
+                <button class="btn btn-primary" onclick="DownloadManager.saveSettings()" data-i18n="modal.system_settings.save">modal.system_settings.save</button>
             </div>
         </div>
     </div>
@@ -714,6 +714,7 @@
     <div id="dynamicModalRoot"></div>
     <div class="toast-container" id="toastContainer"></div>
 
+    <script src="js/i18n.js"></script>
     <script src="js/websocket.js"></script>
     <script src="js/console-modal.js"></script>
     <script src="js/model-llamacpp-setting.js"></script>
@@ -723,7 +724,15 @@
     <script>
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', function() {
-            loadModels();
+            let didLoadModels = false;
+            function loadModelsOnce() {
+                if (didLoadModels) return;
+                didLoadModels = true;
+                window.removeEventListener('i18n:ready', loadModelsOnce);
+                loadModels();
+            }
+            window.addEventListener('i18n:ready', loadModelsOnce);
+            if (window.I18N) loadModelsOnce();
             initWebSocket();
             initModelSearch();
             loadParamConfig();
@@ -732,6 +741,13 @@
             initSettingsForms();
             loadCompatServiceStatus();
         });
+
+        function t(key, fallback) {
+            if (window.I18N && typeof window.I18N.t === 'function') {
+                return window.I18N.t(key, fallback);
+            }
+            return fallback == null ? key : fallback;
+        }
 
         function isMobileBrowser() {
             const ua = (navigator.userAgent || '').toLowerCase();
@@ -762,15 +778,15 @@
                         paramConfig = data.params;
                         renderDynamicParams();
                     } else {
-                        console.error('加载参数配置失败:', data.error || '未知错误');
+                        console.error(t('log.params.load_failed', '加载参数配置失败:'), data.error || t('common.unknown_error', '未知错误'));
                         document.getElementById('dynamicParamsContainer').innerHTML =
-                            '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">加载失败</div><div class="empty-state-text">无法加载参数配置</div></div>';
+                            `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">${t('common.load_failed', '加载失败')}</div><div class="empty-state-text">${t('page.params.unable_load', '无法加载参数配置')}</div></div>`;
                     }
                 })
                 .catch(error => {
-                    console.error('加载参数配置出错:', error);
+                    console.error(t('log.params.load_error', '加载参数配置出错:'), error);
                     document.getElementById('dynamicParamsContainer').innerHTML =
-                        '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">网络错误</div><div class="empty-state-text">无法连接到服务器</div></div>';
+                        `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">${t('common.network_error', '网络错误')}</div><div class="empty-state-text">${t('common.unable_connect_server', '无法连接到服务器')}</div></div>`;
                 });
         }
         
@@ -795,9 +811,9 @@
             
             // 添加额外参数输入框
             html += '<div class="form-group" style="margin-top: 1rem;">';
-            html += '<label class="form-label" for="extraParams">额外参数</label>';
-            html += '<textarea class="form-control" id="extraParams" name="extraParams" rows="2" placeholder="例如: --grp-attn-n 8 --grp-attn-w 512"></textarea>';
-            html += '<small class="form-text">输入额外的命令行参数，用空格分隔</small>';
+            html += `<label class="form-label" for="extraParams">${t('page.params.extra_params', '额外参数')}</label>`;
+            html += `<textarea class="form-control" id="extraParams" name="extraParams" rows="2" placeholder="${t('page.params.extra_params_placeholder', '例如: --grp-attn-n 8 --grp-attn-w 512')}"></textarea>`;
+            html += `<small class="form-text">${t('page.params.extra_params_desc', '输入额外的命令行参数，用空格分隔')}</small>`;
             html += '</div>';
             
             container.innerHTML = html;
@@ -908,17 +924,17 @@
                 modal.innerHTML = `
                     <div class="modal-content slots-modal">
                         <div class="modal-header">
-                            <h3 class="modal-title">缓存管理 - ${displayName}</h3>
+                            <h3 class="modal-title">${t('modal.slots.title', '缓存管理')} - ${displayName}</h3>
                             <button class="modal-close" onclick="closeModal('${modalId}')">&times;</button>
                         </div>
                         <div class="modal-body" id="${modalId}Content">
-                            <div style="padding: 12px;">加载中...</div>
+                            <div style="padding: 12px;">${t('common.loading', '加载中...')}</div>
                         </div>
                         <div class="modal-footer">
-                            <button class="btn btn-secondary" onclick="closeModal('${modalId}')">关闭</button>
-                            <button class="btn btn-primary" onclick="saveSelectedSlot('${modelId}')">保存</button>
-                            <button class="btn btn-primary" onclick="loadSelectedSlot('${modelId}')">读取</button>
-                            <button class="btn btn-primary" onclick="fetchSlotsForModel('${modelId}')">刷新</button>
+                            <button class="btn btn-secondary" onclick="closeModal('${modalId}')">${t('common.close', '关闭')}</button>
+                            <button class="btn btn-primary" onclick="saveSelectedSlot('${modelId}')">${t('common.save', '保存')}</button>
+                            <button class="btn btn-primary" onclick="loadSelectedSlot('${modelId}')">${t('modal.slots.load', '读取')}</button>
+                            <button class="btn btn-primary" onclick="fetchSlotsForModel('${modelId}')">${t('common.refresh', '刷新')}</button>
                         </div>
                     </div>`;
                 document.body.appendChild(modal);
@@ -934,7 +950,7 @@
                 .then(d => {
                     if (!d.success) {
                         const el = document.getElementById('slotsModalContent') || document.getElementById('slotsModal').querySelector('.modal-body');
-                        if (el) el.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">加载失败</div><div class="empty-state-text">${d.error || '未知错误'}</div></div>`;
+                        if (el) el.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">${t('common.load_failed', '加载失败')}</div><div class="empty-state-text">${d.error || t('common.unknown_error', '未知错误')}</div></div>`;
                         return;
                     }
                     const slots = (d.data && d.data.slots) ? d.data.slots : [];
@@ -942,7 +958,7 @@
                 })
                 .catch(e => {
                     const el = document.getElementById('slotsModalContent') || document.getElementById('slotsModal').querySelector('.modal-body');
-                    if (el) el.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">网络错误</div><div class="empty-state-text">${e.message || ''}</div></div>`;
+                    if (el) el.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">${t('common.network_error', '网络错误')}</div><div class="empty-state-text">${e.message || ''}</div></div>`;
                 });
         }
 
@@ -950,13 +966,13 @@
             const selectEl = document.getElementById('slotSelect');
             const slots = window.__slotsData || [];
             if (!selectEl || !slots.length) {
-                showToast('错误', '未找到可保存的Slot', 'error');
+                showToast(t('toast.error', '错误'), t('modal.slots.save.not_found', '未找到可保存的Slot'), 'error');
                 return;
             }
             const idx = parseInt(selectEl.value, 10) || 0;
             const slot = slots[idx];
             if (!slot && idx < 0) {
-                showToast('错误', '未选择有效的Slot', 'error');
+                showToast(t('toast.error', '错误'), t('modal.slots.invalid', '未选择有效的Slot'), 'error');
                 return;
             }
             let slotId = slot && slot.id !== undefined ? slot.id : idx;
@@ -968,12 +984,12 @@
                 body: JSON.stringify({ modelId, slotId })
             }).then(r => r.json()).then(res => {
                 if (res && res.success) {
-                    showToast('成功', '保存成功', 'success');
+                    showToast(t('toast.success', '成功'), t('modal.slots.save.success', '保存成功'), 'success');
                 } else {
-                    showToast('错误', (res && res.error) ? res.error : '保存失败', 'error');
+                    showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('modal.slots.save.failed', '保存失败'), 'error');
                 }
             }).catch(() => {
-                showToast('错误', '网络请求失败', 'error');
+                showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
             });
         }
         
@@ -981,13 +997,13 @@
             const selectEl = document.getElementById('slotSelect');
             const slots = window.__slotsData || [];
             if (!selectEl || !slots.length) {
-                showToast('错误', '未找到可读取的Slot', 'error');
+                showToast(t('toast.error', '错误'), t('modal.slots.load.not_found', '未找到可读取的Slot'), 'error');
                 return;
             }
             const idx = parseInt(selectEl.value, 10) || 0;
             const slot = slots[idx];
             if (!slot && idx < 0) {
-                showToast('错误', '未选择有效的Slot', 'error');
+                showToast(t('toast.error', '错误'), t('modal.slots.invalid', '未选择有效的Slot'), 'error');
                 return;
             }
             let slotId = slot && slot.id !== undefined ? slot.id : idx;
@@ -999,12 +1015,12 @@
                 body: JSON.stringify({ modelId, slotId })
             }).then(r => r.json()).then(res => {
                 if (res && res.success) {
-                    showToast('成功', '读取成功', 'success');
+                    showToast(t('toast.success', '成功'), t('modal.slots.load.success', '读取成功'), 'success');
                 } else {
-                    showToast('错误', (res && res.error) ? res.error : '读取失败', 'error');
+                    showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('modal.slots.load.failed', '读取失败'), 'error');
                 }
             }).catch(() => {
-                showToast('错误', '网络请求失败', 'error');
+                showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
             });
         }
 
@@ -1013,7 +1029,7 @@
             const body = document.getElementById('slotsModalContent') || (modal ? modal.querySelector('.modal-body') : null);
             if (!body) return;
             if (!slots || !slots.length) {
-                body.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-database"></i></div><div class="empty-state-title">无可用Slot</div><div class="empty-state-text">当前模型没有可用的处理槽位</div></div>`;
+                body.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-database"></i></div><div class="empty-state-title">${t('modal.slots.empty_title', '无可用Slot')}</div><div class="empty-state-text">${t('modal.slots.empty_desc', '当前模型没有可用的处理槽位')}</div></div>`;
                 return;
             }
             window.__slotsData = slots;
@@ -1027,11 +1043,11 @@
             })();
             let html = '';
             html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">`;
-            html += `<label class="form-label" for="slotSelect" style="margin:0;">选择 Slot</label>`;
+            html += `<label class="form-label" for="slotSelect" style="margin:0;">${t('modal.slots.select', '选择 Slot')}</label>`;
             html += `<select class="form-control" id="slotSelect" style="max-width:320px;">`;
             slots.forEach((s, idx) => {
                 const id = s.id !== undefined ? s.id : idx;
-                const running = s.is_processing ? '处理中' : '空闲';
+                const running = s.is_processing ? t('modal.slots.status.processing', '处理中') : t('modal.slots.status.idle', '空闲');
                 const nctx = s.n_ctx !== undefined ? s.n_ctx : '';
                 html += `<option value="${idx}">ID ${id} · ${running} · ctx ${nctx}</option>`;
             });
@@ -1074,7 +1090,7 @@
                 const toastHtml = `
                     <div class="toast info" id="loading-toast-${modelId}">
                         <div class="toast-icon"><i class="fas fa-spinner fa-spin"></i></div>
-                        <div class="toast-content"><div class="toast-title">加载中</div><div class="toast-message">正在加载...</div></div>
+                        <div class="toast-content"><div class="toast-title">${t('toast.loading.title', '加载中')}</div><div class="toast-message">${t('toast.loading.message', '正在加载...')}</div></div>
                     </div>`;
                 toastContainer.insertAdjacentHTML('beforeend', toastHtml);
             }
@@ -1090,7 +1106,7 @@
                 body: JSON.stringify({ modelId })
             }).then(r => r.json()).then(d => {
                 if (!d.success) {
-                    showToast('错误', d.error, 'error');
+                    showToast(t('toast.error', '错误'), d.error, 'error');
                     return;
                 }
                 removeModelLoadingState(modelId);
@@ -1147,7 +1163,27 @@
             let modal = document.getElementById(modalId);
             if (!modal) {
                 modal = document.createElement('div'); modal.id = modalId; modal.className = 'modal';
-                modal.innerHTML = `<div class="modal-content" style="max-width:500px;"><div class="modal-header"><h3 class="modal-title">设置别名</h3><button class="modal-close" onclick="closeModal('${modalId}')">&times;</button></div><div class="modal-body"><div class="form-group"><label class="form-label">原名</label><input class="form-control" id="aliasOriginalName" readonly></div><div class="form-group"><label class="form-label">别名</label><input class="form-control" id="aliasInput"></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('${modalId}')">取消</button><button class="btn btn-primary" onclick="submitAlias()">保存</button></div></div>`;
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width:500px;">
+                        <div class="modal-header">
+                            <h3 class="modal-title">${t('modal.alias.title', '设置别名')}</h3>
+                            <button class="modal-close" onclick="closeModal('${modalId}')">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label class="form-label">${t('modal.alias.original', '原名')}</label>
+                                <input class="form-control" id="aliasOriginalName" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">${t('modal.alias.alias', '别名')}</label>
+                                <input class="form-control" id="aliasInput">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeModal('${modalId}')">${t('common.cancel', '取消')}</button>
+                            <button class="btn btn-primary" onclick="submitAlias()">${t('common.save', '保存')}</button>
+                        </div>
+                    </div>`;
                 document.body.appendChild(modal);
             }
             window.__aliasEditingModelId = modelId;
@@ -1162,8 +1198,8 @@
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ modelId, alias })
             }).then(r => r.json()).then(d => {
-                if (d.success) { showToast('成功', '别名已保存', 'success'); closeModal('aliasModal'); refreshModels(); }
-                else { showToast('错误', d.error, 'error'); }
+                if (d.success) { showToast(t('toast.success', '成功'), t('modal.alias.saved', '别名已保存'), 'success'); closeModal('aliasModal'); refreshModels(); }
+                else { showToast(t('toast.error', '错误'), d.error, 'error'); }
             });
         }
         
@@ -1178,7 +1214,7 @@
             if (pathEl) pathEl.value = '';
             if (descEl) descEl.value = '';
             const titleEl = document.querySelector('#addModelPathModal .modal-title');
-            if (titleEl) titleEl.textContent = '添加模型目录';
+            if (titleEl) titleEl.textContent = t('modal.model_path_add.title.add', '添加模型目录');
             document.getElementById('addModelPathModal').classList.add('show');
         }
         function refreshModelPathUi() {
@@ -1192,7 +1228,7 @@
             document.getElementById('addModelPathNameInput').value = name || '';
             document.getElementById('addModelPathDescInput').value = desc || '';
             const titleEl = document.querySelector('#addModelPathModal .modal-title');
-            if (titleEl) titleEl.textContent = '编辑模型目录';
+            if (titleEl) titleEl.textContent = t('modal.model_path_add.title.edit', '编辑模型目录');
             document.getElementById('addModelPathModal').classList.add('show');
         }
         async function addModelPath() {
@@ -1212,7 +1248,7 @@
                         });
                         const data = await response.json();
                         if (data.success) {
-                            showToast('成功', '更新成功', 'success');
+                            showToast(t('toast.success', '成功'), t('toast.model_path.update_success', '更新成功'), 'success');
                             editingModelPath = null;
                             document.getElementById('addModelPathInput').value = '';
                             document.getElementById('addModelPathNameInput').value = '';
@@ -1220,7 +1256,7 @@
                             closeModal('addModelPathModal');
                             refreshModelPathUi();
                         } else {
-                            showToast('错误', data.error || '更新失败', 'error');
+                            showToast(t('toast.error', '错误'), data.error || t('toast.model_path.update_failed', '更新失败'), 'error');
                         }
                         return;
                     }
@@ -1232,7 +1268,7 @@
                     });
                     const data = await response.json();
                     if (data.success) {
-                        showToast('成功', '添加成功', 'success');
+                        showToast(t('toast.success', '成功'), t('toast.model_path.add_success', '添加成功'), 'success');
                         editingModelPath = null;
                         document.getElementById('addModelPathInput').value = '';
                         document.getElementById('addModelPathNameInput').value = '';
@@ -1240,21 +1276,21 @@
                         closeModal('addModelPathModal');
                         refreshModelPathUi();
                     } else {
-                        showToast('错误', data.error || '添加失败', 'error');
+                        showToast(t('toast.error', '错误'), data.error || t('toast.model_path.add_failed', '添加失败'), 'error');
                     }
                 } catch (error) {
-                    showToast('错误', '网络请求失败', 'error');
+                    showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
                 }
             } else {
-                showToast('错误', '目录路径不能为空', 'error');
+                showToast(t('toast.error', '错误'), t('page.model_path.path_required', '目录路径不能为空'), 'error');
             }
         }
         
         function shutdownService() {
-            if (confirm('确定要停止服务吗？')) {
+            if (confirm(t('confirm.shutdown', '确定要停止服务吗？'))) {
                 fetch('/api/shutdown', { method: 'POST' }).then(r=>r.json()).then(d => {
                     if (d.success) {
-                        document.body.innerHTML = '<div style="width: 100%;display:flex;justify-content:center;align-items:center;height:100vh;"><h1>服务已停止</h1></div>';
+                        document.body.innerHTML = `<div style="width: 100%;display:flex;justify-content:center;align-items:center;height:100vh;"><h1>${t('page.shutdown.stopped', '服务已停止')}</h1></div>`;
                     }
                 });
             }
@@ -1339,7 +1375,7 @@
             const ollamaPort = readPortFromInput('ollamaCompatPortInput');
             const lmstudioPort = readPortFromInput('lmstudioCompatPortInput');
             if (!ollamaPort && !lmstudioPort) {
-                showToast('错误', '请至少填写一个端口', 'error');
+                showToast(t('toast.error', '错误'), t('page.settings.general.compat.port_required', '请至少填写一个端口'), 'error');
                 return;
             }
             const payload = {};
@@ -1353,13 +1389,13 @@
                 });
                 const data = await response.json();
                 if (!data || !data.success) {
-                    showToast('错误', (data && data.error) ? data.error : '保存失败', 'error');
+                    showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('common.save_failed', '保存失败'), 'error');
                     return;
                 }
-                showToast('成功', '端口已保存', 'success');
+                showToast(t('toast.success', '成功'), t('page.settings.general.compat.saved', '端口已保存'), 'success');
                 loadCompatServiceStatus();
             } catch (e) {
-                showToast('错误', '网络请求失败', 'error');
+                showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
             }
         }
 
@@ -1374,13 +1410,13 @@
                 });
                 const data = await response.json();
                 if (!data || !data.success) {
-                    showToast('错误', (data && data.error) ? data.error : '保存失败', 'error');
+                    showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('common.save_failed', '保存失败'), 'error');
                     return;
                 }
-                showToast('成功', '已保存', 'success');
+                showToast(t('toast.success', '成功'), t('toast.saved', '已保存'), 'success');
                 if (el) el.value = '';
             } catch (e) {
-                showToast('错误', '网络请求失败', 'error');
+                showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
             }
         }
         
@@ -1400,14 +1436,14 @@
                 const data = await response.json();
                 if (!data || !data.success) {
                     if (toggleEl) toggleEl.checked = prev;
-                    showToast('错误', (data && data.error) ? data.error : '操作失败', 'error');
+                    showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('common.operation_failed', '操作失败'), 'error');
                     return;
                 }
-                showToast('成功', enable ? '已开启' : '已关闭', 'success');
+                showToast(t('toast.success', '成功'), enable ? t('toast.enabled', '已开启') : t('toast.disabled', '已关闭'), 'success');
                 loadCompatServiceStatus();
             } catch (e) {
                 if (toggleEl) toggleEl.checked = prev;
-                showToast('错误', '网络请求失败', 'error');
+                showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
             } finally {
                 if (toggleEl) toggleEl.disabled = false;
             }
@@ -1556,12 +1592,12 @@
                         document.getElementById('modelPathCount').textContent = data.data.count || 0;
                         renderModelPathListContent(items);
                     } else {
-                        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">加载失败</div><div class="empty-state-text">' + (data.error || '无法加载模型路径列表') + '</div></div>';
+                        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">${t('common.load_failed', '加载失败')}</div><div class="empty-state-text">${data.error || t('page.model_path.unable_load', '无法加载模型路径列表')}</div></div>`;
                     }
                 })
                 .catch(error => {
-                    console.error('加载模型路径列表出错:', error);
-                    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">网络错误</div><div class="empty-state-text">无法连接到服务器</div></div>';
+                    console.error(t('log.model_path.load_error', '加载模型路径列表出错:'), error);
+                    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="empty-state-title">${t('common.network_error', '网络错误')}</div><div class="empty-state-text">${t('common.unable_connect_server', '无法连接到服务器')}</div></div>`;
                 });
         }
 
@@ -1569,7 +1605,7 @@
         function renderModelPathListContent(items) {
             const container = document.getElementById('modelPathList');
             if (!items || items.length === 0) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-folder-open"></i></div><div class="empty-state-title">暂无路径</div><div class="empty-state-text">尚未配置任何模型路径</div></div>';
+                container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-folder-open"></i></div><div class="empty-state-title">${t('page.model_path.empty_title', '暂无路径')}</div><div class="empty-state-text">${t('page.model_path.empty_desc', '尚未配置任何模型路径')}</div></div>`;
                 return;
             }
 
@@ -1595,10 +1631,10 @@
                             ${desc ? `<div class="model-desc" title="${desc}"><i class="fas fa-info-circle"></i> ${desc}</div>` : ''}
                         </div>
                         <div class="model-actions">
-                            <button class="btn-icon" onclick="editModelPath('${escapedPath}', '${escapedName}', '${escapedDesc}')" title="编辑">
+                            <button class="btn-icon" onclick="editModelPath('${escapedPath}', '${escapedName}', '${escapedDesc}')" title="${t('common.edit', '编辑')}">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn-icon danger" onclick="removeModelPath('${escapedPath}')" title="删除">
+                            <button class="btn-icon danger" onclick="removeModelPath('${escapedPath}')" title="${t('common.delete', '删除')}">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>                        
@@ -1610,7 +1646,7 @@
 
         // 删除模型路径
         function removeModelPath(path) {
-            if (confirm('确定要删除此路径吗？')) {
+            if (confirm(t('confirm.model_path.remove', '确定要删除此路径吗？'))) {
                 fetch('/api/model/path/remove', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1619,14 +1655,14 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showToast('成功', '路径已删除', 'success');
+                        showToast(t('toast.success', '成功'), t('page.model_path.removed', '路径已删除'), 'success');
                         refreshModelPathUi();
                     } else {
-                        showToast('错误', data.error || '删除失败', 'error');
+                        showToast(t('toast.error', '错误'), data.error || t('common.delete_failed', '删除失败'), 'error');
                     }
                 })
                 .catch(error => {
-                    showToast('错误', '网络请求失败', 'error');
+                    showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
                 });
             }
         }

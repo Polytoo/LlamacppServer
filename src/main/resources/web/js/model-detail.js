@@ -4,7 +4,7 @@ function viewModelDetails(modelId) {
             const model = data.model;
             window.__modelDetailModelId = modelId;
             showModelDetailModal(model);
-        } else { showToast('错误', data.error, 'error'); }
+        } else { showToast(t('toast.error', '错误'), data.error, 'error'); }
     });
 }
 
@@ -13,17 +13,17 @@ function showModelDetailModal(model) {
     let modal = document.getElementById(modalId);
     if (!modal) {
         modal = document.createElement('div'); modal.id = modalId; modal.className = 'modal';
-        modal.innerHTML = `<div class="modal-content model-detail"><div class="modal-header"><h3 class="modal-title">模型详情</h3><button class="modal-close" onclick="closeModal('${modalId}')">&times;</button></div><div class="modal-body" id="${modalId}Content"></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('${modalId}')">关闭</button></div></div>`;
+        modal.innerHTML = `<div class="modal-content model-detail"><div class="modal-header"><h3 class="modal-title">${t('modal.model_detail.title', '模型详情')}</h3><button class="modal-close" onclick="closeModal('${modalId}')">&times;</button></div><div class="modal-body" id="${modalId}Content"></div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('${modalId}')">${t('common.close', '关闭')}</button></div></div>`;
         document.body.appendChild(modal);
     }
     const content = document.getElementById(modalId + 'Content');
     const isMobileView = !!document.getElementById('mobileMainModels') || /index-mobile\.html$/i.test((location && location.pathname) ? location.pathname : '');
     let tabs = `<div style="display:flex; gap:8px; margin-bottom:12px;">` +
-                `<button class="btn btn-secondary" id="${modalId}TabInfo">概览</button>` +
+                `<button class="btn btn-secondary" id="${modalId}TabInfo">${t('modal.model_detail.tab.overview', '概览')}</button>` +
                 `<button class="btn btn-secondary" id="${modalId}TabMetrics">metrics</button>` +
                 `<button class="btn btn-secondary" id="${modalId}TabProps">props</button>` +
-                `<button class="btn btn-secondary" id="${modalId}TabChatTemplate">聊天模板</button>` +
-                `<button class="btn btn-secondary" id="${modalId}TabToken">Token计算</button>` +
+                `<button class="btn btn-secondary" id="${modalId}TabChatTemplate">${t('modal.model_detail.tab.chat_template', '聊天模板')}</button>` +
+                `<button class="btn btn-secondary" id="${modalId}TabToken">${t('modal.model_detail.tab.token', 'Token计算')}</button>` +
                 `</div>`;
     let wrapperStart = isMobileView
         ? `<div style="display:flex; flex-direction:column; flex:1; min-height:0;">`
@@ -31,43 +31,43 @@ function showModelDetailModal(model) {
     let bodyStart = `<div style="flex:1; min-height:0;">`;
     let infoPanel = `<div id="${modalId}InfoPanel" style="height:100%;">` +
                     `<div style="display:grid; grid-template-columns: 1fr 2fr; gap: 10px; height:100%; overflow:auto;">` +
-                    `<div><strong>名称:</strong></div><div>${model.name}</div>` +
-                    `<div><strong>路径:</strong></div><div style="word-break:break-all;">${model.path}</div>` +
-                    `<div><strong>大小:</strong></div><div>${formatFileSize(model.size)}</div>` +
-                    `${model.isLoaded ? `<div><strong>状态:</strong></div><div>已启动${model.port ? `（端口 ${model.port}）` : ''}</div>` : `<div><strong>状态:</strong></div><div>未启动</div>`}` +
-                    `${model.startCmd ? `<div><strong>启动命令:</strong></div><div style="word-break:break-all; font-family: monospace;">${model.startCmd}</div>` : ``}` +
+                    `<div><strong>${t('modal.model_detail.label.name', '名称:')}</strong></div><div>${model.name}</div>` +
+                    `<div><strong>${t('modal.model_detail.label.path', '路径:')}</strong></div><div style="word-break:break-all;">${model.path}</div>` +
+                    `<div><strong>${t('modal.model_detail.label.size', '大小:')}</strong></div><div>${formatFileSize(model.size)}</div>` +
+                    `${model.isLoaded ? `<div><strong>${t('modal.model_detail.label.status', '状态:')}</strong></div><div>${t('modal.model_detail.status.running', '已启动')}${model.port ? `${t('modal.model_detail.status.port_prefix', '（端口 ')}${model.port}${t('modal.model_detail.status.port_suffix', '）')}` : ''}</div>` : `<div><strong>${t('modal.model_detail.label.status', '状态:')}</strong></div><div>${t('modal.model_detail.status.stopped', '未启动')}</div>`}` +
+                    `${model.startCmd ? `<div><strong>${t('modal.model_detail.label.start_cmd', '启动命令:')}</strong></div><div style="word-break:break-all; font-family: monospace;">${model.startCmd}</div>` : ``}` +
                     `${(() => { let s=''; if (model.metadata) { for (const [k,v] of Object.entries(model.metadata)) { s += `<div><strong>${k}:</strong></div><div style="word-break:break-all;">${v}</div>`; } } return s; })()}` +
                     `</div>` +
                     `</div>`;
     let metricsPanel = `<div id="${modalId}MetricsPanel" style="display:none; height:100%;">` +
                        `<div style="display:flex; gap:8px; margin-bottom:8px;">` +
-                       `<button class="btn btn-primary" id="${modalId}MetricsFetchBtn">请求 metrics</button>` +
+                       `<button class="btn btn-primary" id="${modalId}MetricsFetchBtn">${t('modal.model_detail.metrics.fetch', '请求 metrics')}</button>` +
                        `</div>` +
                        `<pre id="${modalId}MetricsViewer" style="height:calc(100% - 48px); overflow:auto; font-size:13px; background:#111827; color:#e5e7eb; padding:10px; border-radius:0.75rem;"></pre>` +
                        `</div>`;
     let propsPanel = `<div id="${modalId}PropsPanel" style="display:none; height:100%;">` +
                        `<div style="display:flex; gap:8px; margin-bottom:8px;">` +
-                       `<button class="btn btn-primary" id="${modalId}PropsFetchBtn">请求 props</button>` +
+                       `<button class="btn btn-primary" id="${modalId}PropsFetchBtn">${t('modal.model_detail.props.fetch', '请求 props')}</button>` +
                        `</div>` +
                        `<pre id="${modalId}PropsViewer" style="height:calc(100% - 48px); overflow:auto; font-size:13px; background:#111827; color:#e5e7eb; padding:10px; border-radius:0.75rem;"></pre>` +
                        `</div>`;
     let chatTemplatePanel = `<div id="${modalId}ChatTemplatePanel" style="display:none; height:100%;">` +
                         `<div style="display:flex; gap:8px; margin-bottom:8px;">` +
-                        `<button class="btn btn-primary" id="${modalId}ChatTemplateDefaultBtn">默认</button>` +
-                        `<button class="btn btn-primary" id="${modalId}ChatTemplateReloadBtn">刷新</button>` +
-                        `<button class="btn btn-primary" id="${modalId}ChatTemplateSaveBtn">保存</button>` +
-                        `<button class="btn btn-danger" id="${modalId}ChatTemplateDeleteBtn">删除</button>` +
+                        `<button class="btn btn-primary" id="${modalId}ChatTemplateDefaultBtn">${t('common.default', '默认')}</button>` +
+                        `<button class="btn btn-primary" id="${modalId}ChatTemplateReloadBtn">${t('common.refresh', '刷新')}</button>` +
+                        `<button class="btn btn-primary" id="${modalId}ChatTemplateSaveBtn">${t('common.save', '保存')}</button>` +
+                        `<button class="btn btn-danger" id="${modalId}ChatTemplateDeleteBtn">${t('common.delete', '删除')}</button>` +
                         `</div>` +
-                        `<textarea class="form-control" id="${modalId}ChatTemplateTextarea" rows="18" placeholder="(可选)" style="height:calc(100% - 48px); resize: vertical;"></textarea>` +
+                        `<textarea class="form-control" id="${modalId}ChatTemplateTextarea" rows="18" placeholder="${escapeAttrCompat(t('modal.model_detail.chat_template.optional_placeholder', '(可选)'))}" style="height:calc(100% - 48px); resize: vertical;"></textarea>` +
                         `</div>`;
     let tokenPanel = `<div id="${modalId}TokenPanel" style="display:none; height:100%;">` +
                         `<div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">` +
-                        `<button class="btn btn-primary" id="${modalId}TokenCalcBtn">生成 prompt 并计算 tokens</button>` +
-                        `<div style="margin-left:auto; font-size:13px; color:#374151;">tokens: <strong id="${modalId}TokenCount">-</strong></div>` +
+                        `<button class="btn btn-primary" id="${modalId}TokenCalcBtn">${t('modal.model_detail.token.calc', '生成 prompt 并计算 tokens')}</button>` +
+                        `<div style="margin-left:auto; font-size:13px; color:#374151;">${t('modal.model_detail.token.tokens', 'tokens')}: <strong id="${modalId}TokenCount">-</strong></div>` +
                         `</div>` +
                         `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; height:calc(100% - 48px); min-height:0;">` +
                             `<div style="display:flex; flex-direction:column; min-height:0;">` +
-                                `<textarea class="form-control" id="${modalId}TokenInput" rows="12" placeholder="输入要计算的文本..." style="flex:1; min-height:0; resize:none;"></textarea>` +
+                                `<textarea class="form-control" id="${modalId}TokenInput" rows="12" placeholder="${escapeAttrCompat(t('modal.model_detail.token.input_placeholder', '输入要计算的文本...'))}" style="flex:1; min-height:0; resize:none;"></textarea>` +
                             `</div>` +
                             `<div style="display:flex; flex-direction:column; min-height:0;">` +
                                 `<textarea class="form-control" id="${modalId}TokenPromptOutput" rows="12" readonly style="flex:1; min-height:0; resize:none; background:#f9fafb;"></textarea>` +
@@ -149,7 +149,7 @@ function loadModelMetrics() {
     const modelId = window.__modelDetailModelId;
     const viewer = document.getElementById('modelDetailModalMetricsViewer');
     if (!modelId || !viewer) return;
-    viewer.textContent = '加载中...';
+    viewer.textContent = t('common.loading', '加载中...');
     fetch('/api/models/metrics?modelId=' + encodeURIComponent(modelId))
         .then(r => r.json())
         .then(res => {
@@ -158,7 +158,7 @@ function loadModelMetrics() {
             viewer.textContent = metrics ? JSON.stringify(metrics, null, 2) : JSON.stringify(res, null, 2);
         })
         .catch(() => {
-            viewer.textContent = '请求失败';
+            viewer.textContent = t('common.request_failed', '请求失败');
         });
 }
 
@@ -166,7 +166,7 @@ function loadModelProps() {
     const modelId = window.__modelDetailModelId;
     const viewer = document.getElementById('modelDetailModalPropsViewer');
     if (!modelId || !viewer) return;
-    viewer.textContent = '加载中...';
+    viewer.textContent = t('common.loading', '加载中...');
     fetch('/api/models/props?modelId=' + encodeURIComponent(modelId))
         .then(r => r.json())
         .then(res => {
@@ -175,7 +175,7 @@ function loadModelProps() {
             viewer.textContent = props ? JSON.stringify(props, null, 2) : JSON.stringify(res, null, 2);
         })
         .catch(() => {
-            viewer.textContent = '请求失败';
+            viewer.textContent = t('common.request_failed', '请求失败');
         });
 }
 
@@ -200,18 +200,18 @@ function loadModelChatTemplate(showEmptyTip = false) {
         .then(r => r.json())
         .then(res => {
             if (!(res && res.success)) {
-                showToast('错误', (res && res.error) ? res.error : '请求失败', 'error');
+                showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('common.request_failed', '请求失败'), 'error');
                 return;
             }
             const d = res.data || {};
             if (showEmptyTip && d.exists === false) {
-                showToast('提示', '该模型暂无已保存的聊天模板', 'info');
+                showToast(t('toast.info', '提示'), t('modal.model_detail.chat_template.no_saved', '该模型暂无已保存的聊天模板'), 'info');
             }
             const tpl = d.chatTemplate !== undefined && d.chatTemplate !== null ? String(d.chatTemplate) : '';
             el.value = tpl;
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
 }
 
@@ -223,17 +223,17 @@ function loadModelDefaultChatTemplate() {
         .then(r => r.json())
         .then(res => {
             if (!(res && res.success)) {
-                showToast('错误', (res && res.error) ? res.error : '请求失败', 'error');
+                showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('common.request_failed', '请求失败'), 'error');
                 return;
             }
             const d = res.data || {};
             const tpl = d.chatTemplate !== undefined && d.chatTemplate !== null ? String(d.chatTemplate) : '';
             el.value = tpl;
-            if (d.exists) showToast('成功', '已加载默认模板', 'success');
-            else showToast('提示', '该模型未提供默认模板', 'info');
+            if (d.exists) showToast(t('toast.success', '成功'), t('modal.model_detail.chat_template.default_loaded', '已加载默认模板'), 'success');
+            else showToast(t('toast.info', '提示'), t('modal.model_detail.chat_template.no_default', '该模型未提供默认模板'), 'info');
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
 }
 
@@ -243,14 +243,14 @@ function saveModelChatTemplate() {
     if (!modelId || !el) return;
     const text = el.value == null ? '' : String(el.value);
     if (!text.trim()) {
-        showToast('错误', '聊天模板不能为空；如需清空请使用“删除”按钮。', 'error');
+        showToast(t('toast.error', '错误'), t('modal.model_detail.chat_template.empty', '聊天模板不能为空；如需清空请使用“删除”按钮。'), 'error');
         el.focus();
         return;
     }
 
     const previewLimit = 300;
-    const preview = text.length > previewLimit ? (text.slice(0, previewLimit) + '\n…(已截断)') : text;
-    if (!confirm('确认保存以下聊天模板吗？\n\n' + preview)) return;
+    const preview = text.length > previewLimit ? (text.slice(0, previewLimit) + '\n' + t('modal.model_detail.chat_template.truncated', '…(已截断)')) : text;
+    if (!confirm(t('confirm.chat_template.save', '确认保存以下聊天模板吗？') + '\n\n' + preview)) return;
     fetch('/api/model/template/set', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,13 +259,13 @@ function saveModelChatTemplate() {
         .then(r => r.json())
         .then(res => {
             if (res && res.success) {
-                showToast('成功', '聊天模板已保存', 'success');
+                showToast(t('toast.success', '成功'), t('modal.model_detail.chat_template.saved', '聊天模板已保存'), 'success');
             } else {
-                showToast('错误', (res && res.error) ? res.error : '保存失败', 'error');
+                showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('common.save_failed', '保存失败'), 'error');
             }
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
 }
 
@@ -273,7 +273,7 @@ function deleteModelChatTemplate() {
     const modelId = window.__modelDetailModelId;
     const el = document.getElementById('modelDetailModalChatTemplateTextarea');
     if (!modelId || !el) return;
-    if (!confirm('确定要删除该模型已保存的聊天模板吗？')) return;
+    if (!confirm(t('confirm.chat_template.delete', '确定要删除该模型已保存的聊天模板吗？'))) return;
     fetch('/api/model/template/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -285,18 +285,18 @@ function deleteModelChatTemplate() {
                 const d = res.data || {};
                 if (d.deleted) {
                     el.value = '';
-                    showToast('成功', '聊天模板已删除', 'success');
+                    showToast(t('toast.success', '成功'), t('modal.model_detail.chat_template.deleted', '聊天模板已删除'), 'success');
                 } else if (d.existed === false) {
-                    showToast('提示', '该模型暂无已保存的聊天模板', 'info');
+                    showToast(t('toast.info', '提示'), t('modal.model_detail.chat_template.no_saved', '该模型暂无已保存的聊天模板'), 'info');
                 } else {
-                    showToast('提示', '聊天模板未删除', 'info');
+                    showToast(t('toast.info', '提示'), t('modal.model_detail.chat_template.not_deleted', '聊天模板未删除'), 'info');
                 }
             } else {
-                showToast('错误', (res && res.error) ? res.error : '删除失败', 'error');
+                showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('common.delete_failed', '删除失败'), 'error');
             }
         })
         .catch(() => {
-            showToast('错误', '网络请求失败', 'error');
+            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         });
 }
 
@@ -310,14 +310,14 @@ async function calculateModelTokens() {
 
     const userText = inputEl.value == null ? '' : String(inputEl.value);
     if (!userText.trim()) {
-        showToast('提示', '请输入文本内容', 'info');
+        showToast(t('toast.info', '提示'), t('modal.model_detail.token.input_required', '请输入文本内容'), 'info');
         inputEl.focus();
         return;
     }
 
     const prevText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = '计算中...';
+    btn.textContent = t('common.calculating', '计算中...');
     countEl.textContent = '...';
     promptEl.value = '';
 
@@ -336,7 +336,7 @@ async function calculateModelTokens() {
             throw new Error(msg);
         }
         const prompt = applyJson && applyJson.prompt != null ? String(applyJson.prompt) : '';
-        if (!prompt) throw new Error('apply-template 响应缺少 prompt');
+        if (!prompt) throw new Error(t('modal.model_detail.token.missing_prompt', 'apply-template 响应缺少 prompt'));
         promptEl.value = prompt;
 
         const tokRes = await fetch('/tokenize', {
@@ -355,11 +355,11 @@ async function calculateModelTokens() {
             const msg = tokJson && (tokJson.error || tokJson.message) ? (tokJson.error || tokJson.message) : ('HTTP ' + tokRes.status);
             throw new Error(msg);
         }
-        if (!tokJson || !Array.isArray(tokJson.tokens)) throw new Error('tokenize 响应缺少 tokens');
+        if (!tokJson || !Array.isArray(tokJson.tokens)) throw new Error(t('modal.model_detail.token.missing_tokens', 'tokenize 响应缺少 tokens'));
         countEl.textContent = String(tokJson.tokens.length);
     } catch (e) {
         countEl.textContent = '-';
-        showToast('错误', e && e.message ? e.message : '请求失败', 'error');
+        showToast(t('toast.error', '错误'), e && e.message ? e.message : t('common.request_failed', '请求失败'), 'error');
     } finally {
         btn.disabled = false;
         btn.textContent = prevText;

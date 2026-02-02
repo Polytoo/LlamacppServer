@@ -1,3 +1,10 @@
+function t(key, fallback) {
+    if (window.I18N && typeof window.I18N.t === 'function') {
+        return window.I18N.t(key, fallback);
+    }
+    return fallback == null ? key : fallback;
+}
+
 function loadModels() {
     const modelsList = document.getElementById('modelsList');
     fetch('/api/models/list')
@@ -43,9 +50,9 @@ function loadModels() {
             modelsList.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-state-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                            <div class="empty-state-title">加载失败</div>
-                            <div class="empty-state-text">${error.message || '网络错误'}</div>
-                            <button class="btn btn-primary" onclick="loadModels()">重试</button>
+                            <div class="empty-state-title">${t('common.load_failed', '加载失败')}</div>
+                            <div class="empty-state-text">${error.message || t('common.network_error', '网络错误')}</div>
+                            <button class="btn btn-primary" onclick="loadModels()">${t('common.retry', '重试')}</button>
                         </div>
                     `;
         });
@@ -141,9 +148,9 @@ function renderModelsList(models) {
         modelsList.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon"><i class="fas fa-box-open"></i></div>
-                        <div class="empty-state-title">没有模型</div>
-                        <div class="empty-state-text">请先在“模型路径配置”中添加模型目录</div>
-                        <button class="btn btn-primary" onclick="showModelPathSetting()">去配置</button>
+                        <div class="empty-state-title">${t('page.model.empty_title', '没有模型')}</div>
+                        <div class="empty-state-text">${t('page.model.empty_desc', '请先在“模型路径配置”中添加模型目录')}</div>
+                        <button class="btn btn-primary" onclick="showModelPathSetting()">${t('page.model.empty_action', '去配置')}</button>
                     </div>
                 `;
         return;
@@ -152,21 +159,21 @@ function renderModelsList(models) {
     let html = '';
     models.forEach(model => {
         const metadata = model.metadata || {};
-        const architecture = metadata.architecture || '未知';
+        const architecture = metadata.architecture || t('common.unknown', '未知');
         const quantization = metadata.quantization || '';
         const isLoading = !!model.isLoading;
 
         let status = model.status;
-        let statusText = '已停止';
+        let statusText = t('page.model.status.stopped', '已停止');
         let statusIcon = 'fa-stop-circle';
         let statusClass = 'status-stopped';
 
         if (isLoading) {
-            statusText = '加载中';
+            statusText = t('page.model.status.loading', '加载中');
             statusIcon = 'fa-spinner fa-spin';
             statusClass = 'status-loading';
         } else if (model.isLoaded) {
-            statusText = status === 'running' ? '运行中' : '已加载';
+            statusText = status === 'running' ? t('page.model.status.running', '运行中') : t('page.model.status.loaded', '已加载');
             statusIcon = status === 'running' ? 'fa-play-circle' : 'fa-check-circle';
             statusClass = status === 'running' ? 'status-running' : 'status-loaded';
         }
@@ -177,34 +184,34 @@ function renderModelsList(models) {
 
         let actionButtons = '';
         if (isLoading) {
-            actionButtons = `<button class="btn-icon danger" onclick="stopModel('${model.id}')" title="取消加载"><i class="fas fa-stop"></i></button>`;
+            actionButtons = `<button class="btn-icon danger" onclick="stopModel('${model.id}')" title="${t('page.model.action.cancel_loading', '取消加载')}"><i class="fas fa-stop"></i></button>`;
         } else if (model.isLoaded) {
             if (status === 'running') {
                 actionButtons = `
-                            <button class="btn-icon danger" onclick="stopModel('${model.id}')" title="停止"><i class="fas fa-stop"></i></button>
-                            <button class="btn-icon" onclick="viewModelDetails('${model.id}')" title="详情"><i class="fas fa-info-circle"></i></button>
-                            <button class="btn-icon" onclick="openModelBenchmarkList(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="查看测试结果"><i class="fas fa-list"></i></button>
-                            <button class="btn-icon" onclick="viewModelConfig('${model.id}')" title="查看配置"><i class="fas fa-cog"></i></button>
-                            <button class="btn-icon" onclick="openSlotsModal(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="缓存管理"><i class="fas fa-database"></i></button>
+                            <button class="btn-icon danger" onclick="stopModel('${model.id}')" title="${t('page.model.action.stop', '停止')}"><i class="fas fa-stop"></i></button>
+                            <button class="btn-icon" onclick="viewModelDetails('${model.id}')" title="${t('page.model.action.details', '详情')}"><i class="fas fa-info-circle"></i></button>
+                            <button class="btn-icon" onclick="openModelBenchmarkList(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="${t('page.model.action.view_benchmark_results', '查看测试结果')}"><i class="fas fa-list"></i></button>
+                            <button class="btn-icon" onclick="viewModelConfig('${model.id}')" title="${t('page.model.action.view_config', '查看配置')}"><i class="fas fa-cog"></i></button>
+                            <button class="btn-icon" onclick="openSlotsModal(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="${t('modal.slots.title', '缓存管理')}"><i class="fas fa-database"></i></button>
                         `;
             } else {
                 actionButtons = `
-                            <button class="btn-icon" onclick="openModelBenchmarkList(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="查看测试结果"><i class="fas fa-list"></i></button>
+                            <button class="btn-icon" onclick="openModelBenchmarkList(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="${t('page.model.action.view_benchmark_results', '查看测试结果')}"><i class="fas fa-list"></i></button>
                         `;
             }
         } else {
             actionButtons = `
-                        <button class="btn-icon primary" onclick="loadModel('${model.id}', '${model.name}')" title="加载"><i class="fas fa-play"></i></button>
-                        <button class="btn-icon" onclick="viewModelDetails('${model.id}')" title="详情"><i class="fas fa-info-circle"></i></button>
-                        <button class="btn-icon" onclick="openModelBenchmarkDialog(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="性能测试"><i class="fas fa-rocket"></i></button>
-                        <button class="btn-icon" onclick="openModelBenchmarkList(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="查看测试结果"><i class="fas fa-list"></i></button>
-                        <button class="btn-icon" onclick="viewModelConfig('${model.id}')" title="查看配置"><i class="fas fa-cog"></i></button>
+                        <button class="btn-icon primary" onclick="loadModel('${model.id}', '${model.name}')" title="${t('page.model.action.load', '加载')}"><i class="fas fa-play"></i></button>
+                        <button class="btn-icon" onclick="viewModelDetails('${model.id}')" title="${t('page.model.action.details', '详情')}"><i class="fas fa-info-circle"></i></button>
+                        <button class="btn-icon" onclick="openModelBenchmarkDialog(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="${t('page.model.action.benchmark', '性能测试')}"><i class="fas fa-rocket"></i></button>
+                        <button class="btn-icon" onclick="openModelBenchmarkList(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(displayName)}'))" title="${t('page.model.action.view_benchmark_results', '查看测试结果')}"><i class="fas fa-list"></i></button>
+                        <button class="btn-icon" onclick="viewModelConfig('${model.id}')" title="${t('page.model.action.view_config', '查看配置')}"><i class="fas fa-cog"></i></button>
                     `;
         }
 
         html += `
                     <div class="model-item">
-                        <button class="model-fav-btn ${isFavourite ? 'active' : ''}" onclick="toggleFavouriteModel(event, decodeURIComponent('${encodeURIComponent(model.id)}'))" title="${isFavourite ? '取消喜好' : '标记喜好'}">
+                        <button class="model-fav-btn ${isFavourite ? 'active' : ''}" onclick="toggleFavouriteModel(event, decodeURIComponent('${encodeURIComponent(model.id)}'))" title="${isFavourite ? t('page.model.fav.remove', '取消喜好') : t('page.model.fav.add', '标记喜好')}">
                             <i class="${isFavourite ? 'fas' : 'far'} fa-star"></i>
                         </button>
                         <div class="model-icon-wrapper">
@@ -254,7 +261,7 @@ function toggleFavouriteModel(event, modelId) {
         .then(r => r.json())
         .then(res => {
             if (!res || !res.success) {
-                throw new Error((res && res.error) ? res.error : '设置喜好失败');
+                throw new Error((res && res.error) ? res.error : t('page.model.fav.set_failed', '设置喜好失败'));
             }
             const favourite = !!(res.data && res.data.favourite);
             const i = (currentModelsData || []).findIndex(m => m && m.id === modelId);
@@ -269,23 +276,23 @@ function toggleFavouriteModel(event, modelId) {
                 currentModelsData[i].favourite = prev;
                 sortAndRenderModels();
             }
-            showToast('错误', err && err.message ? err.message : '网络错误', 'error');
+            showToast(t('toast.error', '错误'), err && err.message ? err.message : t('common.network_error', '网络错误'), 'error');
         });
 }
 
 function refreshModels() {
-    showToast('提示', '正在刷新模型列表', 'info');
+    showToast(t('toast.info', '提示'), t('page.model.refreshing', '正在刷新模型列表'), 'info');
     fetch('/api/models/refresh')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 loadModels();
             } else {
-                throw new Error(data.error || '刷新模型列表失败');
+                throw new Error(data.error || t('page.model.refresh_failed', '刷新模型列表失败'));
             }
         })
         .catch(error => {
-            showToast('错误', error.message || '网络错误，请稍后重试', 'error');
+            showToast(t('toast.error', '错误'), error.message || t('page.model.network_retry', '网络错误，请稍后重试'), 'error');
             loadModels();
         });
 }

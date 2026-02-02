@@ -11,6 +11,23 @@ let hfMaxPagesPerFetch = 1;
 let hfLoadingHits = false;
 const HF_SEARCH_PAGE_SIZE = 30;
 
+function t(key, fallback) {
+    if (window.I18N && typeof window.I18N.t === 'function') {
+        return window.I18N.t(key, fallback);
+    }
+    return fallback == null ? key : fallback;
+}
+
+function tf(key, params, fallback) {
+    const template = t(key, fallback);
+    if (!params || template == null) return template;
+    let out = String(template);
+    for (const k of Object.keys(params)) {
+        out = out.split(`{${k}}`).join(String(params[k]));
+    }
+    return out;
+}
+
 if (typeof window.showToast !== 'function') {
     window.showToast = function(title, msg, type = 'info') {
         const container = document.getElementById('toastContainer');
@@ -67,7 +84,7 @@ function renderHits() {
     const container = document.getElementById('hfHitsList');
     if (!container) return;
     if (!hfHits || hfHits.length === 0) {
-        container.innerHTML = `<div class="empty-state">未找到结果</div>`;
+        container.innerHTML = `<div class="empty-state">${t('common.no_results', '未找到结果')}</div>`;
         setHitsFooterVisible(false);
         return;
     }
@@ -92,7 +109,7 @@ function renderHits() {
                 <div style="flex-shrink: 0; display: flex; gap: 0.5rem; align-items: center;">
                     <button class="btn btn-secondary btn-sm" onclick="openModelPage('${escapeHtmlAttr(hit.modelUrl)}')">
                         <i class="fas fa-external-link-alt"></i>
-                        查看主页
+                        ${t('hf.action.view_homepage', '查看主页')}
                     </button>
                 </div>
             </div>
@@ -110,7 +127,7 @@ function setLoadMoreState(enabled, text) {
     const btn = document.getElementById('hfLoadMoreBtn');
     if (!btn) return;
     btn.disabled = !enabled;
-    btn.textContent = text || '加载更多';
+    btn.textContent = text || t('common.load_more', '加载更多');
 }
 
 function setLoadMoreVisible(visible) {
@@ -146,7 +163,7 @@ async function fetchHitsPage(query, base, limit, startPage, maxPages) {
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data || data.success !== true) {
-        throw new Error((data && data.error) ? data.error : '搜索失败：hf-mirror.com存在访问频率限制，如果搜索失败，请稍等片刻重试；huggingface.co国内地区无法访问，需要科学上网。');
+        throw new Error((data && data.error) ? data.error : t('hf.search.failed_detail', '搜索失败：hf-mirror.com存在访问频率限制，如果搜索失败，请稍等片刻重试；huggingface.co国内地区无法访问，需要科学上网。'));
     }
     const hits = data.data && data.data.hits ? data.data.hits : [];
     return Array.isArray(hits) ? hits : [];
@@ -156,18 +173,20 @@ function renderGguf() {
     const container = document.getElementById('hfGgufList');
     if (!container) return;
     if (!hfSelected) {
-        container.innerHTML = `<div class="empty-state">选择一个模型以列出 GGUF 文件</div>`;
+        container.innerHTML = `<div class="empty-state">${t('hf.gguf.select_repo', '选择一个模型以列出 GGUF 文件')}</div>`;
         return;
     }
     if (!hfGgufGroups || hfGgufGroups.length === 0) {
-        container.innerHTML = `<div class="empty-state">未找到 GGUF 文件</div>`;
+        container.innerHTML = `<div class="empty-state">${t('hf.gguf.not_found', '未找到 GGUF 文件')}</div>`;
         return;
     }
     container.innerHTML = hfGgufGroups.map((group, idx) => {
         const sizeText = group.totalSize != null ? formatFileSize(group.totalSize) : '';
         const sizeBadge = sizeText ? `<span class="badge"><i class="fas fa-hdd"></i> ${sizeText}</span>` : '';
         const lfsBadge = group.hasLfs ? `<span class="badge"><i class="fas fa-database"></i> LFS</span>` : '';
-        const shardBadge = group.isSplit ? `<span class="badge"><i class="fas fa-th-large"></i> 分片 ${group.partCount}/${group.partTotal}</span>` : '';
+        const shardBadge = group.isSplit
+            ? `<span class="badge"><i class="fas fa-th-large"></i> ${tf('hf.gguf.shard', { count: group.partCount, total: group.partTotal }, '分片 {count}/{total}')}</span>`
+            : '';
         return `
             <div class="list-item">
                 <div style="min-width: 0; flex: 1;">
@@ -181,11 +200,11 @@ function renderGguf() {
                 <div class="file-actions">
                     <button class="btn btn-secondary btn-sm" onclick="copyGgufGroupLinks(${idx})">
                         <i class="fas fa-copy"></i>
-                        复制链接
+                        ${t('hf.gguf.copy_links', '复制链接')}
                     </button>
                     <button class="btn btn-primary btn-sm" onclick="downloadModel(${idx})">
                         <i class="fas fa-download"></i>
-                        创建下载
+                        ${t('hf.gguf.create_download', '创建下载')}
                     </button>
                 </div>
             </div>
@@ -281,12 +300,12 @@ async function copyGgufGroupLinks(groupIndex) {
     if (!g) return;
     const links = (g.files || []).map(f => f && f.downloadUrl ? String(f.downloadUrl) : '').filter(Boolean);
     if (!links.length) {
-        showToast('提示', '没有可复制的下载链接', 'info');
+        showToast(t('toast.info', '提示'), t('hf.toast.no_links_to_copy', '没有可复制的下载链接'), 'info');
         return;
     }
     const ok = await copyToClipboard(links.join('\n'));
-    if (ok) showToast('已复制', `已复制 ${links.length} 条链接`, 'success');
-    else showToast('复制失败', '无法写入剪贴板', 'error');
+    if (ok) showToast(t('toast.success', '成功'), tf('hf.toast.copied_links', { count: links.length }, '已复制 {count} 条链接'), 'success');
+    else showToast(t('toast.error', '错误'), t('common.clipboard_write_failed', '无法写入剪贴板'), 'error');
 }
 
 function escapeHtml(str) {
@@ -364,14 +383,14 @@ async function downloadModel(groupIndex) {
     if (!g) return;
     const repo = parseRepoId(hfSelected);
     if (!repo) {
-        showToast('错误', 'RepoId 无效，无法解析 author/modelId', 'error');
+        showToast(t('toast.error', '错误'), t('hf.error.repo_id_invalid', 'RepoId 无效，无法解析 author/modelId'), 'error');
         return;
     }
     const downloadUrl = (g.files || [])
         .map(f => f && f.downloadUrl ? String(f.downloadUrl).trim() : '')
         .filter(Boolean);
     if (!downloadUrl.length) {
-        showToast('提示', '下载链接为空', 'info');
+        showToast(t('toast.info', '提示'), t('hf.error.empty_download_urls', '下载链接为空'), 'info');
         return;
     }
     const bestMmproj = pickBestMmprojGroup(hfMmprojGroups);
@@ -404,25 +423,31 @@ async function downloadModel(groupIndex) {
         }
         const data = await resp.json();
         if (!data || data.success !== true) {
-            throw new Error((data && data.error) ? data.error : '创建下载任务失败');
+            throw new Error((data && data.error) ? data.error : t('download.toast.create_failed', '创建下载任务失败'));
         }
         const count = Array.isArray(data.tasks) ? data.tasks.length : downloadUrl.length;
         const withMmproj = bestMmproj && bestMmproj.files && bestMmproj.files.length;
-        showToast('成功', withMmproj ? `已创建 ${count} 个下载任务（已自动包含 mmproj）` : `已创建 ${count} 个下载任务`, 'success');
+        showToast(
+            t('toast.success', '成功'),
+            withMmproj
+                ? tf('hf.toast.tasks_created_with_mmproj', { count }, '已创建 {count} 个下载任务（已自动包含 mmproj）')
+                : tf('hf.toast.tasks_created', { count }, '已创建 {count} 个下载任务'),
+            'success'
+        );
     } catch (e) {
-        showToast('错误', e && e.message ? e.message : '网络请求失败', 'error');
+        showToast(t('toast.error', '错误'), e && e.message ? e.message : t('common.network_request_failed', '网络请求失败'), 'error');
     }
 }
 
 async function copyLink(url) {
     const ok = await copyToClipboard(url);
-    if (ok) showToast('已复制', '下载链接已复制到剪贴板', 'success');
-    else showToast('复制失败', '无法写入剪贴板', 'error');
+    if (ok) showToast(t('toast.success', '成功'), t('common.link_copied_to_clipboard', '下载链接已复制到剪贴板'), 'success');
+    else showToast(t('toast.error', '错误'), t('common.clipboard_write_failed', '无法写入剪贴板'), 'error');
 }
 
 async function copyAllGgufLinks() {
     if (!hfGguf || hfGguf.length === 0) {
-        showToast('提示', '当前没有可复制的链接', 'info');
+        showToast(t('toast.info', '提示'), t('hf.toast.no_links_in_list', '当前没有可复制的链接'), 'info');
         return;
     }
     const text = hfGguf
@@ -431,8 +456,8 @@ async function copyAllGgufLinks() {
         .filter(Boolean)
         .join('\n');
     const ok = await copyToClipboard(text);
-    if (ok) showToast('已复制', `已复制 ${text ? text.split('\n').length : 0} 条链接`, 'success');
-    else showToast('复制失败', '无法写入剪贴板', 'error');
+    if (ok) showToast(t('toast.success', '成功'), tf('hf.toast.copied_links', { count: text ? text.split('\n').length : 0 }, '已复制 {count} 条链接'), 'success');
+    else showToast(t('toast.error', '错误'), t('common.clipboard_write_failed', '无法写入剪贴板'), 'error');
 }
 
 async function hfSearch() {
@@ -441,7 +466,7 @@ async function hfSearch() {
     const baseEl = document.getElementById('hfBaseSelect');
     const query = input ? String(input.value || '').trim() : '';
     if (!query) {
-        showToast('提示', '请输入搜索关键字', 'info');
+        showToast(t('toast.info', '提示'), t('hf.search.keyword_required', '请输入搜索关键字'), 'info');
         return;
     }
     const limit = limitEl ? String(limitEl.value || '30') : '30';
@@ -453,12 +478,12 @@ async function hfSearch() {
     hfMaxPagesPerFetch = Math.max(1, Math.ceil(safeLimit / HF_SEARCH_PAGE_SIZE));
     hfNextStartPage = 0;
     hfHits = [];
-    document.getElementById('hfHitsList').innerHTML = `<div class="empty-state">正在搜索...</div>`;
+    document.getElementById('hfHitsList').innerHTML = `<div class="empty-state">${t('hf.search.searching', '正在搜索...')}</div>`;
     setHitsFooterVisible(false);
     setLoadMoreVisible(false);
     try {
         hfLoadingHits = true;
-        setLoadMoreState(false, '正在加载...');
+        setLoadMoreState(false, t('common.loading', '加载中...'));
         const newHits = await fetchHitsPage(hfSearchQuery, hfSearchBase, safeLimit, hfNextStartPage, hfMaxPagesPerFetch);
         hfHits = mergeHits(hfHits, newHits);
         hfNextStartPage += hfMaxPagesPerFetch;
@@ -468,13 +493,13 @@ async function hfSearch() {
         } else {
             setLoadMoreVisible(true);
             setHitsFooterVisible(true);
-            setLoadMoreState(true, '加载更多');
+            setLoadMoreState(true, t('common.load_more', '加载更多'));
         }
     } catch (e) {
         hfHits = [];
-        document.getElementById('hfHitsList').innerHTML = `<div class="empty-state">搜索失败</div>`;
+        document.getElementById('hfHitsList').innerHTML = `<div class="empty-state">${t('hf.search.failed', '搜索失败')}</div>`;
         setHitsFooterVisible(false);
-        showToast('错误', e && e.message ? e.message : '网络请求失败', 'error');
+        showToast(t('toast.error', '错误'), e && e.message ? e.message : t('common.network_request_failed', '网络请求失败'), 'error');
     } finally {
         hfLoadingHits = false;
     }
@@ -491,7 +516,7 @@ async function hfLoadMore() {
 
     setHitsFooterVisible(false);
     setLoadMoreVisible(false);
-    setLoadMoreState(false, '正在加载...');
+    setLoadMoreState(false, t('common.loading', '加载中...'));
     try {
         hfLoadingHits = true;
         const before = hfHits.length;
@@ -503,18 +528,18 @@ async function hfLoadMore() {
         if (added <= 0 || newHits.length < safeLimit) {
             setHitsFooterVisible(false);
             if (added <= 0) {
-                showToast('提示', '没有更多结果了', 'info');
+                showToast(t('toast.info', '提示'), t('hf.search.no_more', '没有更多结果了'), 'info');
             }
             return;
         }
         setLoadMoreVisible(true);
         setHitsFooterVisible(true);
-        setLoadMoreState(true, '加载更多');
+        setLoadMoreState(true, t('common.load_more', '加载更多'));
     } catch (e) {
         setLoadMoreVisible(true);
         setHitsFooterVisible(true);
-        setLoadMoreState(true, '加载更多');
-        showToast('错误', e && e.message ? e.message : '网络请求失败', 'error');
+        setLoadMoreState(true, t('common.load_more', '加载更多'));
+        showToast(t('toast.error', '错误'), e && e.message ? e.message : t('common.network_request_failed', '网络请求失败'), 'error');
     } finally {
         hfLoadingHits = false;
     }
@@ -530,12 +555,12 @@ async function selectRepo(repoId) {
     hfTreeError = null;
     const repoLabel = document.getElementById('hfGgufModalRepo');
     if (repoLabel) repoLabel.textContent = hfSelected;
-    document.getElementById('hfGgufList').innerHTML = `<div class="empty-state">正在解析 GGUF 文件...</div>`;
+    document.getElementById('hfGgufList').innerHTML = `<div class="empty-state">${t('hf.gguf.parsing', '正在解析 GGUF 文件...')}</div>`;
     try {
         const resp = await fetch(`/api/hf/gguf?model=${encodeURIComponent(hfSelected)}&base=${encodeURIComponent(base)}`);
         const data = await resp.json();
         if (!data || data.success !== true) {
-            throw new Error((data && data.error) ? data.error : '解析失败');
+            throw new Error((data && data.error) ? data.error : t('hf.gguf.parse_failed', '解析失败'));
         }
         const result = data.data || {};
         hfTreeError = result.treeError || null;
@@ -544,13 +569,13 @@ async function selectRepo(repoId) {
         hfMmprojGroups = allGroups.filter(isMmprojGroup);
         hfGgufGroups = allGroups.filter(g => !isMmprojGroup(g));
         renderGguf();
-        if (hfTreeError) showToast('提示', hfTreeError, 'info');
+        if (hfTreeError) showToast(t('toast.info', '提示'), hfTreeError, 'info');
     } catch (e) {
         hfGguf = [];
         hfGgufGroups = [];
         hfMmprojGroups = [];
-        document.getElementById('hfGgufList').innerHTML = `<div class="empty-state">解析失败</div>`;
-        showToast('错误', e && e.message ? e.message : '网络请求失败', 'error');
+        document.getElementById('hfGgufList').innerHTML = `<div class="empty-state">${t('hf.gguf.parse_failed', '解析失败')}</div>`;
+        showToast(t('toast.error', '错误'), e && e.message ? e.message : t('common.network_request_failed', '网络请求失败'), 'error');
     }
 }
 
@@ -575,17 +600,17 @@ function selectRepoAndOpen(repoId) {
 
 if (typeof window.shutdownService !== 'function') {
     window.shutdownService = function() {
-        if (!confirm('确定要停止服务吗？')) return;
+        if (!confirm(t('confirm.shutdown', '确定要停止服务吗？'))) return;
         fetch('/api/shutdown', { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 if (data && data.success) {
-                    showToast('成功', '服务正在停止', 'success');
+                    showToast(t('toast.success', '成功'), t('page.shutdown.stopping', '服务正在停止'), 'success');
                 } else {
-                    showToast('错误', (data && data.error) ? data.error : '停止服务失败', 'error');
+                    showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('page.shutdown.failed', '停止服务失败'), 'error');
                 }
             })
-            .catch(() => showToast('错误', '网络请求失败', 'error'));
+            .catch(() => showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error'));
     };
 }
 

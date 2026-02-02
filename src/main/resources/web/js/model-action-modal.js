@@ -464,10 +464,10 @@ function saveModelCapabilitiesNow(modelId, caps) {
         body: JSON.stringify(payload)
     }).then(r => r.json()).then(res => {
         if (!(res && res.success)) {
-            showToast('错误', (res && res.error) ? res.error : '保存模型能力失败', 'error');
+            showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('modal.model_action.capabilities.save_failed', '保存模型能力失败'), 'error');
         }
     }).catch(() => {
-        showToast('错误', '保存模型能力失败', 'error');
+        showToast(t('toast.error', '错误'), t('modal.model_action.capabilities.save_failed', '保存模型能力失败'), 'error');
     });
 }
 
@@ -552,17 +552,17 @@ function setModelActionMode(mode) {
     }
 
     if (resolved === 'config') {
-        if (titleText) titleText.textContent = '更新启动参数';
+        if (titleText) titleText.textContent = t('modal.model_action.title.config', '更新启动参数');
         if (icon) icon.className = 'fas fa-cog';
-        if (submitBtn) submitBtn.textContent = '保存';
+        if (submitBtn) submitBtn.textContent = t('common.save', '保存');
     } else if (resolved === 'benchmark') {
-        if (titleText) titleText.textContent = '模型性能测试';
+        if (titleText) titleText.textContent = t('modal.model_action.title.benchmark', '模型性能测试');
         if (icon) icon.className = 'fas fa-tachometer-alt';
-        if (submitBtn) submitBtn.textContent = '开始测试';
+        if (submitBtn) submitBtn.textContent = t('modal.model_action.submit.benchmark', '开始测试');
     } else {
-        if (titleText) titleText.textContent = '加载模型';
+        if (titleText) titleText.textContent = t('modal.model_action.title.load', '加载模型');
         if (icon) icon.className = 'fas fa-upload';
-        if (submitBtn) submitBtn.textContent = '加载模型';
+        if (submitBtn) submitBtn.textContent = t('modal.model_action.submit.load', '加载模型');
     }
 }
 
@@ -580,7 +580,7 @@ function loadModel(modelId, modelName, mode = 'load') {
     window.__loadModelSelectedDevices = ['All'];
     window.__loadModelSelectionFromConfig = true;
     const deviceChecklistEl = findById(modal, 'deviceChecklist');
-    if (deviceChecklistEl) deviceChecklistEl.innerHTML = '<div class="settings-empty">加载中...</div>';
+    if (deviceChecklistEl) deviceChecklistEl.innerHTML = `<div class="settings-empty">${t('common.loading', '加载中...')}</div>`;
     window.__availableDevices = [];
     window.__availableDeviceCount = 0;
     renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
@@ -593,7 +593,7 @@ function loadModel(modelId, modelName, mode = 'load') {
     fetch(`/api/models/config/get?modelId=${encodeURIComponent(modelId)}`)
         .then(r => r.json()).then(data => {
             if (!(data && data.success) && mode === 'config') {
-                showToast('错误', (data && data.error) ? data.error : '获取配置失败', 'error');
+                showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('modal.model_action.config.load_failed', '获取配置失败'), 'error');
             }
             const config = extractLaunchConfigFromGetResponse(data, modelId);
             if (config && typeof config === 'object') {
@@ -648,7 +648,7 @@ function loadModel(modelId, modelName, mode = 'load') {
                         })
                         .filter(Boolean)
                         .join('');
-                    select.innerHTML = options || '<option value="">未配置 Llama.cpp 路径</option>';
+                    select.innerHTML = options || `<option value="">${t('modal.model_action.llamacpp.not_configured', '未配置 Llama.cpp 路径')}</option>`;
                 }
 
                 if (config.llamaBinPath) {
@@ -748,7 +748,7 @@ function submitModelAction() {
             submitModelBenchmark();
             return;
         }
-        showToast('错误', '未找到模型性能测试函数', 'error');
+        showToast(t('toast.error', '错误'), t('modal.model_action.benchmark.missing_handler', '未找到模型性能测试函数'), 'error');
         return;
     }
 
@@ -776,10 +776,10 @@ function submitModelAction() {
         || findInModal(modal, 'button[onclick*="submitModelAction"]')
         || findInModal(modal, '.modal-footer .btn-primary');
     if (!modelIdForUi) {
-        showToast('错误', '缺少必需的modelId参数', 'error');
+        showToast(t('toast.error', '错误'), t('modal.model_action.missing_model_id', '缺少必需的modelId参数'), 'error');
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.textContent = mode === 'config' ? '保存' : '加载模型';
+            submitBtn.textContent = mode === 'config' ? t('common.save', '保存') : t('modal.model_action.submit.load', '加载模型');
         }
         return;
     }
@@ -788,11 +788,11 @@ function submitModelAction() {
         const cmd = payload && payload.cmd ? String(payload.cmd).trim() : '';
         const extraParams = payload && payload.extraParams ? String(payload.extraParams).trim() : '';
         if (!llamaBinPathSelect) {
-            showToast('错误', '未提供llamaBinPath', 'error');
+            showToast(t('toast.error', '错误'), t('modal.model_action.missing_llama_bin_path', '未提供llamaBinPath'), 'error');
             return;
         }
         if (!cmd && !extraParams) {
-            showToast('错误', '缺少必需的启动参数', 'error');
+            showToast(t('toast.error', '错误'), t('modal.model_action.missing_launch_params', '缺少必需的启动参数'), 'error');
             return;
         }
         payload.llamaBinPathSelect = llamaBinPathSelect;
@@ -802,8 +802,8 @@ function submitModelAction() {
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = mode === 'config'
-            ? '<i class="fas fa-spinner fa-spin"></i> 保存中...'
-            : '<i class="fas fa-spinner fa-spin"></i> 处理中...';
+            ? `<i class="fas fa-spinner fa-spin"></i> ${t('common.saving', '保存中...')}`
+            : `<i class="fas fa-spinner fa-spin"></i> ${t('common.processing', '处理中...')}`;
     }
 
     const url = mode === 'config' ? '/api/models/config/set' : '/api/models/load';
@@ -814,7 +814,7 @@ function submitModelAction() {
     }).then(r => r.json()).then(res => {
         if (res.success) {
             if (mode === 'config') {
-                showToast('成功', '启动参数已保存', 'success');
+                showToast(t('toast.success', '成功'), t('modal.model_action.config.saved', '启动参数已保存'), 'success');
                 closeModal('loadModelModal');
             } else {
                 if (res.data && res.data.async) {
@@ -822,25 +822,25 @@ function submitModelAction() {
 					closeModal('loadModelModal');
                 } else {
                     if (res.data && res.data.processOnly) {
-                        showToast('成功', '参数已接收（未加载模型）', 'success');
+                        showToast(t('toast.success', '成功'), t('modal.model_action.load.process_only', '参数已接收（未加载模型）'), 'success');
                     } else {
-                        showToast('成功', '模型加载成功', 'success');
+                        showToast(t('toast.success', '成功'), t('modal.model_action.load.success', '模型加载成功'), 'success');
                     }
                     closeModal('loadModelModal');
                 }
             }
         } else {
-            showToast('错误', res.error || (mode === 'config' ? '保存失败' : '加载失败'), 'error');
+            showToast(t('toast.error', '错误'), res.error || (mode === 'config' ? t('common.save_failed', '保存失败') : t('common.load_failed', '加载失败')), 'error');
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = mode === 'config' ? '保存' : '加载模型';
+                submitBtn.textContent = mode === 'config' ? t('common.save', '保存') : t('modal.model_action.submit.load', '加载模型');
             }
         }
     }).catch(() => {
-        showToast('错误', '网络请求失败', 'error');
+        showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.textContent = mode === 'config' ? '保存' : '加载模型';
+            submitBtn.textContent = mode === 'config' ? t('common.save', '保存') : t('modal.model_action.submit.load', '加载模型');
         }
     });
 }
@@ -853,21 +853,21 @@ function estimateVramAction() {
     const payload = buildLoadModelPayload(modal);
     const modelId = payload && payload.modelId ? String(payload.modelId).trim() : '';
     if (!modelId) {
-        showToast('错误', '请先选择模型', 'error');
+        showToast(t('toast.error', '错误'), t('modal.model_action.vram.select_model_first', '请先选择模型'), 'error');
         return;
     }
     const hint = findById(modal, 'ctxSizeVramHint');
-    if (hint) hint.textContent = '正在计算……';
+    if (hint) hint.textContent = t('common.calculating', '正在计算……');
 
     const llamaBinPathSelect = payload && payload.llamaBinPathSelect ? String(payload.llamaBinPathSelect).trim() : '';
     const cmd = payload && payload.cmd ? String(payload.cmd).trim() : '';
     const extraParams = payload && payload.extraParams ? String(payload.extraParams).trim() : '';
     if (!llamaBinPathSelect) {
-        showToast('错误', '未提供llamaBinPath', 'error');
+        showToast(t('toast.error', '错误'), t('modal.model_action.missing_llama_bin_path', '未提供llamaBinPath'), 'error');
         return;
     }
     if (!cmd && !extraParams) {
-        showToast('错误', '缺少必需的启动参数', 'error');
+        showToast(t('toast.error', '错误'), t('modal.model_action.missing_launch_params', '缺少必需的启动参数'), 'error');
         return;
     }
     payload.modelId = modelId;
@@ -880,19 +880,19 @@ function estimateVramAction() {
         if (res && res.success) {
             const vram = res.data && res.data.vram !== undefined && res.data.vram !== null ? String(res.data.vram).trim() : '';
             if (vram) {
-                const text = `预计显存：${vram} MiB`;
+                const text = `${t('modal.model_action.vram.estimate', '预计显存')}：${vram} MiB`;
                 if (hint) hint.textContent = text;
             } else if(res.data.message) {
-				showToast('错误', '估算错误', 'error');
+				showToast(t('toast.error', '错误'), t('modal.model_action.vram.estimate_error', '估算错误'), 'error');
 				if (hint) hint.textContent = res.data.message;
             } else{
-				showToast('错误', '返回数据格式不正确', 'error');
+				showToast(t('toast.error', '错误'), t('modal.model_action.vram.invalid_response', '返回数据格式不正确'), 'error');
 			}
         } else {
-            showToast('错误', (res && res.error) ? res.error : '估算失败', 'error');
+            showToast(t('toast.error', '错误'), (res && res.error) ? res.error : t('modal.model_action.vram.estimate_failed', '估算失败'), 'error');
         }
     }).catch(() => {
-        showToast('错误', '网络请求失败', 'error');
+        showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
     });
 }
 
@@ -950,7 +950,7 @@ function renderMainGpuSelect(devices, selectedKeys) {
         if (filtered.length > 0) effectiveDevices = filtered;
     }
     const safe = (Array.isArray(effectiveDevices) && desired >= 0 && desired < effectiveDevices.length) ? desired : -1;
-    const options = ['<option value="-1">默认</option>'];
+    const options = [`<option value="-1">${escapeHtml(t('common.default', '默认'))}</option>`];
     if (Array.isArray(effectiveDevices)) {
         for (let i = 0; i < effectiveDevices.length; i++) {
             options.push(`<option value="${i}">${escapeHtml(effectiveDevices[i])}</option>`);
@@ -1041,7 +1041,7 @@ function loadDeviceList() {
     const llamaBinPath = llamaSelect ? llamaSelect.value : '';
 
     if (!llamaBinPath) {
-        if (list) list.innerHTML = '<div class="settings-empty">请先选择 Llama.cpp 版本</div>';
+        if (list) list.innerHTML = `<div class="settings-empty">${t('common.select_llamacpp_first', '请先选择 Llama.cpp 版本')}</div>`;
         renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
         return;
     }
@@ -1051,7 +1051,7 @@ function loadDeviceList() {
         .then(data => {
             if (!list) return;
             if (!(data && data.success && data.data && Array.isArray(data.data.devices))) {
-                list.innerHTML = '<div class="settings-empty">获取设备列表失败</div>';
+                list.innerHTML = `<div class="settings-empty">${t('common.devices_load_failed', '获取设备列表失败')}</div>`;
                 renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
                 return;
             }
@@ -1068,7 +1068,7 @@ function loadDeviceList() {
                     <span style="font-size: 0.9rem; color: var(--text-primary);">${escapeHtml(device)}</span>
                 </label>`;
             });
-            list.innerHTML = items.length ? items.join('') : '<div class="settings-empty">未发现可用设备</div>';
+            list.innerHTML = items.length ? items.join('') : `<div class="settings-empty">${t('common.no_devices', '未发现可用设备')}</div>`;
 
             if (!window.__deviceChecklistChangeBound) {
                 window.__deviceChecklistChangeBound = true;
@@ -1084,7 +1084,7 @@ function loadDeviceList() {
             syncMainGpuSelectWithChecklist();
         })
         .catch(error => {
-            if (list) list.innerHTML = `<div class="settings-empty">获取设备列表失败：${escapeHtml(error && error.message ? error.message : '')}</div>`;
+            if (list) list.innerHTML = `<div class="settings-empty">${t('common.devices_load_failed', '获取设备列表失败')}：${escapeHtml(error && error.message ? error.message : '')}</div>`;
             renderMainGpuSelect([], window.__loadModelSelectedDevices || []);
         });
 }
