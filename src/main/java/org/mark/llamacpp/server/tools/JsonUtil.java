@@ -41,6 +41,25 @@ public class JsonUtil {
 		return gson.fromJson(json, type);
 	}
 	
+	/**
+	 * 	
+	 * @param obj
+	 * @param key
+	 * @return
+	 */
+	public static String getJsonString(JsonObject obj, String key) {
+		if (obj == null || key == null || key.isBlank()) {
+			return "";
+		}
+		if (!obj.has(key) || obj.get(key).isJsonNull()) {
+			return "";
+		}
+		try {
+			return obj.get(key).getAsString().trim();
+		} catch (Exception ignore) {
+			return "";
+		}
+	}
 	
 	public static String getJsonString(JsonObject o, String key, String fallback) {
 		if (o == null || key == null || !o.has(key) || o.get(key) == null || o.get(key).isJsonNull())

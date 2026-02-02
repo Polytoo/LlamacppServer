@@ -10,10 +10,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -80,40 +79,118 @@ public class OpenAIService {
 	 * @param request
 	 */
 	public void handleOpenAIModelsRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
+//		try {
+//			// 只支持GET请求
+//			if (request.method() != HttpMethod.GET) {
+//				this.sendOpenAIErrorResponseWithCleanup(ctx, 405, null, "Only GET method is supported", "method");
+//				return;
+//			}
+//
+//			// 获取LlamaServerManager实例
+//			LlamaServerManager manager = LlamaServerManager.getInstance();
+//			
+//			// 获取已加载的进程信息
+//			Map<String, LlamaCppProcess> loadedProcesses = manager.getLoadedProcesses();
+//			
+//			// 构建OpenAI格式的模型列表
+//			List<Map<String, Object>> openAIModels = new ArrayList<>();
+//			
+//			for (Map.Entry<String, LlamaCppProcess> entry : loadedProcesses.entrySet()) {
+//				String modelId = entry.getKey();
+//				// 构建OpenAI格式的模型信息
+//				Map<String, Object> modelData = new HashMap<>();
+//				modelData.put("id", modelId);
+//				modelData.put("object", "model");
+//				modelData.put("owned_by", "organization_owner");
+//				
+//				openAIModels.add(modelData);
+//			}
+//			
+//			// 构建OpenAI格式的响应
+//			Map<String, Object> response = new HashMap<>();
+//			response.put("object", "list");
+//			response.put("data", openAIModels);
+//			sendOpenAIJsonResponse(ctx, response);
+//		} catch (Exception e) {
+//			logger.info("处理OpenAI模型列表请求时发生错误", e);
+//			this.sendOpenAIErrorResponseWithCleanup(ctx, 500, null, e.getMessage(), null);
+//		}
 		try {
 			// 只支持GET请求
 			if (request.method() != HttpMethod.GET) {
 				this.sendOpenAIErrorResponseWithCleanup(ctx, 405, null, "Only GET method is supported", "method");
 				return;
 			}
-
-			// 获取LlamaServerManager实例
 			LlamaServerManager manager = LlamaServerManager.getInstance();
-			
-			// 获取已加载的进程信息
-			Map<String, LlamaCppProcess> loadedProcesses = manager.getLoadedProcesses();
-			
-			// 构建OpenAI格式的模型列表
-			List<Map<String, Object>> openAIModels = new ArrayList<>();
-			
-			for (Map.Entry<String, LlamaCppProcess> entry : loadedProcesses.entrySet()) {
-				String modelId = entry.getKey();
-				// 构建OpenAI格式的模型信息
-				Map<String, Object> modelData = new HashMap<>();
-				modelData.put("id", modelId);
-				modelData.put("object", "model");
-				modelData.put("owned_by", "organization_owner");
-				
-				openAIModels.add(modelData);
+			Map<String, LlamaCppProcess> loaded = manager.getLoadedProcesses();
+
+			Map<String, JsonObject> modelsByKey = new LinkedHashMap<>();
+			Map<String, JsonObject> dataById = new LinkedHashMap<>();
+
+			for (Map.Entry<String, LlamaCppProcess> e : loaded.entrySet()) {
+				String modelId = e.getKey();
+				if (modelId == null || modelId.isBlank()) {
+					continue;
+				}
+				JsonObject info = manager.getLoadedModelInfo(modelId);
+				if (info == null) {
+					try {
+						info = manager.handleModelInfo(modelId);
+					} catch (Exception ignore) {
+						info = null;
+					}
+				}
+				if (info == null) {
+					continue;
+				}
+
+				if (!info.has("items") || !info.get("items").isJsonArray()) {
+					continue;
+				}
+				JsonArray items = info.getAsJsonArray("items");
+				for (JsonElement itemEl : items) {
+					if (itemEl == null || itemEl.isJsonNull() || !itemEl.isJsonObject()) {
+						continue;
+					}
+					JsonObject item = itemEl.getAsJsonObject();
+
+					if (item.has("model") && item.get("model").isJsonObject()) {
+						JsonObject m = item.getAsJsonObject("model");
+						String key = JsonUtil.getJsonString(m, "model");
+						if (key.isEmpty()) {
+							key = JsonUtil.getJsonString(m, "name");
+						}
+						if (!key.isEmpty() && !modelsByKey.containsKey(key)) {
+							modelsByKey.put(key, m.deepCopy());
+						}
+					}
+
+					if (item.has("data") && item.get("data").isJsonObject()) {
+						JsonObject d = item.getAsJsonObject("data");
+						String id = JsonUtil.getJsonString(d, "id");
+						if (!id.isEmpty() && !dataById.containsKey(id)) {
+							dataById.put(id, d.deepCopy());
+						}
+					}
+				}
 			}
-			
-			// 构建OpenAI格式的响应
-			Map<String, Object> response = new HashMap<>();
-			response.put("object", "list");
-			response.put("data", openAIModels);
+
+			JsonArray models = new JsonArray();
+			for (JsonObject m : modelsByKey.values()) {
+				models.add(m);
+			}
+			JsonArray data = new JsonArray();
+			for (JsonObject d : dataById.values()) {
+				data.add(d);
+			}
+
+			JsonObject response = new JsonObject();
+			response.addProperty("object", "list");
+			response.add("models", models);
+			response.add("data", data);
 			sendOpenAIJsonResponse(ctx, response);
 		} catch (Exception e) {
-			logger.info("处理OpenAI模型列表请求时发生错误", e);
+			logger.info("获取模型列表时发生错误", e);
 			this.sendOpenAIErrorResponseWithCleanup(ctx, 500, null, e.getMessage(), null);
 		}
 	}
@@ -571,20 +648,20 @@ public class OpenAIService {
 		});
 	}
 
-	private static String safeString(JsonObject obj, String key) {
-		try {
-			if (obj == null || key == null) {
-				return null;
-			}
-			JsonElement el = obj.get(key);
-			if (el == null || el.isJsonNull()) {
-				return null;
-			}
-			return el.getAsString();
-		} catch (Exception e) {
-			return null;
-		}
-	}
+//	private static String safeString(JsonObject obj, String key) {
+//		try {
+//			if (obj == null || key == null) {
+//				return null;
+//			}
+//			JsonElement el = obj.get(key);
+//			if (el == null || el.isJsonNull()) {
+//				return null;
+//			}
+//			return el.getAsString();
+//		} catch (Exception e) {
+//			return null;
+//		}
+//	}
 
 	private static String buildEtag(byte[] content) {
 		try {

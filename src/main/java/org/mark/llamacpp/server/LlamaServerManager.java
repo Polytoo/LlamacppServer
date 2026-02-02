@@ -120,6 +120,8 @@ public class LlamaServerManager {
 	 * 模型ID到端口映射
 	 */
 	private Map<String, Integer> modelPorts = new HashMap<>();
+
+	private final Map<String, JsonObject> loadedModelInfos = new ConcurrentHashMap<>();
 	
 	/**
 	 * 	正在加载中的模型。
@@ -775,29 +777,31 @@ public class LlamaServerManager {
 	 * @return 是否成功停止
 	 */
 	public boolean stopModel(String modelId) {
+		String id = modelId == null ? "" : modelId.trim();
 		LlamaCppProcess process;
 		Future<?> task;
 		synchronized (this.processLock) {
-			process = this.loadedProcesses.get(modelId);
+			process = this.loadedProcesses.get(id);
 			task = null;
 		}
 		if (process != null) {
 			boolean stopped = process.stop();
 			if (stopped) {
 				synchronized (this.processLock) {
-					this.loadedProcesses.remove(modelId);
-					this.modelPorts.remove(modelId);
+					this.loadedProcesses.remove(id);
+					this.modelPorts.remove(id);
 				}
+				this.loadedModelInfos.remove(id);
 			}
 			return stopped;
 		}
 		
-		boolean loading = this.isLoading(modelId);
+		boolean loading = this.isLoading(id);
 		synchronized (this.processLock) {
-			process = this.loadingProcesses.get(modelId);
-			task = this.loadingTasks.get(modelId);
+			process = this.loadingProcesses.get(id);
+			task = this.loadingTasks.get(id);
 			if (process != null || task != null || loading) {
-				this.canceledLoadingModels.add(modelId);
+				this.canceledLoadingModels.add(id);
 			}
 		}
 		
@@ -814,13 +818,14 @@ public class LlamaServerManager {
 		}
 		if (stopped) {
 			synchronized (this.processLock) {
-				this.loadingProcesses.remove(modelId);
-				this.loadingTasks.remove(modelId);
-				this.modelPorts.remove(modelId);
+				this.loadingProcesses.remove(id);
+				this.loadingTasks.remove(id);
+				this.modelPorts.remove(id);
 			}
 			synchronized (this.loadingModels) {
-				this.loadingModels.remove(modelId);
+				this.loadingModels.remove(id);
 			}
+			this.loadedModelInfos.remove(id);
 		}
 		return stopped;
 	}
@@ -1160,6 +1165,29 @@ public class LlamaServerManager {
 						e.printStackTrace();
 						process.setCtxSize(0);
 					}
+					// 这里再请求一次
+					try {
+						JsonObject slotsResponse = this.handleModelSlotsGet(modelId);
+						int ctxSize = 0;
+						if (slotsResponse != null && slotsResponse.has("slots") && slotsResponse.get("slots").isJsonArray()) {
+							JsonArray slots = slotsResponse.getAsJsonArray("slots");
+							if (slots.size() > 0 && slots.get(0).isJsonObject()) {
+								JsonObject slot0 = slots.get(0).getAsJsonObject();
+								if (slot0.has("n_ctx") && !slot0.get("n_ctx").isJsonNull()) {
+									ctxSize = (int) Math.round(slot0.get("n_ctx").getAsDouble());
+								}
+							}
+						}
+						process.setCtxSize(ctxSize);
+					}catch (Exception e) {
+						e.printStackTrace();
+						process.setCtxSize(0);
+					}
+					try {
+						this.handleModelInfo(modelId);
+					} catch (Exception e) {
+						logger.info("获取/v1/models信息失败: " + modelId, e);
+					}
 				} else {
 					process.stop();
 					if (this.isLoadCanceled(modelId)) {
@@ -1396,6 +1424,108 @@ public class LlamaServerManager {
 		}
 	}
 	
+	
+	public JsonObject handleModelInfo(String modelId) {
+		try {
+			String id = modelId == null ? "" : modelId.trim();
+			int port = this.requireLoadedModelPort(id);
+			HttpResult r = this.callLocalModelEndpoint(port, "GET", "/v1/models", null, 30000, 30000);
+			if (r.statusCode < 200 || r.statusCode >= 300) {
+				throw new RuntimeException("获取模型信息失败: " + r.body);
+			}
+			JsonObject root = this.tryParseJsonObject(r.body);
+			if (root == null) {
+				throw new RuntimeException("获取模型信息失败: 返回不是JSON对象");
+			}
+
+			JsonArray models = root.has("models") && root.get("models").isJsonArray() ? root.getAsJsonArray("models") : new JsonArray();
+			JsonArray data = root.has("data") && root.get("data").isJsonArray() ? root.getAsJsonArray("data") : new JsonArray();
+
+			Map<String, JsonObject> dataById = new LinkedHashMap<>();
+			for (JsonElement el : data) {
+				if (el == null || el.isJsonNull() || !el.isJsonObject()) {
+					continue;
+				}
+				JsonObject obj = el.getAsJsonObject();
+				String key = jsonString(obj, "id");
+				if (!key.isEmpty()) {
+					dataById.put(key, obj);
+				}
+			}
+
+			Set<String> used = new HashSet<>();
+			JsonArray items = new JsonArray();
+			for (JsonElement el : models) {
+				if (el == null || el.isJsonNull() || !el.isJsonObject()) {
+					continue;
+				}
+				JsonObject modelObj = el.getAsJsonObject();
+				String key = jsonString(modelObj, "model");
+				if (key.isEmpty()) {
+					key = jsonString(modelObj, "name");
+				}
+
+				JsonObject item = new JsonObject();
+				if (!key.isEmpty()) {
+					item.addProperty("id", key);
+				}
+				item.add("model", modelObj.deepCopy());
+
+				JsonObject dataObj = !key.isEmpty() ? dataById.get(key) : null;
+				if (dataObj != null) {
+					item.add("data", dataObj.deepCopy());
+					used.add(key);
+				}
+				items.add(item);
+			}
+
+			for (Map.Entry<String, JsonObject> e : dataById.entrySet()) {
+				String key = e.getKey();
+				if (key == null || key.isBlank() || used.contains(key)) {
+					continue;
+				}
+				JsonObject item = new JsonObject();
+				item.addProperty("id", key);
+				item.add("data", e.getValue().deepCopy());
+				items.add(item);
+			}
+
+			JsonObject out = new JsonObject();
+			out.addProperty("modelId", id);
+			out.addProperty("port", port);
+			out.addProperty("fetchedAt", System.currentTimeMillis());
+			out.add("items", items);
+
+			this.loadedModelInfos.put(id, out);
+			return out;
+		} catch (Exception e) {
+			logger.info("获取模型信息时发生错误", e);
+			throw new RuntimeException("获取模型信息失败: " + e.getMessage(), e);
+		}
+	}
+
+	public JsonObject getLoadedModelInfo(String modelId) {
+		String id = modelId == null ? "" : modelId.trim();
+		if (id.isEmpty()) {
+			return null;
+		}
+		JsonObject found = this.loadedModelInfos.get(id);
+		return found == null ? null : found.deepCopy();
+	}
+
+	private static String jsonString(JsonObject obj, String key) {
+		if (obj == null || key == null || key.isBlank()) {
+			return "";
+		}
+		if (!obj.has(key) || obj.get(key).isJsonNull()) {
+			return "";
+		}
+		try {
+			return obj.get(key).getAsString().trim();
+		} catch (Exception ignore) {
+			return "";
+		}
+	}
 	
 	/**
 	 * 	获取Slots信息
