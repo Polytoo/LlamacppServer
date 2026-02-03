@@ -1,6 +1,6 @@
 #!/bin/bash
-# 设置Java目录，适合多JDK环境的用户，但是默认不要设置，我们默认用户的系统中有JAVA_HOME
-JAVA_HOME=/opt/jdk-24.0.2/
+#！！！！！这里可以指定JDK路径，如果没有指定，则使用系统环境变量查找
+#JAVA_HOME=YOUR JDK PATH
 # 设置项目根目录（确保从项目根路径执行）
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$PROJECT_ROOT/src/main/java"
@@ -24,12 +24,32 @@ if [ ! -f "$JAVAC" ] || [ ! -x "$JAVAC" ]; then
     echo "   请确认 JAVA_HOME 指向正确的 JDK 21 安装目录。"
     exit 1
 fi
-# 验证版本是否为 JDK 21
+## 验证版本是否为 JDK 21
+#JAVA_VERSION=$("$JAVAC" -version 2>&1)
+#if [[ "$JAVA_VERSION" != *"21."* ]]; then
+#    echo "⚠️ 警告：检测到 Java 编译器版本不是 JDK 21: $JAVA_VERSION"
+#    echo "   建议使用 JDK 21 以确保语言特性和性能优化兼容。"
+#fi
+
+# 获取版本信息 (例如: javac 24.0.2)
 JAVA_VERSION=$("$JAVAC" -version 2>&1)
-if [[ "$JAVA_VERSION" != *"21."* ]]; then
-    echo "⚠️ 警告：检测到 Java 编译器版本不是 JDK 21: $JAVA_VERSION"
-    echo "   建议使用 JDK 21 以确保语言特性和性能优化兼容。"
+# 使用正则表达式提取主版本号 (第一位数字)
+# grep -oP '\d+' 表示提取所有数字
+MAJOR_VERSION=$(echo "$JAVA_VERSION" | grep -oP '\d+' | head -n 1)
+# 检查是否成功提取到版本号
+if [ -z "$MAJOR_VERSION" ]; then
+    echo "❌ 错误：无法解析 Java 版本号: $JAVA_VERSION"
+    exit 1
 fi
+# 判断版本是否 >= 21
+if (( MAJOR_VERSION >= 21 )); then
+    echo "✅ 检测到 JDK 版本: $JAVA_VERSION"
+    # 可以继续执行
+else
+    echo "❌ 错误：JDK 版本过低。要求 >= 21，当前版本: $JAVA_VERSION"
+    exit 1
+fi
+
 # === 2. 清理并创建输出目录，同时复制lib文件 ===
 rm -rf "$CLASSES_DIR"
 mkdir -p "$CLASSES_DIR"
