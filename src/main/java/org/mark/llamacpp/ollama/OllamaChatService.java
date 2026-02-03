@@ -120,10 +120,6 @@ public class OllamaChatService {
 			}
 		} catch (Exception ignore) {
 		}
-		
-		
-		System.err.println(content);
-		
 		// 是否带了工具
 		boolean hasTools = false;
 		try {
