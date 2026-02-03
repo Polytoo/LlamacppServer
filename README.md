@@ -1,10 +1,12 @@
 # Llama.cpp 模型管理系统
 
-这是一个个人自用的 llama.cpp 模型管理工具，提供完整的模型加载、管理和交互功能。
+这是一个个人自用的 llama.cpp 模型管理工具，提供完整的模型加载、管理和交互功能，尽量提供不同API的兼容性。
 
-> **注意**：尽管本项目作为 Java 应用具有跨平台的特性，但开发目标是专门用于 **AI MAX+ 395** 这台特殊的计算机平台。
+> **注意**：尽管本项目作为 Java 应用具有跨平台的特性，并且llama.cpp也支持多平台，但开发目标是专门用于 **AI MAX+ 395** 这台机器，对于‘手动GPU分层’的功能暂不考虑开发（反正llama.cpp也会自动使用fit功能计算CPU和GPU的最佳配比，我觉得这个手动分层不是必须的）。
 ---
-> **注意**：关于Linux的编译脚本，请注意JAVA_HOME的配置，默认使用该路径：/opt/jdk-24.0.2/。请修改为你所使用的路径再进行编译，并且修改时请务必注意：Windows 使用 CRLF（\r\n）作为换行符，而 Linux 使用 LF（\n）。
+> **注意**：关于编译脚本，请注意JAVA_HOME的配置，默认使用系统环境变量中配置的值，如果你有多个不同版本的JDK，请确认脚本可以找到大于等于21的版本。如果系统环境变量中配置的值不是JDK21，请修改脚本，更改为正确的路径再进行编译，并且修改时请务必注意：Windows 使用 CRLF（\r\n）作为换行符，而 Linux 使用 LF（\n）。Java程序的编译是比较简单的，如果编译脚本存在问题，你也可以将它作为Maven项目拉进IDE操作。实在不行还以用release傻瓜包。
+---
+> **提醒**：目前支持英语版本，会根据浏览器的语言设置自动切换，也可以在url中通过lang参数手动指定英语（如：http:127.0.0.1:8080/?lang=en）。
 ---
 
 ## API兼容情况（llamacpp自身支持OpenAI Compatible和Anthropic API）
@@ -12,7 +14,7 @@
 |------|----------|------|
 | 兼容 Ollama | `/api/tags`<br>`/api/show`<br>`/api/chat`<br>`/api/embed`<br>`/api/ps` | 支持 Ollama 兼容接口，可用于模型查看、聊天、嵌入向量等操作 |
 | 不兼容 Ollama | `/api/copy`<br>`/api/delete`<br>`/api/pull`<br>`/api/push`<br>`/api/generate` | 不支持 Ollama 的相关操作，如模型复制、删除、拉取、推送和生成 |
-| 兼容 LM Studio | `/api/v0/models`<br>`/api/v0/chat/completions`<br>`/api/v0/completions`<br>`/api/v0/embeddings` | 支持 lmStudio 的模型查询、对话、嵌入和生成功能 |
+| 兼容 LM Studio | `/api/v0/models`<br>`/api/v0/chat/completions`<br>`/api/v0/completions`<br>`/api/v0/embeddings` | 支持 LM Studio 的模型查询、对话、嵌入和生成功能 |
 
 
 
@@ -25,7 +27,7 @@
 - **模型详情查看**：查看模型的详细信息，包括元数据、运行指标（metrics）、属性（props）和聊天模板（可编辑模板）
 - **分卷模型支持**：自动识别和处理分卷模型文件（如 `*-00001-of-*.gguf`）
 - **多模态模型支持**：支持带视觉组件的模型（mmproj 文件）
-
+- **聊天模板**： 在模型的详细信息中，聊天模板默认不会自动加载，需要手动点击‘默认’按钮才会加载。如果点击加载后依然是空值，说明GGUF模型中可能不包含默认的聊天模板，需要在‘内置聊天模板’中选择适合的模板，或者自己手动设置一个模板。
 <img width="2880" height="1800" alt="14f92988319d6ed4d4280bc41f350803" src="https://github.com/user-attachments/assets/b5dacf12-c0ca-4200-992a-b4f2b8eab727" />
 <img width="2880" height="1800" alt="e7db8db4c33a1f27f312b83a1c0d2d62" src="https://github.com/user-attachments/assets/957128a5-79eb-4e78-8bc3-329d415ce329" />
 <img width="2880" height="1800" alt="60bab939c769d2ac0988c7fbb4773d38" src="https://github.com/user-attachments/assets/49443d49-3fdb-488e-9192-ee0f7a4a5f31" />
@@ -119,7 +121,7 @@ javac-linux.sh
 
 ### 启动程序
 编译成功后，在build目录下找到启动脚本：run.sh或者run.bat，运行即可。
-
+- 注意：默认会占用8080和8070端口，如果这两个端口不可以，请手动在**application.json**中修改监听的端口。
 ### 访问 Web 界面
 
 启动成功后，在浏览器中访问：
