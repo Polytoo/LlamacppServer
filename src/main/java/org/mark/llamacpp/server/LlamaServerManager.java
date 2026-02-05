@@ -1620,13 +1620,31 @@ public class LlamaServerManager {
 		command += executableName + " --list-devices";
 		
 		// 执行命令
-		CommandLineRunner.CommandResult result = CommandLineRunner.execute(command, 30);
+		String osName = System.getProperty("os.name");
+		String os = osName == null ? "" : osName.toLowerCase(Locale.ROOT);
+		int timeoutSeconds = os.contains("win") ? 30 : 5;
+		CommandLineRunner.CommandResult result = CommandLineRunner.execute(command, timeoutSeconds);
 		// 根据list device的返回结果。拼凑设备
-		String output = result.getOutput();
-		if(output.contains("Available devices")) {
-			String[] lines = output.split("\n");
-			for(int i = 1; i < lines.length; i++) {
-				list.add(lines[i]);
+		String rawOut = result.getOutput() == null ? "" : result.getOutput();
+		String rawErr = result.getError() == null ? "" : result.getError();
+		String raw = rawOut.contains("Available devices") ? rawOut : (rawErr.isBlank() ? rawOut : rawErr);
+
+		String[] lines = raw.split("\\R");
+		int start = 0;
+		for (int i = 0; i < lines.length; i++) {
+			if (lines[i] != null && lines[i].contains("Available devices")) {
+				start = i + 1;
+				break;
+			}
+		}
+		for (int i = start; i < lines.length; i++) {
+			String line = lines[i];
+			if (line == null) {
+				continue;
+			}
+			String v = line.trim();
+			if (!v.isEmpty()) {
+				list.add(v);
 			}
 		}
 		return list;
