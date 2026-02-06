@@ -26,11 +26,16 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.mark.llamacpp.download.struct.DownloadState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 任务仓库，负责任务的持久化存储和恢复
  */
 public class TaskRepository {
+
+    private static final Logger logger = LoggerFactory.getLogger(TaskRepository.class);
+
     private static final String REPOSITORY_DIR = "downloads";
     private static final String TASKS_FILE = "tasks.json";
     private static final Path REPOSITORY_PATH = Paths.get(REPOSITORY_DIR);
@@ -53,7 +58,7 @@ public class TaskRepository {
                 Files.createDirectories(REPOSITORY_PATH);
             }
         } catch (IOException e) {
-            System.err.println("无法创建下载仓库目录: " + e.getMessage());
+        	logger.info("无法创建下载仓库目录: {}", e);
         }
         
         // 加载已保存的任务
@@ -107,7 +112,7 @@ public class TaskRepository {
             String json = gson.toJson(dtos);
             writer.write(json);
         } catch (IOException e) {
-            System.err.println("保存任务失败: " + e.getMessage());
+            logger.info("保存任务失败: {}", e);
         }
     }
     
@@ -143,7 +148,7 @@ public class TaskRepository {
                 }
             } catch (Exception e) {
                 // 如果DTO格式失败，尝试加载旧格式（向后兼容）
-                System.err.println("尝试加载旧格式任务文件: " + e.getMessage());
+            	logger.info("尝试加载旧格式任务文件: " + e.getMessage());
                 reader.reset();
                 
                 try {
@@ -165,11 +170,11 @@ public class TaskRepository {
                         }
                     }
                 } catch (Exception ex) {
-                    System.err.println("加载任务文件失败: " + ex.getMessage());
+                	logger.info("加载任务文件失败: {}", ex);
                 }
             }
         } catch (IOException e) {
-            System.err.println("加载任务失败: " + e.getMessage());
+        	logger.info("加载任务失败: {}", e);
         }
     }
     

@@ -532,8 +532,6 @@ public class ModelActionController implements BaseController {
 			command.add("-m");
 			command.add(modelPath);
 			
-			System.err.println(cmd);
-			
 			List<String> cmdArgs = sanitizeBenchmarkCmdArgs(ParamTool.splitCmdArgs(cmd));
 			command.addAll(cmdArgs);
 			String commandStr = String.join(" ", command);

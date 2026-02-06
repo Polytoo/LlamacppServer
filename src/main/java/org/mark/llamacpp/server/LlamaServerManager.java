@@ -170,7 +170,7 @@ public class LlamaServerManager {
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
-			System.err.println("从配置文件加载设置失败，使用默认设置: " + e.getMessage());
+			logger.info("从配置文件加载设置失败，使用默认设置: {}", e);
 		}
 	}
 
@@ -579,13 +579,13 @@ public class LlamaServerManager {
 			return null;
 
 		if (dir == null || !dir.isDirectory()) {
-			System.err.println("Invalid directory: " + path);
+			logger.info("Invalid directory: {}", path);
 			return null;
 		}
 		
 		File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".gguf"));
 		if (files == null || files.length == 0) {
-			// System.err.println("No GGUF files found in directory: " + path);
+			logger.info("No GGUF files found in directory: {}", path);
 			return null;
 		}
 
@@ -680,9 +680,8 @@ public class LlamaServerManager {
 			}
 			
 			return model;
-			
 		} catch (Exception e) {
-			System.err.println("处理目录失败 " + path + ": " + e.getMessage());
+			logger.info("处理目录失败 " + path + ": {}", e);
 			return null;
 		}
 	}
@@ -718,7 +717,7 @@ public class LlamaServerManager {
 		} catch (IllegalStateException e) {
 			// 如果在有效范围内找不到可用端口，回退到原来的简单递增方式
 			// 并打印警告信息
-			System.err.println("警告: 无法找到可用端口，回退到简单递增方式。错误信息: " + e.getMessage());
+			logger.info("警告: 无法找到可用端口，回退到简单递增方式。错误信息: {}", e);
 			return this.portCounter.getAndIncrement();
 		}
 	}
@@ -921,134 +920,6 @@ public class LlamaServerManager {
 		}
 	}
 	
-//	/**
-//	 * 在后台线程中执行模型加载
-//	 */
-//    private synchronized void loadModelInBackground(String modelId, GGUFModel targetModel, ModelLaunchOptions options) {
-//
-//        // 获取下一个可用端口
-//        int port = this.getNextAvailablePort();
-//
-//        List<String> command = options.toCmdLine(targetModel, port);
-//
-//        // 构建完整的命令字符串
-//        String commandStr = String.join(" ", command);
-//		
-//		// 创建并启动LlamaCppProcess
-//		String processName = "llama-server-" + modelId;
-//		LlamaCppProcess process = new LlamaCppProcess(processName, commandStr);
-//		
-//		System.out.println("启动命令：" + commandStr);
-//		
-//		// 使用CountDownLatch来同步等待加载结果
-//		CountDownLatch latch = new CountDownLatch(1);
-//		AtomicBoolean loadSuccess = new AtomicBoolean(false);
-//		
-//		// 设置输出处理器，接受llamacpp运行状态，然后判断特定的内容。
-//        process.setOutputHandler(line -> {
-//            //	判断是否加载成功。
-//            //	1.这是成功了
-//            if(line.contains("srv  update_slots: all slots are idle")) {
-//                loadSuccess.set(true);
-//                latch.countDown();
-//            }
-//            //	2.这是失败了
-//            if(line.contains("main: exiting due to model loading error")) {
-//                loadSuccess.set(false);
-//                latch.countDown();
-//            }
-//            //	3.检测进程异常终止
-//            if(line.contains("Inferior") && line.contains("detached")) {
-//                // 检测到进程异常终止，如 [Inferior 1 (process 6869) detached]
-//                System.err.println("检测到模型进程异常终止: " + line);
-//                
-//                // 设置加载失败状态
-//                loadSuccess.set(false);
-//                
-//                // 从已加载进程列表中移除
-//                this.loadedProcesses.remove(modelId);
-//                this.modelPorts.remove(modelId);
-//                
-//                // 通过WebSocket广播模型停止事件
-//                LlamaServer.sendModelStopEvent(modelId, false, "模型进程异常终止: " + line);
-//                
-//                // 唤醒等待的线程
-//                latch.countDown();
-//            }
-//            //	4.检测到参数错误
-//            if(line.startsWith("error")) {
-//            	 System.err.println("检测到模型进程异常终止: " + line);
-//                 // 设置加载失败状态
-//                 loadSuccess.set(false);
-//                 
-//                 // 从已加载进程列表中移除
-//                 this.loadedProcesses.remove(modelId);
-//                 this.modelPorts.remove(modelId);
-//                 
-//                 // 通过WebSocket广播模型停止事件
-//                 //LlamaServer.sendModelStopEvent(modelId, false, "模型启动失败: " + line);
-//                 
-//                 // 唤醒等待的线程
-//                 latch.countDown();
-//            }
-//        });
-//		
-//		// 启动进程
-//		boolean started = process.start();
-//		if (!started) {
-//			System.err.println("启动模型 " + modelId + " 失败");
-//			// 发送WebSocket事件通知启动失败
-//			LlamaServer.sendModelLoadEvent(modelId, false, "启动模型进程失败");
-//			return;
-//		}else {
-//			// 设置模型的状态为启动中
-//			synchronized (this.loadingModels) {
-//				this.loadingModels.add(targetModel.getModelId());
-//			}
-//		}
-//		
-//		// 等待进程加载完成，超时时间10分钟
-//		try {
-//			boolean timeout = !latch.await(10, TimeUnit.MINUTES);
-//			
-//			if (timeout) {
-//				System.err.println("加载模型 " + modelId + " 超时");
-//				// 停止进程
-//				process.stop();
-//				// 发送WebSocket事件通知加载超时
-//				LlamaServer.sendModelLoadEvent(modelId, false, "模型加载超时");
-//				return;
-//			}
-//			
-//			if (loadSuccess.get()) {
-//				// 保存进程信息
-//				this.loadedProcesses.put(modelId, process);
-//				this.modelPorts.put(modelId, port);
-//				System.out.println("成功启动模型 " + modelId + "，端口: " + port + "，PID: " + process.getPid());
-//				// 发送WebSocket事件通知加载成功
-//				LlamaServer.sendModelLoadEvent(modelId, true, "模型加载成功，端口: " + port);
-//			} else {
-//				System.err.println("加载模型 " + modelId + " 失败");
-//				// 停止进程
-//				process.stop();
-//				// 发送WebSocket事件通知加载失败
-//				LlamaServer.sendModelLoadEvent(modelId, false, "模型加载失败");
-//			}
-//		} catch (InterruptedException e) {
-//			System.err.println("等待模型加载时被中断: " + e.getMessage());
-//			Thread.currentThread().interrupt();
-//			// 停止进程
-//			process.stop();
-//			// 发送WebSocket事件通知加载被中断
-//			LlamaServer.sendModelLoadEvent(modelId, false, "模型加载被中断");
-//		}finally {
-//			synchronized (this.loadingModels) {
-//				this.loadingModels.remove(targetModel.getModelId());
-//			}
-//		}
-//	}
-
-	
 	/**
 	 * 	后台启动llama-server进程。
 	 * @param modelId
@@ -1072,7 +943,7 @@ public class LlamaServerManager {
 			String processName = "llama-server-" + modelId;
 			LlamaCppProcess process = new LlamaCppProcess(processName, commandStr);
 
-			System.out.println("启动命令：" + commandStr);
+			logger.info("启动命令：{}", commandStr);
 
 			CountDownLatch latch = new CountDownLatch(1);
 			AtomicBoolean loadSuccess = new AtomicBoolean(false);
@@ -1087,7 +958,7 @@ public class LlamaServerManager {
 					latch.countDown();
 				}
 				if (line.contains("Inferior") && line.contains("detached")) {
-					System.err.println("检测到模型进程异常终止: " + line);
+					logger.info("检测到模型进程异常终止: {}", line);
 					loadSuccess.set(false);
 					synchronized (this.processLock) {
 						this.loadedProcesses.remove(modelId);
@@ -1097,7 +968,7 @@ public class LlamaServerManager {
 					latch.countDown();
 				}
 				if (line.startsWith("error")) {
-					System.err.println("检测到模型进程异常终止: " + line);
+					logger.info("检测到模型进程异常终止: {}", line);
 					loadSuccess.set(false);
 					synchronized (this.processLock) {
 						this.loadedProcesses.remove(modelId);
@@ -1243,11 +1114,12 @@ public class LlamaServerManager {
 			allArgs = allArgs.isEmpty() ? e : (allArgs + " " + e);
 		}
 
-		String exe = llamaBinPath + File.separator + "llama-server";
+		String exeName = isWindows() ? "llama-server.exe" : "llama-server";
+		String exe = Paths.get(llamaBinPath, exeName).toString();
 		sb.append(ParamTool.quoteIfNeeded(exe));
 
 		sb.append(" -m ");
-		String modelFile = targetModel.getPath() + "/" + targetModel.getPrimaryModel().getFileName();
+		String modelFile = Paths.get(targetModel.getPath(), targetModel.getPrimaryModel().getFileName()).toString();
 		sb.append(ParamTool.quoteIfNeeded(modelFile));
 
 		sb.append(" --port ");
@@ -1257,7 +1129,7 @@ public class LlamaServerManager {
 		if(enableVision) {
 			if (targetModel.getMmproj() != null && !cmdHasFlag(allArgs, "--mmproj") && !cmdHasFlag(allArgs, "--no-mmproj")) {
 				sb.append(" --mmproj ");
-				String mmprojFile = targetModel.getPath() + "/" + targetModel.getMmproj().getFileName();
+				String mmprojFile = Paths.get(targetModel.getPath(), targetModel.getMmproj().getFileName()).toString();
 				sb.append(ParamTool.quoteIfNeeded(mmprojFile));
 			}	
 		}
@@ -1322,6 +1194,11 @@ public class LlamaServerManager {
 		String f = flag.trim();
 		String s = " " + cmd.trim() + " ";
 		return s.contains(" " + f + " ") || s.contains(" " + f + "=");
+	}
+
+	private static boolean isWindows() {
+		String os = System.getProperty("os.name");
+		return os != null && os.toLowerCase(Locale.ROOT).contains("win");
 	}
 	
 	//##########################################################################################
@@ -1725,7 +1602,7 @@ public class LlamaServerManager {
 	 * 	停止所有模型进程并退出Java进程
 	 */
 	public void shutdownAll() {
-		System.out.println("开始停止所有模型进程...");
+		logger.info("开始停止所有模型进程...");
 		Map<String, LlamaCppProcess> processes;
 		synchronized (this.processLock) {
 			processes = new HashMap<>(this.loadedProcesses);
@@ -1734,12 +1611,12 @@ public class LlamaServerManager {
 			String modelId = entry.getKey();
 			LlamaCppProcess process = entry.getValue();
 
-			System.out.println("正在停止模型进程: " + modelId);
+			logger.info("正在停止模型进程: {}", modelId);
 			boolean stopped = process.stop();
 			if (stopped) {
-				System.out.println("成功停止模型进程: " + modelId);
+				logger.info("成功停止模型进程: {}", modelId);
 			} else {
-				System.err.println("停止模型进程失败: " + modelId);
+				logger.info("停止模型进程失败: {}", modelId);
 			}
 		}
 

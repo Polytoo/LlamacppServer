@@ -6,7 +6,17 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
+/**
+ * 	GGUF文件的容器。
+ */
 public class GGUFBundle {
+	
+	private static final Logger logger = LoggerFactory.getLogger(GGUFBundle.class);
+	
 	private File primaryFile;
 	private List<File> splitFiles = new ArrayList<>();
 	private File mmprojFile;
@@ -43,7 +53,7 @@ public class GGUFBundle {
 				if (part.exists()) {
 					splitFiles.add(part);
 				} else {
-					System.err.println("Warning: Missing split file: " + part.getName());
+					logger.info("Warning: Missing split file: {}", part.getName());
 				}
 			}
 
@@ -86,7 +96,7 @@ public class GGUFBundle {
 			// For now, let's pick the first one and warn if multiple
 			this.mmprojFile = files[0];
 			if (files.length > 1) {
-				System.out.println("Warning: Multiple mmproj files found. Using: " + files[0].getName());
+				logger.info("Warning: Multiple mmproj files found. Using: {}", files[0].getName());
 			}
 		}
 	}

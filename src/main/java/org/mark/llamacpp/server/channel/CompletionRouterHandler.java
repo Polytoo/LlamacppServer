@@ -89,18 +89,6 @@ public class CompletionRouterHandler extends SimpleChannelInboundHandler<FullHtt
 			LlamaServer.sendCorsResponse(ctx);
 			return;
 		}
-		// 不再使用的判断
-		/*
-		if(uri.startsWith("/v1/completions")) {
-			// TODO 在这里保存传入的提示词（聊天内容）
-			String content = msg.content().toString(StandardCharsets.UTF_8);
-			// 按照角色的title保存到本地
-			JsonObject requestJson = gson.fromJson(content, JsonObject.class);
-			// 
-			
-			System.err.println(requestJson);
-		}
-		*/
 		
 		if (uri.startsWith("/api/chat/completion")) {
 			this.handleCompletionApi(ctx, msg, uri);

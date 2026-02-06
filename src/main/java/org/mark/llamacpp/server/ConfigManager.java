@@ -4,7 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
-import org.mark.llamacpp.gguf.GGUFModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileReader;
@@ -24,6 +25,9 @@ import java.util.Map;
  * 配置文件管理类，用于保存和加载模型信息及启动配置
  */
 public class ConfigManager {
+	
+	private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
+	
     private static final ConfigManager INSTANCE = new ConfigManager();
     
     // 配置文件路径
@@ -59,35 +63,35 @@ public class ConfigManager {
         if (!Files.exists(configPath)) {
             try {
                 Files.createDirectories(configPath);
-                System.out.println("创建配置目录: " + CONFIG_DIR);
+                logger.info("创建配置目录: {}", CONFIG_DIR);
             } catch (IOException e) {
-                System.err.println("创建配置目录失败: " + e.getMessage());
+                logger.info("创建配置目录失败: {}", e);
             }
         }
     }
     
-    /**
-     * 保存模型列表信息到JSON文件
-     * @param models 模型列表
-     * @return 是否保存成功
-     */
-    public boolean saveModelsConfig(List<GGUFModel> models) {
-        synchronized (modelsFileLock) {
-            try {
-                List<Map<String, Object>> modelsData = models.stream()
-                    .map(this::modelToMap)
-                    .toList();
-                writeJsonFileAtomic(MODELS_CONFIG_FILE, modelsData);
-                System.out.println("模型配置已保存到: " + MODELS_CONFIG_FILE);
-                this.cachedModelsConfig = null;
-                this.cachedModelsConfigLastModified = -1L;
-                return true;
-            } catch (IOException e) {
-                System.err.println("保存模型配置失败: " + e.getMessage());
-                return false;
-            }
-        }
-    }
+//    /**
+//     * 保存模型列表信息到JSON文件
+//     * @param models 模型列表
+//     * @return 是否保存成功
+//     */
+//    public boolean saveModelsConfig(List<GGUFModel> models) {
+//        synchronized (modelsFileLock) {
+//            try {
+//                List<Map<String, Object>> modelsData = models.stream()
+//                    .map(this::modelToMap)
+//                    .toList();
+//                writeJsonFileAtomic(MODELS_CONFIG_FILE, modelsData);
+//               logger.info("模型配置已保存到: {}", MODELS_CONFIG_FILE);
+//                this.cachedModelsConfig = null;
+//                this.cachedModelsConfigLastModified = -1L;
+//                return true;
+//            } catch (IOException e) {
+//                logger.info("保存模型配置失败: {}", e);
+//                return false;
+//            }
+//        }
+//    }
     
     /**
      * 保存模型启动配置到JSON文件
@@ -101,10 +105,10 @@ public class ConfigManager {
                 Map<String, Map<String, Object>> allConfigs = loadAllLaunchConfigsUnsafe();
                 allConfigs.put(modelId, launchConfig);
                 writeJsonFileAtomic(LAUNCH_CONFIG_FILE, allConfigs);
-                System.out.println("启动配置已保存到: " + LAUNCH_CONFIG_FILE);
+                logger.info("启动配置已保存到: {}", LAUNCH_CONFIG_FILE);
                 return true;
             } catch (IOException e) {
-                System.err.println("保存启动配置失败: " + e.getMessage());
+                logger.info("保存启动配置失败: {}", e);
                 return false;
             }
         }
@@ -150,47 +154,47 @@ public class ConfigManager {
         }
     }
     
-    /**
-     * 将GGUFModel转换为可序列化的Map
-     * @param model GGUFModel对象
-     * @return 包含模型信息的Map
-     */
-    private Map<String, Object> modelToMap(GGUFModel model) {
-        Map<String, Object> modelMap = new HashMap<>();
-        
-        // 基本信息
-        modelMap.put("modelId", model.getModelId());
-        modelMap.put("path", model.getPath());
-        modelMap.put("size", model.getSize());
-        modelMap.put("favourite", model.isFavourite());
-        if (model.getAlias() != null && !model.getAlias().isEmpty()) {
-            modelMap.put("alias", model.getAlias());
-        }
-        
-        // 主模型信息
-        if (model.getPrimaryModel() != null) {
-            Map<String, Object> primaryModel = new HashMap<>();
-            primaryModel.put("fileName", model.getPrimaryModel().getFileName());
-            primaryModel.put("name", model.getPrimaryModel().getStringValue("general.name"));
-            primaryModel.put("architecture", model.getPrimaryModel().getStringValue("general.architecture"));
-            primaryModel.put("contextLength", model.getPrimaryModel().getIntValue(
-                model.getPrimaryModel().getStringValue("general.architecture") + ".context_length"));
-            primaryModel.put("embeddingLength", model.getPrimaryModel().getIntValue(
-                model.getPrimaryModel().getStringValue("general.architecture") + ".embedding_length"));
-            modelMap.put("primaryModel", primaryModel);
-        }
-        
-        // 多模态投影信息
-        if (model.getMmproj() != null) {
-            Map<String, Object> mmproj = new HashMap<>();
-            mmproj.put("fileName", model.getMmproj().getFileName());
-            mmproj.put("name", model.getMmproj().getStringValue("general.name"));
-            mmproj.put("architecture", model.getMmproj().getStringValue("general.architecture"));
-            modelMap.put("mmproj", mmproj);
-        }
-        
-        return modelMap;
-    }
+//    /**
+//     * 将GGUFModel转换为可序列化的Map
+//     * @param model GGUFModel对象
+//     * @return 包含模型信息的Map
+//     */
+//    private Map<String, Object> modelToMap(GGUFModel model) {
+//        Map<String, Object> modelMap = new HashMap<>();
+//        
+//        // 基本信息
+//        modelMap.put("modelId", model.getModelId());
+//        modelMap.put("path", model.getPath());
+//        modelMap.put("size", model.getSize());
+//        modelMap.put("favourite", model.isFavourite());
+//        if (model.getAlias() != null && !model.getAlias().isEmpty()) {
+//            modelMap.put("alias", model.getAlias());
+//        }
+//        
+//        // 主模型信息
+//        if (model.getPrimaryModel() != null) {
+//            Map<String, Object> primaryModel = new HashMap<>();
+//            primaryModel.put("fileName", model.getPrimaryModel().getFileName());
+//            primaryModel.put("name", model.getPrimaryModel().getStringValue("general.name"));
+//            primaryModel.put("architecture", model.getPrimaryModel().getStringValue("general.architecture"));
+//            primaryModel.put("contextLength", model.getPrimaryModel().getIntValue(
+//                model.getPrimaryModel().getStringValue("general.architecture") + ".context_length"));
+//            primaryModel.put("embeddingLength", model.getPrimaryModel().getIntValue(
+//                model.getPrimaryModel().getStringValue("general.architecture") + ".embedding_length"));
+//            modelMap.put("primaryModel", primaryModel);
+//        }
+//        
+//        // 多模态投影信息
+//        if (model.getMmproj() != null) {
+//            Map<String, Object> mmproj = new HashMap<>();
+//            mmproj.put("fileName", model.getMmproj().getFileName());
+//            mmproj.put("name", model.getMmproj().getStringValue("general.name"));
+//            mmproj.put("architecture", model.getMmproj().getStringValue("general.architecture"));
+//            modelMap.put("mmproj", mmproj);
+//        }
+//        
+//        return modelMap;
+//    }
 
     /**
      * 保存/更新模型别名到models.json
@@ -219,7 +223,7 @@ public class ConfigManager {
                 this.cachedModelsConfigLastModified = -1L;
                 return true;
             } catch (IOException e) {
-                System.err.println("保存模型别名失败: " + e.getMessage());
+                logger.info("保存模型别名失败: {}", e);
                 return false;
             }
         }
@@ -265,7 +269,7 @@ public class ConfigManager {
                 this.cachedModelsConfigLastModified = -1L;
                 return true;
             } catch (IOException e) {
-                System.err.println("保存模型喜好失败: " + e.getMessage());
+                logger.info("保存模型喜好失败: " + e.getMessage());
                 return false;
             }
         }
@@ -292,17 +296,17 @@ public class ConfigManager {
     private List<Map<String, Object>> loadModelsConfigUnsafe() {
         File configFile = new File(MODELS_CONFIG_FILE);
         if (!configFile.exists()) {
-            System.out.println("模型配置文件不存在，返回空列表: " + MODELS_CONFIG_FILE);
+            logger.info("模型配置文件不存在，返回空列表: {}", MODELS_CONFIG_FILE);
             return List.of();
         }
 
         try (FileReader reader = new FileReader(configFile)) {
             Type listType = new TypeToken<List<Map<String, Object>>>() {}.getType();
             List<Map<String, Object>> modelsData = gson.fromJson(reader, listType);
-            System.out.println("成功加载模型配置: " + MODELS_CONFIG_FILE);
+            logger.info("成功加载模型配置: {}", MODELS_CONFIG_FILE);
             return modelsData != null ? modelsData : List.of();
         } catch (IOException | JsonSyntaxException e) {
-            System.err.println("加载模型配置失败: " + e.getMessage());
+        	logger.info("加载模型配置失败: {}", e.getMessage());
             return List.of();
         }
     }
@@ -310,7 +314,7 @@ public class ConfigManager {
     private Map<String, Map<String, Object>> loadAllLaunchConfigsUnsafe() {
         File configFile = new File(LAUNCH_CONFIG_FILE);
         if (!configFile.exists()) {
-            System.out.println("启动配置文件不存在，返回空配置: " + LAUNCH_CONFIG_FILE);
+        	logger.info("启动配置文件不存在，返回空配置: {}", LAUNCH_CONFIG_FILE);
             return new HashMap<>();
         }
 
@@ -319,7 +323,7 @@ public class ConfigManager {
             Map<String, Map<String, Object>> configs = gson.fromJson(reader, mapType);
             return configs != null ? configs : new HashMap<>();
         } catch (IOException | JsonSyntaxException e) {
-            System.err.println("加载启动配置失败: " + e.getMessage());
+        	logger.info("加载启动配置失败: {}", e.getMessage());
             return new HashMap<>();
         }
     }

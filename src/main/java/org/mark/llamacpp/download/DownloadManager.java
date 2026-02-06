@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mark.llamacpp.download.struct.DownloadProgress;
 import org.mark.llamacpp.download.struct.DownloadState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 下载管理器，用于管理下载任务，支持任务状态持久化和恢复
@@ -26,6 +28,8 @@ import org.mark.llamacpp.download.struct.DownloadState;
  */
 public class DownloadManager {
     
+	private static final Logger logger = LoggerFactory.getLogger(DownloadManager.class);
+
     private static final DownloadManager INSTANCE = new DownloadManager();
     private static final int MAX_CONCURRENT_DOWNLOADS = 4;
     
@@ -102,7 +106,7 @@ public class DownloadManager {
 			this.pendingTasks.put(task.getTaskId(), task);
 			task.setState(DownloadState.IDLE);
 			this.repository.saveTask(task);
-			System.out.println("任务 " + task.getTaskId() + " 已加入等待队列，当前活跃下载数: " + activeDownloads.get());
+			logger.info("任务 " + task.getTaskId() + " 已加入等待队列，当前活跃下载数: " + activeDownloads.get());
 		}
 
 		return task.getTaskId();
@@ -183,7 +187,7 @@ public class DownloadManager {
 			} else {
 				// 否则将任务加入等待队列
 				this.pendingTasks.put(task.getTaskId(), task);
-				System.out.println("任务 " + task.getTaskId() + " 已加入等待队列，当前活跃下载数: " + this.activeDownloads.get());
+				logger.info("任务 " + task.getTaskId() + " 已加入等待队列，当前活跃下载数: " + this.activeDownloads.get());
 			}
 
 			// 通知监听器
@@ -463,7 +467,7 @@ public class DownloadManager {
 
 			if (task != null && task.getState() == DownloadState.IDLE) {
 				startDownload(task);
-				System.out.println("从等待队列启动任务: " + task.getTaskId() + ", 当前活跃下载数: " + this.activeDownloads.get());
+				logger.info("从等待队列启动任务: " + task.getTaskId() + ", 当前活跃下载数: " + this.activeDownloads.get());
 			}
 		}
 	}
@@ -507,11 +511,11 @@ public class DownloadManager {
 		for (DownloadTask task : unfinishedTasks) {
 			if (startedCount >= MAX_CONCURRENT_DOWNLOADS) {
 				pendingTasks.put(task.getTaskId(), task);
-				System.out.println("任务 " + task.getTaskId() + " 已加入等待队列");
+				logger.info("任务 " + task.getTaskId() + " 已加入等待队列");
 			} else {
 				startDownload(task);
 				startedCount++;
-				System.out.println("恢复任务: " + task.getTaskId());
+				logger.info("恢复任务: " + task.getTaskId());
 			}
 		}
 	}
@@ -523,7 +527,7 @@ public class DownloadManager {
             try {
                 listener.onStateChanged(task, null, task.getState());
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }
@@ -533,7 +537,7 @@ public class DownloadManager {
             try {
                 listener.onStateChanged(task, oldState, newState);
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }
@@ -543,7 +547,7 @@ public class DownloadManager {
             try {
                 listener.onProgressUpdated(task, progress);
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }
@@ -553,7 +557,7 @@ public class DownloadManager {
             try {
                 listener.onTaskCompleted(task);
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }
@@ -563,7 +567,7 @@ public class DownloadManager {
             try {
                 listener.onTaskFailed(task, error);
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }
@@ -573,7 +577,7 @@ public class DownloadManager {
             try {
                 listener.onTaskPaused(task);
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }
@@ -583,7 +587,7 @@ public class DownloadManager {
             try {
                 listener.onTaskResumed(task);
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }
@@ -593,7 +597,7 @@ public class DownloadManager {
             try {
                 listener.onTaskFailed(task, "任务已删除");
             } catch (Exception e) {
-                System.err.println("通知监听器失败: " + e.getMessage());
+                logger.info("通知监听器失败: {}", e);
             }
         }
     }

@@ -6,11 +6,17 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 
@@ -18,6 +24,12 @@ import java.util.function.Consumer;
  * 	llamacpp进程
  */
 public class LlamaCppProcess {
+	
+	/**
+	 * 	日志打印机
+	 */
+	private static final Logger logger = LoggerFactory.getLogger(LlamaCppProcess.class);
+	
 	
 	/**
 	 * 	这个进程的名字。是唯一的。
@@ -132,16 +144,28 @@ public class LlamaCppProcess {
 			ProcessBuilder pb = new ProcessBuilder(args);
 			pb.redirectErrorStream(true); // 不合并错误流和标准输出流
 			
-			// 设置LD_LIBRARY_PATH环境变量，解决共享库加载问题
-			// 从命令中提取llama-server的路径，并设置其所在目录为库搜索路径
+			boolean isWindows = isWindows();
 			if (!args.isEmpty()) {
 				String serverPath = args.get(0);
-				// 如果是绝对路径
-				if (serverPath.startsWith("/")) {
+				if (isWindows) {
+					Path exePath = Paths.get(serverPath);
+					if (exePath.isAbsolute()) {
+						Path dir = exePath.getParent();
+						if (dir != null) {
+							Map<String, String> env = pb.environment();
+							String currentPath = env.get("PATH");
+							String dirStr = dir.toString();
+							if (currentPath == null || currentPath.isEmpty()) {
+								env.put("PATH", dirStr);
+							} else if (!containsPathEntry(currentPath, dirStr, true)) {
+								env.put("PATH", dirStr + ";" + currentPath);
+							}
+						}
+					}
+				} else if (serverPath.startsWith("/")) {
 					int lastSlash = serverPath.lastIndexOf('/');
 					if (lastSlash > 0) {
 						String libPath = serverPath.substring(0, lastSlash);
-						// 获取当前环境变量
 						Map<String, String> env = pb.environment();
 						String currentLdPath = env.get("LD_LIBRARY_PATH");
 						if (currentLdPath != null && !currentLdPath.isEmpty()) {
@@ -189,6 +213,7 @@ public class LlamaCppProcess {
 		}
 
 		StringBuilder cur = new StringBuilder();
+		boolean allowSingle = !isWindows();
 		boolean inSingle = false;
 		boolean inDouble = false;
 
@@ -207,7 +232,7 @@ public class LlamaCppProcess {
 				cur.append(c);
 				continue;
 			}
-			if (inSingle && c == '\\') {
+			if (allowSingle && inSingle && c == '\\') {
 				if (i + 1 < s.length()) {
 					char n = s.charAt(i + 1);
 					if (n == '\'') {
@@ -224,7 +249,7 @@ public class LlamaCppProcess {
 				inDouble = !inDouble;
 				continue;
 			}
-			if (c == '\'' && !inDouble) {
+			if (allowSingle && c == '\'' && !inDouble) {
 				inSingle = !inSingle;
 				continue;
 			}
@@ -244,6 +269,29 @@ public class LlamaCppProcess {
 		}
 		return out;
 	}
+
+	private static boolean isWindows() {
+		String os = System.getProperty("os.name");
+		return os != null && os.toLowerCase(Locale.ROOT).contains("win");
+	}
+
+	private static boolean containsPathEntry(String pathList, String entry, boolean windows) {
+		if (pathList == null || pathList.isEmpty() || entry == null || entry.isEmpty()) {
+			return false;
+		}
+		String[] parts = pathList.split(windows ? ";" : ":");
+		for (String p : parts) {
+			String v = p == null ? "" : p.trim();
+			if (windows) {
+				if (v.equalsIgnoreCase(entry)) {
+					return true;
+				}
+			} else if (v.equals(entry)) {
+				return true;
+			}
+		}
+		return false;
+	}
 	
 	/**
 	 * 启动输出读取线程
@@ -258,7 +306,7 @@ public class LlamaCppProcess {
 					if (this.outputHandler != null) {
 						this.outputHandler.accept(line);
 					}
-					System.out.println(line);
+					logger.info(line);
 				}
 			} catch (IOException e) {
 				if (this.isRunning.get() && this.outputThread != null) {
